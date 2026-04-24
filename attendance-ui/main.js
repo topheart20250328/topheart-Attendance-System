@@ -619,7 +619,9 @@ function renderTopBar() {
   els.userNameText.textContent = `${state.currentMember.full_name} (${getRoleLabel(
     state.currentMember.role,
   )}${state.currentMember.is_admin ? " / 管理員" : ""})`;
-  els.userScopeText.textContent = scope || "尚未設定牧養範圍";
+  els.userScopeText.textContent = scope
+    ? `所屬牧區：${scope}`
+    : "尚未設定牧區";
   setBadge(els.sessionBadge, "已登入", "success");
   els.authSummary.textContent = `目前登入：${state.currentMember.full_name}`;
 }
@@ -771,11 +773,11 @@ function renderWeekSummary() {
 
   els.weekSummary.innerHTML = `
     <div class="summary-item">
-      <span class="info-label">可見人數</span>
+      <span class="info-label">總人數</span>
       <strong>${visibleCount}</strong>
     </div>
     <div class="summary-item">
-      <span class="info-label">可點名人數</span>
+      <span class="info-label">可點名</span>
       <strong>${editableCount}</strong>
     </div>
     <div class="summary-item">
@@ -821,7 +823,7 @@ function renderAttendanceRows() {
           </td>
           <td>
             <div class="row-meta">
-              <span class="role-pill">${escapeHtml(getRoleLabel(member.role))}</span>
+              <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
               ${meta ? `<span class="muted">${escapeHtml(meta)}</span>` : ""}
             </div>
           </td>
@@ -1185,7 +1187,7 @@ function renderPeopleTable(editableMembers) {
               ${renderGenderBadge(member.gender)}
             </div>
           </td>
-          <td>${escapeHtml(getRoleLabel(member.role))}</td>
+          <td><span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span></td>
           <td>${escapeHtml(path || "-")}</td>
           <td>${lineStatus}</td>
           <td>
@@ -1397,7 +1399,7 @@ function fillMemberForm(mode, member) {
   if (mode === "create") {
     els.memberEditorTitle.textContent = "新增人員";
     els.memberEditorHint.textContent = state.currentMember?.is_admin
-      ? "管理員可建立所有職分；新增區長/大家長/小家長時，系統可自動建立對應組織。"
+      ? "管理員可建立所有職分；新增區長/大家長/小家長時，系統會自動建立對應組織。"
       : "區長可建立自己轄區內的大/小家長、小家人與新朋友。";
     els.memberNameInput.value = "";
     els.memberGenderSelect.value = "";

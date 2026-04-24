@@ -410,6 +410,31 @@ tbody tr:last-child td {
   color: #36528b;
 }
 
+.role-pill.role-district_leader {
+  background: #dde9ff;
+  color: #224c97;
+}
+
+.role-pill.role-big_family_leader {
+  background: #ede6ff;
+  color: #5e3ea5;
+}
+
+.role-pill.role-small_group_leader {
+  background: #e6f7ff;
+  color: #17607c;
+}
+
+.role-pill.role-member {
+  background: #eaf7ea;
+  color: #2e6e36;
+}
+
+.role-pill.role-best {
+  background: #fff2df;
+  color: #9a5d09;
+}
+
 .status-chip.success {
   background: #dcfce7;
   color: var(--success);
