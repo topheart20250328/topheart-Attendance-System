@@ -186,6 +186,7 @@ async function boot() {
   bindEvents();
   hydrateLocalState();
   updateCallbackPreview();
+  syncSignInLink();
   handleAuthReturnFromHash();
 
   if (!els.weekInput.value) {
@@ -200,7 +201,6 @@ function bindEvents() {
   els.clearConfigBtn.addEventListener("click", handleClearConfig);
   els.loginSettingsBtn.addEventListener("click", handleToggleSettings);
   els.toggleSettingsBtn.addEventListener("click", handleToggleSettings);
-  els.signInBtn.addEventListener("click", handleSignIn);
   els.signOutBtn.addEventListener("click", handleSignOut);
   els.bindForm.addEventListener("submit", handleBindInvite);
 
@@ -319,8 +319,26 @@ function buildLineLoginStartUrl(projectUrl) {
 
   const redirectTo = `${window.location.origin}${window.location.pathname}`;
   const url = new URL(`${projectUrl}/functions/v1/line-login-start`);
+  url.searchParams.set("mode", "redirect");
   url.searchParams.set("redirect_to", redirectTo);
   return url.toString();
+}
+
+function syncSignInLink() {
+  const href = buildLineLoginStartUrl(state.config.projectUrl);
+
+  if (href) {
+    els.signInBtn.href = href;
+    els.signInBtn.classList.remove("is-disabled");
+    els.signInBtn.setAttribute("aria-disabled", "false");
+    els.signInBtn.removeAttribute("tabindex");
+    return;
+  }
+
+  els.signInBtn.removeAttribute("href");
+  els.signInBtn.classList.add("is-disabled");
+  els.signInBtn.setAttribute("aria-disabled", "true");
+  els.signInBtn.setAttribute("tabindex", "-1");
 }
 
 function handleAuthReturnFromHash() {
@@ -403,6 +421,7 @@ async function handleSaveConfig(event) {
     JSON.stringify(state.config),
   );
   updateCallbackPreview();
+  syncSignInLink();
   if (state.currentMember) {
     state.ui.settingsOpen = false;
   }
@@ -445,6 +464,7 @@ async function handleClearConfig() {
 
   els.projectUrlInput.value = state.config.projectUrl || "";
   updateCallbackPreview();
+  syncSignInLink();
   renderLayout();
   showToast("已清除專案設定。");
 }
@@ -452,26 +472,6 @@ async function handleClearConfig() {
 function handleToggleSettings() {
   state.ui.settingsOpen = !state.ui.settingsOpen;
   renderLayout();
-}
-
-async function handleSignIn() {
-  if (!hasProjectUrl()) {
-    showToast("請先儲存 Supabase Project URL。");
-    return;
-  }
-
-  try {
-    const response = await fetch(buildLineLoginStartUrl(state.config.projectUrl));
-    const data = await response.json().catch(() => null);
-    if (!response.ok || !data?.authorization_url) {
-      throw new Error(data?.error || "無法開始 LINE 登入流程。");
-    }
-
-    window.location.assign(data.authorization_url);
-  } catch (error) {
-    console.error(error);
-    showToast(error.message || "無法開始 LINE 登入流程。");
-  }
 }
 
 async function handleSignOut() {
@@ -602,7 +602,7 @@ function renderLayout() {
     els.authSummary.textContent = hasProjectUrl()
       ? "請使用 LINE 登入。"
       : "請先填寫並儲存 Supabase Project URL。";
-    els.signInBtn.disabled = !hasProjectUrl();
+    syncSignInLink();
     renderPendingProfile();
     return;
   }
