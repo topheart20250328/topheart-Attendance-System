@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Topheart 教會點名系統</title>
+    <link rel="stylesheet" href="./attendance-ui/style.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">Topheart Attendance</p>
+          <h1>教會牧區點名系統</h1>
+          <p id="pageDescription" class="page-description">
+            登入後直接進入本週點名；只有需要的職分才會看到人員管理與邀請碼功能。
+          </p>
+        </div>
+
+        <div id="userBar" class="user-bar hidden">
+          <div class="user-meta">
+            <div id="userNameText" class="user-name"></div>
+            <div id="userScopeText" class="muted small-text"></div>
+          </div>
+          <div class="button-row compact-buttons">
+            <button id="toggleSettingsBtn" type="button" class="secondary">
+              系統設定
+            </button>
+            <button id="signOutBtn" type="button" class="secondary">
+              登出
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <section id="setupCard" class="card">
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">設定</p>
+            <h2>專案設定</h2>
+          </div>
+        </div>
+        <p class="muted">
+          只需要填入 `Supabase Project URL`。成功登入後，這一區會自動收起，需要時再展開修改。
+        </p>
+        <form id="configForm" class="form-grid">
+          <label>
+            <span>Supabase Project URL</span>
+            <input
+              id="projectUrlInput"
+              name="projectUrl"
+              type="url"
+              placeholder="https://your-project-ref.supabase.co"
+              required
+            />
+          </label>
+
+          <div class="preview-box">
+            <div class="preview-row">
+              <span class="info-label">LINE Callback URL</span>
+              <code id="callbackPreview">請先填入 Project URL</code>
+            </div>
+            <div class="preview-row">
+              <span class="info-label">登入起點</span>
+              <code id="startPreview">請先填入 Project URL</code>
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button id="saveConfigBtn" type="submit">儲存設定</button>
+            <button id="clearConfigBtn" type="button" class="secondary">
+              清除設定
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section id="loginCard" class="card">
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">登入</p>
+            <h2>LINE 登入</h2>
+          </div>
+          <div class="button-row compact-buttons">
+            <button id="loginSettingsBtn" type="button" class="secondary hidden">
+              系統設定
+            </button>
+            <div id="sessionBadge" class="badge neutral">尚未登入</div>
+          </div>
+        </div>
+        <p id="authSummary" class="muted">
+          儲存 Project URL 後即可開始 LINE 登入。第一次登入若尚未綁定資料，系統會引導你輸入邀請碼。
+        </p>
+        <div class="button-row">
+          <button id="signInBtn" type="button">使用 LINE 登入</button>
+        </div>
+      </section>
+
+      <section id="bindCard" class="card hidden">
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">First Login</p>
+            <h2>綁定領袖帳號</h2>
+          </div>
+        </div>
+
+        <div id="pendingProfileBox" class="pending-profile hidden">
+          <img id="pendingPicture" alt="LINE 頭像" class="pending-avatar" />
+          <div>
+            <div id="pendingDisplayName" class="info-value"></div>
+            <div class="muted">
+              LINE User ID:
+              <code id="pendingLineUserId"></code>
+            </div>
+          </div>
+        </div>
+
+        <p class="muted">
+          若這是第一次登入，請輸入管理員或區長提供的邀請碼。綁定完成後，之後就能直接使用同一個 LINE 帳號登入。
+        </p>
+        <form id="bindForm" class="inline-form">
+          <input
+            id="inviteCodeInput"
+            type="text"
+            placeholder="輸入邀請碼"
+            autocomplete="one-time-code"
+          />
+          <button id="bindInviteBtn" type="submit">完成綁定</button>
+        </form>
+      </section>
+
+      <section id="navCard" class="card hidden">
+        <div class="tab-row">
+          <button id="tabAttendanceBtn" type="button" class="tab-btn is-active">
+            本週點名
+          </button>
+          <button id="tabPeopleBtn" type="button" class="tab-btn hidden">
+            人員管理
+          </button>
+          <button id="tabInvitesBtn" type="button" class="tab-btn hidden">
+            邀請碼
+          </button>
+        </div>
+      </section>
+
+      <section id="attendanceView" class="card hidden">
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">Attendance</p>
+            <h2>本週點名</h2>
+          </div>
+          <div id="dirtyBadge" class="badge neutral">已同步</div>
+        </div>
+
+        <div id="attendanceHeaderPanel" class="info-panel"></div>
+
+        <div class="toolbar">
+          <div class="toolbar-group">
+            <button id="prevWeekBtn" type="button" class="secondary">
+              上一週
+            </button>
+            <label class="week-label">
+              <span>週次起始日</span>
+              <input id="weekInput" type="date" />
+            </label>
+            <button id="nextWeekBtn" type="button" class="secondary">
+              下一週
+            </button>
+          </div>
+          <div class="toolbar-group">
+            <button id="refreshBtn" type="button" class="secondary">
+              重新整理
+            </button>
+            <button id="saveAttendanceBtn" type="button">儲存變更</button>
+          </div>
+        </div>
+
+        <div id="weekSummary" class="summary-grid"></div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>姓名</th>
+                <th>職分 / 歸屬</th>
+                <th>主日聚會</th>
+                <th>小家團契</th>
+                <th>近況備註</th>
+                <th>資料</th>
+              </tr>
+            </thead>
+            <tbody id="rosterTableBody">
+              <tr>
+                <td colspan="6" class="empty-cell">登入後即可載入名單。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="peopleView" class="card hidden">
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">People</p>
+            <h2>人員管理</h2>
+          </div>
+          <div class="button-row compact-buttons">
+            <button id="newMemberBtn" type="button">新增人員</button>
+          </div>
+        </div>
+        <p class="muted">
+          小家長與大家長不會看到這裡。區長可編輯轄區內 `小家人 / 新朋友` 的完整資料；管理員可管理全部資料。
+        </p>
+
+        <div class="management-layout">
+          <section class="management-list card-subsection">
+            <div class="section-toolbar">
+              <label class="search-field">
+                <span>搜尋</span>
+                <input id="peopleSearchInput" type="search" placeholder="搜尋姓名" />
+              </label>
+              <label class="search-field">
+                <span>職分</span>
+                <select id="peopleRoleFilter">
+                  <option value="">全部職分</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="table-wrap compact-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>姓名</th>
+                    <th>職分</th>
+                    <th>區 / 大家 / 小家</th>
+                    <th>LINE</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="peopleTableBody">
+                  <tr>
+                    <td colspan="5" class="empty-cell">尚未載入可編輯的人員資料。</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section id="memberEditorCard" class="management-editor card-subsection hidden">
+            <div class="section-toolbar">
+              <div>
+                <h3 id="memberEditorTitle">新增人員</h3>
+                <p id="memberEditorHint" class="muted">
+                  只顯示你目前有權限編輯的欄位。
+                </p>
+              </div>
+              <button id="closeMemberEditorBtn" type="button" class="secondary">
+                關閉
+              </button>
+            </div>
+
+            <form id="memberForm" class="form-grid">
+              <div class="form-columns">
+                <label>
+                  <span>姓名</span>
+                  <input id="memberNameInput" type="text" required />
+                </label>
+                <label>
+                  <span>職分</span>
+                  <select id="memberRoleSelect" required></select>
+                </label>
+              </div>
+
+              <label>
+                <span>性別</span>
+                <select id="memberGenderSelect">
+                  <option value="">未設定</option>
+                  <option value="brother">弟兄</option>
+                  <option value="sister">姊妹</option>
+                </select>
+              </label>
+
+              <div class="form-columns">
+                <label id="memberDistrictLabel">
+                  <span>所屬區</span>
+                  <select id="memberDistrictSelect" required></select>
+                </label>
+                <label id="memberBigFamilyLabel">
+                  <span>所屬大家</span>
+                  <select id="memberBigFamilySelect"></select>
+                </label>
+              </div>
+
+              <div class="form-columns">
+                <label id="memberSmallGroupLabel">
+                  <span>所屬小家</span>
+                  <select id="memberSmallGroupSelect"></select>
+                </label>
+                <label id="memberActiveLabel">
+                  <span>狀態</span>
+                  <select id="memberActiveSelect">
+                    <option value="true">啟用中</option>
+                    <option value="false">已停用</option>
+                  </select>
+                </label>
+              </div>
+
+              <div id="memberIsAdminWrap" class="checkbox-field hidden">
+                <span>額外權限</span>
+                <label class="checkbox-row">
+                  <input id="memberIsAdminInput" type="checkbox" />
+                  <span>賦予管理員權限</span>
+                </label>
+              </div>
+
+              <label>
+                <span>近況備註</span>
+                <textarea id="memberNoteInput" rows="3"></textarea>
+              </label>
+
+              <p id="memberScopeHint" class="muted">
+                依職分不同，系統會要求不同的層級欄位。
+              </p>
+
+              <div class="button-row">
+                <button id="memberSubmitBtn" type="submit">儲存資料</button>
+              </div>
+            </form>
+          </section>
+        </div>
+
+        <section class="card-subsection">
+          <div class="section-toolbar">
+            <div>
+              <h3>組織管理</h3>
+              <p class="muted">不常用的操作收在這裡，需要時再展開。</p>
+            </div>
+          </div>
+
+          <div class="org-grid">
+            <details id="districtDetails" class="editor-details hidden">
+              <summary>新增區</summary>
+              <form id="districtForm" class="form-grid">
+                <label>
+                  <span>區名稱</span>
+                  <input id="districtNameInput" type="text" placeholder="例如：第一區" required />
+                </label>
+                <label>
+                  <span>說明</span>
+                  <input id="districtDescriptionInput" type="text" placeholder="可留空" />
+                </label>
+                <div class="button-row">
+                  <button id="districtSubmitBtn" type="submit">建立區</button>
+                </div>
+              </form>
+            </details>
+
+            <details class="editor-details">
+              <summary>新增大家</summary>
+              <form id="bigFamilyForm" class="form-grid">
+                <label>
+                  <span>所屬區</span>
+                  <select id="bigFamilyDistrictSelect" required></select>
+                </label>
+                <label>
+                  <span>大家名稱</span>
+                  <input id="bigFamilyNameInput" type="text" placeholder="例如：恩典大家" required />
+                </label>
+                <label>
+                  <span>說明</span>
+                  <input id="bigFamilyDescriptionInput" type="text" placeholder="可留空" />
+                </label>
+                <div class="button-row">
+                  <button id="bigFamilySubmitBtn" type="submit">建立大家</button>
+                </div>
+              </form>
+            </details>
+
+            <details class="editor-details">
+              <summary>新增小家</summary>
+              <form id="smallGroupForm" class="form-grid">
+                <label>
+                  <span>所屬區</span>
+                  <select id="smallGroupDistrictSelect" required></select>
+                </label>
+                <label>
+                  <span>所屬大家（可留空）</span>
+                  <select id="smallGroupBigFamilySelect"></select>
+                </label>
+                <label>
+                  <span>小家名稱</span>
+                  <input id="smallGroupNameInput" type="text" placeholder="例如：喜樂小家" required />
+                </label>
+                <label>
+                  <span>說明</span>
+                  <input id="smallGroupDescriptionInput" type="text" placeholder="可留空" />
+                </label>
+                <div class="button-row">
+                  <button id="smallGroupSubmitBtn" type="submit">建立小家</button>
+                </div>
+              </form>
+            </details>
+          </div>
+
+          <div class="org-management-grid">
+            <section class="card-subsection">
+              <h4>目前區</h4>
+              <div class="table-wrap compact-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>名稱</th>
+                      <th>說明</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="districtTableBody">
+                    <tr>
+                      <td colspan="3" class="empty-cell">尚未載入區資料。</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="card-subsection">
+              <h4>目前大家</h4>
+              <div class="table-wrap compact-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>名稱</th>
+                      <th>所屬區</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="bigFamilyTableBody">
+                    <tr>
+                      <td colspan="3" class="empty-cell">尚未載入大家資料。</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="card-subsection">
+              <h4>目前小家</h4>
+              <div class="table-wrap compact-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>名稱</th>
+                      <th>歸屬</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="smallGroupTableBody">
+                    <tr>
+                      <td colspan="3" class="empty-cell">尚未載入小家資料。</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <section id="orgEditorCard" class="card-subsection hidden">
+            <div class="section-toolbar">
+              <div>
+                <h3 id="orgEditorTitle">編輯組織名稱</h3>
+                <p id="orgEditorHint" class="muted">
+                  修改後會立即套用到相關人員的顯示資料。
+                </p>
+              </div>
+              <button id="closeOrgEditorBtn" type="button" class="secondary">
+                關閉
+              </button>
+            </div>
+
+            <form id="orgEditorForm" class="form-grid">
+              <label>
+                <span>名稱</span>
+                <input id="orgNameInput" type="text" required />
+              </label>
+              <label>
+                <span>說明</span>
+                <input id="orgDescriptionInput" type="text" />
+              </label>
+              <div class="button-row">
+                <button id="orgSubmitBtn" type="submit">儲存名稱</button>
+              </div>
+            </form>
+          </section>
+        </section>
+      </section>
+
+      <section id="invitesView" class="card hidden">
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">Invites</p>
+            <h2>邀請碼管理</h2>
+          </div>
+        </div>
+        <p class="muted">
+          只有需要登入的領袖職分才需要邀請碼。已綁定 LINE 的人不會出現在建立清單中。
+        </p>
+        <p class="muted">
+          產生後請把邀請碼傳給該領袖；對方用自己的 LINE 登入後，會在「綁定領袖帳號」畫面輸入這組邀請碼。
+        </p>
+
+        <div class="management-layout single-column">
+          <section class="card-subsection">
+            <h3>產生邀請碼</h3>
+            <form id="inviteForm" class="form-grid">
+              <label>
+                <span>選擇要登入的領袖</span>
+                <select id="inviteMemberSelect" required></select>
+              </label>
+              <label>
+                <span>邀請碼有效天數</span>
+                <input id="inviteExpiresInput" type="number" min="1" max="30" value="7" required />
+              </label>
+              <div class="button-row">
+                <button id="inviteSubmitBtn" type="submit">產生邀請碼</button>
+              </div>
+            </form>
+
+            <div id="latestInviteBox" class="result-box hidden">
+              <div class="info-item">
+                <span class="info-label">最新邀請碼</span>
+                <strong id="latestInviteCode"></strong>
+              </div>
+              <div class="info-item">
+                <span class="info-label">有效期限</span>
+                <span id="latestInviteExpires"></span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">發給</span>
+                <span id="latestInviteTarget"></span>
+              </div>
+            </div>
+          </section>
+
+          <section class="card-subsection">
+            <h3>目前邀請碼</h3>
+            <div class="table-wrap compact-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>對象</th>
+                    <th>職分</th>
+                    <th>邀請碼</th>
+                    <th>狀態</th>
+                    <th>到期日</th>
+                  </tr>
+                </thead>
+                <tbody id="inviteTableBody">
+                  <tr>
+                    <td colspan="5" class="empty-cell">尚未載入邀請碼資料。</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+    </div>
+
+    <script type="module" src="./attendance-ui/main.js"></script>
+  </body>
+</html>
