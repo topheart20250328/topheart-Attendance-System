@@ -93,6 +93,7 @@ const els = {
   peopleView: document.querySelector("#peopleView"),
   peopleSearchInput: document.querySelector("#peopleSearchInput"),
   peopleRoleFilter: document.querySelector("#peopleRoleFilter"),
+  peopleSummary: document.querySelector("#peopleSummary"),
   newMemberBtn: document.querySelector("#newMemberBtn"),
   peopleTableBody: document.querySelector("#peopleTableBody"),
   memberEditorCard: document.querySelector("#memberEditorCard"),
@@ -132,8 +133,14 @@ const els = {
   smallGroupNameInput: document.querySelector("#smallGroupNameInput"),
   smallGroupDescriptionInput: document.querySelector("#smallGroupDescriptionInput"),
   smallGroupSubmitBtn: document.querySelector("#smallGroupSubmitBtn"),
+  districtSection: document.querySelector("#districtSection"),
+  districtSummary: document.querySelector("#districtSummary"),
   districtTableBody: document.querySelector("#districtTableBody"),
+  bigFamilySection: document.querySelector("#bigFamilySection"),
+  bigFamilySummary: document.querySelector("#bigFamilySummary"),
   bigFamilyTableBody: document.querySelector("#bigFamilyTableBody"),
+  smallGroupSection: document.querySelector("#smallGroupSection"),
+  smallGroupSummary: document.querySelector("#smallGroupSummary"),
   smallGroupTableBody: document.querySelector("#smallGroupTableBody"),
   orgEditorCard: document.querySelector("#orgEditorCard"),
   orgEditorTitle: document.querySelector("#orgEditorTitle"),
@@ -148,10 +155,12 @@ const els = {
   inviteMemberSelect: document.querySelector("#inviteMemberSelect"),
   inviteExpiresInput: document.querySelector("#inviteExpiresInput"),
   inviteSubmitBtn: document.querySelector("#inviteSubmitBtn"),
+  inviteSummary: document.querySelector("#inviteSummary"),
   latestInviteBox: document.querySelector("#latestInviteBox"),
   latestInviteCode: document.querySelector("#latestInviteCode"),
   latestInviteExpires: document.querySelector("#latestInviteExpires"),
   latestInviteTarget: document.querySelector("#latestInviteTarget"),
+  copyLatestInviteBtn: document.querySelector("#copyLatestInviteBtn"),
   inviteTableBody: document.querySelector("#inviteTableBody"),
   toast: document.querySelector("#toast"),
 };
@@ -174,6 +183,7 @@ const state = {
     editingMemberId: null,
     orgEditorMode: null,
     editingOrgId: null,
+    orgFocusTarget: null,
     peopleSearch: "",
     peopleRole: "",
   },
@@ -252,6 +262,8 @@ function bindEvents() {
   els.orgEditorForm.addEventListener("submit", handleSaveOrganization);
 
   els.inviteForm.addEventListener("submit", handleCreateInvite);
+  els.inviteTableBody.addEventListener("click", handleInviteTableClick);
+  els.copyLatestInviteBtn.addEventListener("click", handleCopyLatestInvite);
 
   window.addEventListener("beforeunload", (event) => {
     if (!state.dirty) {
@@ -757,7 +769,7 @@ function renderAttendanceHeader() {
         <span class="info-value">${escapeHtml(scope || "未設定")}</span>
       </div>
       <div class="info-item">
-        <span class="info-label">本週週次</span>
+        <span class="info-label">週次</span>
         <span class="info-value">${escapeHtml(
           state.currentWeek?.label || buildWeekLabel(els.weekInput.value || getMondayIso(new Date())),
         )}</span>
@@ -816,10 +828,12 @@ function renderAttendanceRows() {
     .map((member) => {
       const meta = formatMemberScopeSummary(member);
       const noteValue = escapeHtml(member.note || "");
-      const readOnlyLabel = member.can_edit_attendance ? "可直接點名" : "僅可檢視";
       const editButton = member.can_edit_profile
         ? `<button type="button" class="secondary roster-edit-btn" data-member-id="${member.id}">編輯資料</button>`
         : "";
+      const readonlyBadge = member.can_edit_attendance
+        ? ""
+        : '<span class="status-chip neutral">僅檢視</span>';
 
       return `
         <article class="attendance-card${member.can_edit_attendance ? "" : " is-readonly"}">
@@ -834,10 +848,9 @@ function renderAttendanceRows() {
                 ${meta ? `<span class="muted small-text">${escapeHtml(meta)}</span>` : ""}
               </div>
             </div>
-            <div class="attendance-card-actions">
-              <span class="status-chip neutral">${readOnlyLabel}</span>
-              ${editButton}
-            </div>
+            ${readonlyBadge || editButton
+              ? `<div class="attendance-card-actions">${readonlyBadge}${editButton}</div>`
+              : ""}
           </div>
 
           <div class="attendance-event-grid">
@@ -1301,39 +1314,58 @@ function getFilteredManagementMembers() {
 
 function renderPeopleTable(editableMembers) {
   const rows = getFilteredManagementMembers();
+  if (els.peopleSummary) {
+    els.peopleSummary.textContent = editableMembers.length
+      ? `目前顯示 ${rows.length} 位，可管理總數 ${editableMembers.length} 位`
+      : "目前沒有可編輯的人員資料";
+  }
+
   if (!rows.length) {
     els.peopleTableBody.innerHTML =
-      '<tr><td colspan="5" class="empty-cell">目前沒有符合條件、且你可編輯的人員資料。</td></tr>';
+      '<div class="empty-state-card">目前沒有符合條件、且你可編輯的人員資料。</div>';
     return;
   }
 
   els.peopleTableBody.innerHTML = rows
     .map((member) => {
       const path = formatPeopleScopeSummary(member);
-
       const lineStatus = member.line_user_id
         ? '<span class="status-chip success">已綁定</span>'
         : LOGIN_ROLES.includes(member.role)
           ? '<span class="status-chip warning">待綁定</span>'
           : '<span class="status-chip neutral">不需登入</span>';
+      const activeStatus = member.is_active
+        ? '<span class="status-chip success">啟用中</span>'
+        : '<span class="status-chip warning">已停用</span>';
 
       return `
-        <tr>
-          <td data-label="姓名">
+        <article class="member-card">
+          <div class="member-card-head">
             <div class="row-meta">
-              <strong>${escapeHtml(member.full_name)}</strong>
-              ${renderGenderBadge(member.gender)}
+              <div class="member-card-title">
+                <strong>${escapeHtml(member.full_name)}</strong>
+                ${renderGenderBadge(member.gender)}
+              </div>
+              <div class="member-card-chips">
+                <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
+                ${lineStatus}
+                ${activeStatus}
+              </div>
             </div>
-          </td>
-          <td data-label="職分"><span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span></td>
-          <td data-label="區 / 大家 / 小家">${escapeHtml(path || "-")}</td>
-          <td data-label="LINE">${lineStatus}</td>
-          <td data-label="操作">
-            <div class="row-actions">
-              <button type="button" class="secondary people-edit-btn" data-member-id="${member.id}">編輯</button>
+            <button type="button" class="secondary people-edit-btn" data-member-id="${member.id}">編輯</button>
+          </div>
+
+          <div class="member-card-grid">
+            <div class="info-item">
+              <span class="info-label">歸屬</span>
+              <span>${escapeHtml(path || "未設定")}</span>
             </div>
-          </td>
-        </tr>
+            <div class="info-item">
+              <span class="info-label">LINE 綁定</span>
+              <span>${member.line_user_id ? "已完成綁定" : LOGIN_ROLES.includes(member.role) ? "尚待綁定" : "此職分不需登入"}</span>
+            </div>
+          </div>
+        </article>
       `;
     })
     .join("");
@@ -1393,6 +1425,13 @@ function openMemberEditor(mode, memberId = null) {
   fillMemberForm(mode, editableMember);
   syncMemberFormScope();
   setHidden(els.memberEditorCard, false);
+  requestAnimationFrame(() => {
+    els.memberEditorCard.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+    els.memberNameInput.focus({ preventScroll: true });
+  });
 }
 
 function closeMemberEditor() {
@@ -1451,10 +1490,48 @@ function populateRoleOptions(mode, member) {
   els.memberRoleSelect.disabled = mode === "edit" && !state.currentMember?.is_admin;
 }
 
+function getOrganizationDisplayName(name, isActive) {
+  return isActive ? name : `${name}（已封存）`;
+}
+
+function getSelectableDistricts(includeDistrictId = 0) {
+  return state.adminData.districts.filter(
+    (district) => district.is_active || district.id === includeDistrictId,
+  );
+}
+
+function getSelectableBigFamilies(districtId, includeBigFamilyId = 0) {
+  return state.adminData.bigFamilies.filter((bigFamily) => {
+    const matchesDistrict = districtId ? bigFamily.district_id === districtId : true;
+    return matchesDistrict && (bigFamily.is_active || bigFamily.id === includeBigFamilyId);
+  });
+}
+
+function getSelectableSmallGroups({
+  role,
+  districtId,
+  bigFamilyId,
+  includeSmallGroupId = 0,
+}) {
+  return state.adminData.smallGroups.filter((smallGroup) => {
+    const matchesScope =
+      role === "member" || role === "best"
+        ? true
+        : bigFamilyId
+          ? smallGroup.big_family_id === bigFamilyId
+          : districtId
+            ? smallGroup.district_id === districtId
+            : true;
+    return matchesScope && (smallGroup.is_active || smallGroup.id === includeSmallGroupId);
+  });
+}
+
 function populateDistrictOptions(member) {
-  const districtOptions = state.adminData.districts.map((district) => ({
+  const includeDistrictId =
+    state.ui.editorMode === "edit" ? Number(member?.district_id || 0) : 0;
+  const districtOptions = getSelectableDistricts(includeDistrictId).map((district) => ({
     value: String(district.id),
-    label: district.name,
+    label: getOrganizationDisplayName(district.name, district.is_active),
   }));
   fillSelect(els.memberDistrictSelect, districtOptions, {
     placeholder: districtOptions.length ? "請選擇區" : "尚無可選區",
@@ -1476,15 +1553,15 @@ function populateDistrictOptions(member) {
 
 function syncEditorBigFamilyOptions(member = null) {
   const districtId = Number(els.memberDistrictSelect.value || 0);
-  const available = state.adminData.bigFamilies.filter((bigFamily) =>
-    districtId ? bigFamily.district_id === districtId : true,
-  );
+  const includeBigFamilyId =
+    Number(member?.big_family_id || els.memberBigFamilySelect.value || 0);
+  const available = getSelectableBigFamilies(districtId, includeBigFamilyId);
 
   fillSelect(
     els.memberBigFamilySelect,
     available.map((bigFamily) => ({
       value: String(bigFamily.id),
-      label: bigFamily.name,
+      label: getOrganizationDisplayName(bigFamily.name, bigFamily.is_active),
     })),
     {
       placeholder: available.length ? "可留空（無大家）" : "可留空（無大家）",
@@ -1500,16 +1577,13 @@ function syncEditorSmallGroupOptions(member = null) {
   const role = els.memberRoleSelect.value;
   const districtId = Number(els.memberDistrictSelect.value || 0);
   const bigFamilyId = Number(els.memberBigFamilySelect.value || 0);
-  const available = state.adminData.smallGroups.filter((smallGroup) => {
-    if (role === "member" || role === "best") {
-      return true;
-    }
-
-    if (bigFamilyId) {
-      return smallGroup.big_family_id === bigFamilyId;
-    }
-
-    return districtId ? smallGroup.district_id === districtId : true;
+  const includeSmallGroupId =
+    Number(member?.small_group_id || els.memberSmallGroupSelect.value || 0);
+  const available = getSelectableSmallGroups({
+    role,
+    districtId,
+    bigFamilyId,
+    includeSmallGroupId,
   });
 
   fillSelect(
@@ -1518,10 +1592,14 @@ function syncEditorSmallGroupOptions(member = null) {
       value: String(smallGroup.id),
       label:
         role === "member" || role === "best"
-          ? [smallGroup.name, smallGroup.big_family_name, smallGroup.district_name]
+          ? [
+              getOrganizationDisplayName(smallGroup.name, smallGroup.is_active),
+              smallGroup.big_family_name,
+              smallGroup.district_name,
+            ]
               .filter(Boolean)
               .join(" / ")
-          : smallGroup.name,
+          : getOrganizationDisplayName(smallGroup.name, smallGroup.is_active),
     })),
     {
       placeholder: available.length ? "請選擇小家" : "尚無可選小家",
@@ -1688,55 +1766,101 @@ async function handleSaveMember(event) {
   }
 }
 
+function getManagedActiveDistricts() {
+  return state.adminData.districts.filter((district) => district.is_active);
+}
+
+function getOrganizationSectionId(orgType) {
+  return {
+    district: "districtSection",
+    big_family: "bigFamilySection",
+    small_group: "smallGroupSection",
+  }[orgType];
+}
+
+function queueOrganizationFocus(target) {
+  state.ui.orgFocusTarget = target;
+}
+
+function restoreOrganizationFocus() {
+  const target = state.ui.orgFocusTarget;
+  if (!target || state.ui.activeTab !== TABS.people) {
+    return;
+  }
+
+  state.ui.orgFocusTarget = null;
+  requestAnimationFrame(() => {
+    const card = target.id
+      ? document.querySelector(`[data-org-card-key="${target.type}:${target.id}"]`)
+      : null;
+    const fallback = target.sectionId ? document.querySelector(`#${target.sectionId}`) : null;
+    const element = card || fallback;
+    if (!element) {
+      return;
+    }
+
+    element.scrollIntoView({
+      behavior: target.behavior || "smooth",
+      block: card ? "center" : "start",
+    });
+  });
+}
+
 function renderOrganizationTools() {
+  const activeDistricts = getManagedActiveDistricts();
   setHidden(els.districtDetails, !state.currentMember?.is_admin);
 
   fillSelect(
     els.bigFamilyDistrictSelect,
-    state.adminData.districts.map((district) => ({
+    activeDistricts.map((district) => ({
       value: String(district.id),
       label: district.name,
     })),
     {
-      placeholder: state.adminData.districts.length ? "請選擇區" : "尚無可選區",
+      placeholder: activeDistricts.length ? "請選擇區" : "目前沒有可用的啟用中區",
     },
   );
 
   fillSelect(
     els.smallGroupDistrictSelect,
-    state.adminData.districts.map((district) => ({
+    activeDistricts.map((district) => ({
       value: String(district.id),
       label: district.name,
     })),
     {
-      placeholder: state.adminData.districts.length ? "請選擇區" : "尚無可選區",
+      placeholder: activeDistricts.length ? "請選擇區" : "目前沒有可用的啟用中區",
     },
   );
 
-  if (!state.currentMember?.is_admin && state.currentMember?.district_id) {
-    els.bigFamilyDistrictSelect.value = String(state.currentMember.district_id);
+  if (!state.currentMember?.is_admin) {
+    const currentDistrict = activeDistricts.find(
+      (district) => district.id === state.currentMember?.district_id,
+    );
+    els.bigFamilyDistrictSelect.value = currentDistrict ? String(currentDistrict.id) : "";
+    els.smallGroupDistrictSelect.value = currentDistrict ? String(currentDistrict.id) : "";
     els.bigFamilyDistrictSelect.disabled = true;
-    els.smallGroupDistrictSelect.value = String(state.currentMember.district_id);
     els.smallGroupDistrictSelect.disabled = true;
   } else {
-    if (!els.bigFamilyDistrictSelect.value && state.adminData.districts[0]) {
-      els.bigFamilyDistrictSelect.value = String(state.adminData.districts[0].id);
+    if (!els.bigFamilyDistrictSelect.value && activeDistricts[0]) {
+      els.bigFamilyDistrictSelect.value = String(activeDistricts[0].id);
     }
-    if (!els.smallGroupDistrictSelect.value && state.adminData.districts[0]) {
-      els.smallGroupDistrictSelect.value = String(state.adminData.districts[0].id);
+    if (!els.smallGroupDistrictSelect.value && activeDistricts[0]) {
+      els.smallGroupDistrictSelect.value = String(activeDistricts[0].id);
     }
     els.bigFamilyDistrictSelect.disabled = false;
     els.smallGroupDistrictSelect.disabled = false;
   }
 
   syncOrgSelects();
+  els.bigFamilySubmitBtn.disabled = !Number(els.bigFamilyDistrictSelect.value || 0);
 }
 
 function syncOrgSelects() {
+  els.bigFamilySubmitBtn.disabled = !Number(els.bigFamilyDistrictSelect.value || 0);
   const districtId = Number(els.smallGroupDistrictSelect.value || 0);
-  const available = state.adminData.bigFamilies.filter((bigFamily) =>
-    districtId ? bigFamily.district_id === districtId : true,
-  );
+  const available = state.adminData.bigFamilies.filter((bigFamily) => {
+    return bigFamily.is_active && (districtId ? bigFamily.district_id === districtId : true);
+  });
 
   fillSelect(
     els.smallGroupBigFamilySelect,
@@ -1748,6 +1872,9 @@ function syncOrgSelects() {
       placeholder: "可留空（無大家）",
     },
   );
+
+  els.smallGroupBigFamilySelect.disabled = !districtId;
+  els.smallGroupSubmitBtn.disabled = !districtId;
 }
 
 async function handleCreateDistrict(event) {
@@ -1770,6 +1897,11 @@ async function handleCreateDistrict(event) {
     });
 
     els.districtForm.reset();
+    queueOrganizationFocus({
+      type: "district",
+      id: null,
+      sectionId: getOrganizationSectionId("district"),
+    });
     await loadAdminPanel();
     showToast("已建立新的區。");
   } catch (error) {
@@ -1802,6 +1934,11 @@ async function handleCreateBigFamily(event) {
     });
 
     els.bigFamilyForm.reset();
+    queueOrganizationFocus({
+      type: "big_family",
+      id: null,
+      sectionId: getOrganizationSectionId("big_family"),
+    });
     await loadAdminPanel();
     showToast("已建立新的大家。");
   } catch (error) {
@@ -1836,6 +1973,11 @@ async function handleCreateSmallGroup(event) {
     });
 
     els.smallGroupForm.reset();
+    queueOrganizationFocus({
+      type: "small_group",
+      id: null,
+      sectionId: getOrganizationSectionId("small_group"),
+    });
     await loadAdminPanel();
     showToast("已建立新的小家。");
   } catch (error) {
@@ -1850,85 +1992,346 @@ function renderOrganizationTables() {
   renderDistrictTable();
   renderBigFamilyTable();
   renderSmallGroupTable();
+  restoreOrganizationFocus();
+}
+
+function renderOrganizationSummary(element, label, items) {
+  if (!element) {
+    return;
+  }
+
+  if (!items.length) {
+    element.textContent = `目前沒有${label}資料`;
+    return;
+  }
+
+  const activeCount = items.filter((item) => item.is_active).length;
+  const archivedCount = items.length - activeCount;
+  const unitLabel = label === "區" ? "區" : `個${label}`;
+  element.textContent = `共 ${items.length} ${unitLabel}，啟用 ${activeCount}、封存 ${archivedCount}`;
+}
+
+function getOrganizationDependencySummary(orgType, orgId) {
+  const summary = {
+    bigFamilies: 0,
+    smallGroups: 0,
+    members: 0,
+    blockers: [],
+  };
+
+  if (orgType === "district") {
+    summary.bigFamilies = state.adminData.bigFamilies.filter(
+      (bigFamily) => bigFamily.district_id === orgId,
+    ).length;
+    summary.smallGroups = state.adminData.smallGroups.filter(
+      (smallGroup) => smallGroup.district_id === orgId,
+    ).length;
+    summary.members = state.adminData.members.filter((member) => member.district_id === orgId).length;
+  } else if (orgType === "big_family") {
+    summary.smallGroups = state.adminData.smallGroups.filter(
+      (smallGroup) => smallGroup.big_family_id === orgId,
+    ).length;
+    summary.members = state.adminData.members.filter((member) => member.big_family_id === orgId).length;
+  } else {
+    summary.members = state.adminData.members.filter((member) => member.small_group_id === orgId).length;
+  }
+
+  if (summary.bigFamilies) {
+    summary.blockers.push(`${summary.bigFamilies} 個大家`);
+  }
+  if (summary.smallGroups) {
+    summary.blockers.push(`${summary.smallGroups} 個小家`);
+  }
+  if (summary.members) {
+    summary.blockers.push(`${summary.members} 位成員`);
+  }
+
+  return {
+    ...summary,
+    canDelete: summary.blockers.length === 0,
+    blockerText: summary.blockers.join("、"),
+  };
+}
+
+function buildOrganizationDependencyChips(summary) {
+  const chips = [];
+  if (summary.bigFamilies) {
+    chips.push(`<span class="status-chip neutral">${summary.bigFamilies} 個大家</span>`);
+  }
+  if (summary.smallGroups) {
+    chips.push(`<span class="status-chip neutral">${summary.smallGroups} 個小家</span>`);
+  }
+  if (summary.members) {
+    chips.push(`<span class="status-chip neutral">${summary.members} 位成員</span>`);
+  }
+
+  if (!chips.length) {
+    chips.push('<span class="status-chip success">空組織，可刪除</span>');
+  }
+
+  return chips.join("");
+}
+
+function getOrganizationTypeLabel(orgType) {
+  return {
+    district: "區",
+    big_family: "大家",
+    small_group: "小家",
+  }[orgType];
+}
+
+function getOrganizationParentLabel(orgType, organization) {
+  if (orgType === "district") {
+    return "牧區根層級";
+  }
+
+  if (orgType === "big_family") {
+    return organization.district_name || "-";
+  }
+
+  return [organization.big_family_name || "直屬區", organization.district_name]
+    .filter(Boolean)
+    .join(" / ");
+}
+
+function canEditOrganization(orgType) {
+  if (orgType === "district") {
+    return Boolean(state.currentMember?.is_admin);
+  }
+
+  return canUseManagement();
+}
+
+function getOrganizationActionSlug(orgType) {
+  return {
+    district: "district",
+    big_family: "big-family",
+    small_group: "small-group",
+  }[orgType];
+}
+
+function getOrganizationRequestIdKey(orgType) {
+  return {
+    district: "district_id",
+    big_family: "big_family_id",
+    small_group: "small_group_id",
+  }[orgType];
+}
+
+function renderOrganizationCard(orgType, organization) {
+  const summary = getOrganizationDependencySummary(orgType, organization.id);
+  const actionButtons = [];
+
+  if (canEditOrganization(orgType)) {
+    actionButtons.push(`
+      <button
+        type="button"
+        class="secondary"
+        data-org-action="edit"
+        data-org-type="${orgType}"
+        data-org-id="${organization.id}"
+        data-org-name="${escapeHtml(organization.name)}"
+      >
+        編輯
+      </button>
+    `);
+  }
+
+  if (state.currentMember?.is_admin) {
+    actionButtons.push(`
+      <button
+        type="button"
+        class="secondary"
+        data-org-action="${organization.is_active ? "archive" : "restore"}"
+        data-org-type="${orgType}"
+        data-org-id="${organization.id}"
+        data-org-name="${escapeHtml(organization.name)}"
+      >
+        ${organization.is_active ? "封存" : "恢復"}
+      </button>
+    `);
+    actionButtons.push(`
+      <button
+        type="button"
+        class="secondary danger-button ${summary.canDelete ? "" : "is-blocked"}"
+        data-org-action="delete"
+        data-org-type="${orgType}"
+        data-org-id="${organization.id}"
+        data-org-name="${escapeHtml(organization.name)}"
+        data-blocked-reason="${escapeHtml(
+          summary.canDelete
+            ? ""
+            : `尚不可刪除：${summary.blockerText}。請先整理後再刪除。`,
+        )}"
+      >
+        刪除
+      </button>
+    `);
+  }
+
+  return `
+    <article
+      class="org-card ${organization.is_active ? "" : "is-archived"}"
+      data-org-card-key="${orgType}:${organization.id}"
+      id="org-card-${orgType}-${organization.id}"
+    >
+      <div class="org-card-head">
+        <div class="row-meta">
+          <div class="org-card-title">
+            <strong>${escapeHtml(organization.name)}</strong>
+          </div>
+          <div class="org-card-chips">
+            <span class="role-pill">${escapeHtml(getOrganizationTypeLabel(orgType))}</span>
+            <span class="status-chip ${organization.is_active ? "success" : "archived"}">
+              ${organization.is_active ? "啟用中" : "已封存"}
+            </span>
+          </div>
+        </div>
+        ${actionButtons.length ? `<div class="row-actions">${actionButtons.join("")}</div>` : ""}
+      </div>
+
+      <div class="org-card-grid">
+        <div class="info-item">
+          <span class="info-label">歸屬</span>
+          <span>${escapeHtml(getOrganizationParentLabel(orgType, organization) || "-")}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">說明</span>
+          <span>${escapeHtml(organization.description || "未填寫")}</span>
+        </div>
+      </div>
+
+      <div class="org-card-chips">
+        ${buildOrganizationDependencyChips(summary)}
+      </div>
+
+      <p class="org-card-hint ${summary.canDelete ? "" : "warning"}">
+        ${escapeHtml(
+          summary.canDelete
+            ? "目前沒有子組織與成員，若確認不再使用可直接刪除。"
+            : `尚不可刪除：${summary.blockerText}`,
+        )}
+      </p>
+    </article>
+  `;
 }
 
 function renderDistrictTable() {
+  renderOrganizationSummary(els.districtSummary, "區", state.adminData.districts);
   if (!state.adminData.districts.length) {
-    els.districtTableBody.innerHTML =
-      '<tr><td colspan="3" class="empty-cell">尚未載入區資料。</td></tr>';
+    els.districtTableBody.innerHTML = '<div class="empty-state-card">尚未載入區資料。</div>';
     return;
   }
 
   els.districtTableBody.innerHTML = state.adminData.districts
-    .map(
-      (district) => `
-        <tr>
-          <td data-label="名稱">${escapeHtml(district.name)}</td>
-          <td data-label="說明">${escapeHtml(district.description || "-")}</td>
-          <td data-label="操作">
-            <button type="button" class="secondary org-edit-btn" data-org-type="district" data-org-id="${district.id}">編輯</button>
-          </td>
-        </tr>
-      `,
-    )
+    .map((district) => renderOrganizationCard("district", district))
     .join("");
 }
 
 function renderBigFamilyTable() {
+  renderOrganizationSummary(els.bigFamilySummary, "大家", state.adminData.bigFamilies);
   if (!state.adminData.bigFamilies.length) {
-    els.bigFamilyTableBody.innerHTML =
-      '<tr><td colspan="3" class="empty-cell">尚未載入大家資料。</td></tr>';
+    els.bigFamilyTableBody.innerHTML = '<div class="empty-state-card">尚未載入大家資料。</div>';
     return;
   }
 
   els.bigFamilyTableBody.innerHTML = state.adminData.bigFamilies
-    .map(
-      (bigFamily) => `
-        <tr>
-          <td data-label="名稱">${escapeHtml(bigFamily.name)}</td>
-          <td data-label="所屬區">${escapeHtml(bigFamily.district_name || "-")}</td>
-          <td data-label="操作">
-            <button type="button" class="secondary org-edit-btn" data-org-type="big_family" data-org-id="${bigFamily.id}">編輯</button>
-          </td>
-        </tr>
-      `,
-    )
+    .map((bigFamily) => renderOrganizationCard("big_family", bigFamily))
     .join("");
 }
 
 function renderSmallGroupTable() {
+  renderOrganizationSummary(els.smallGroupSummary, "小家", state.adminData.smallGroups);
   if (!state.adminData.smallGroups.length) {
-    els.smallGroupTableBody.innerHTML =
-      '<tr><td colspan="3" class="empty-cell">尚未載入小家資料。</td></tr>';
+    els.smallGroupTableBody.innerHTML = '<div class="empty-state-card">尚未載入小家資料。</div>';
     return;
   }
 
   els.smallGroupTableBody.innerHTML = state.adminData.smallGroups
-    .map((smallGroup) => {
-      const path = [smallGroup.big_family_name, smallGroup.district_name]
-        .filter(Boolean)
-        .join(" / ");
-
-      return `
-        <tr>
-          <td data-label="名稱">${escapeHtml(smallGroup.name)}</td>
-          <td data-label="歸屬">${escapeHtml(path || "直屬區")}</td>
-          <td data-label="操作">
-            <button type="button" class="secondary org-edit-btn" data-org-type="small_group" data-org-id="${smallGroup.id}">編輯</button>
-          </td>
-        </tr>
-      `;
-    })
+    .map((smallGroup) => renderOrganizationCard("small_group", smallGroup))
     .join("");
 }
 
+function buildOrganizationConfirmMessage(action, orgType, orgName) {
+  const label = getOrganizationTypeLabel(orgType);
+  if (action === "archive") {
+    return orgType === "district"
+      ? `封存「${orgName}」後，底下大家與小家也會同步封存，但不會刪除成員資料。確定要繼續嗎？`
+      : orgType === "big_family"
+        ? `封存「${orgName}」後，底下小家也會同步封存，但不會刪除成員資料。確定要繼續嗎？`
+        : `封存「${orgName}」後，它將不再出現在新增或改派選單。確定要繼續嗎？`;
+  }
+
+  if (action === "restore") {
+    return `恢復「${orgName}」後，這個${label}會重新出現在新增與改派選單。確定要繼續嗎？`;
+  }
+
+  return `只有空${label}才能刪除，且不會刪除任何成員資料。確定要刪除「${orgName}」嗎？`;
+}
+
+async function handleOrganizationAction(button, action, orgType, orgId, orgName) {
+  const actionName = `${action}-${getOrganizationActionSlug(orgType)}`;
+  const requestIdKey = getOrganizationRequestIdKey(orgType);
+  const isDelete = action === "delete";
+
+  if (!window.confirm(buildOrganizationConfirmMessage(action, orgType, orgName))) {
+    return;
+  }
+
+  setButtonLoading(button, true);
+  try {
+    const data = await apiRequest(actionName, {
+      method: "POST",
+      authMode: "app",
+      body: {
+        [requestIdKey]: orgId,
+      },
+    });
+
+    if (state.ui.orgEditorMode === orgType && state.ui.editingOrgId === orgId) {
+      closeOrgEditor();
+    }
+
+    queueOrganizationFocus({
+      type: orgType,
+      id: isDelete ? null : orgId,
+      sectionId: getOrganizationSectionId(orgType),
+    });
+    await loadAdminPanel();
+    showToast(data?.message || "組織狀態已更新。");
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "更新組織狀態失敗。");
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
 function handleOrgTableClick(event) {
-  const button = event.target.closest(".org-edit-btn");
+  const button = event.target.closest("[data-org-action]");
   if (!button) {
     return;
   }
 
-  openOrgEditor(button.dataset.orgType, Number(button.dataset.orgId));
+  const orgType = button.dataset.orgType;
+  const orgId = Number(button.dataset.orgId);
+  const orgName = button.dataset.orgName || "";
+  const action = button.dataset.orgAction;
+  if (!orgType || !orgId || !action) {
+    return;
+  }
+
+  if (action === "edit") {
+    openOrgEditor(orgType, orgId);
+    return;
+  }
+
+  if (action === "delete" && button.dataset.blockedReason) {
+    showToast(button.dataset.blockedReason);
+    return;
+  }
+
+  handleOrganizationAction(button, action, orgType, orgId, orgName);
 }
 
 function openOrgEditor(type, id) {
@@ -1952,9 +2355,24 @@ function openOrgEditor(type, id) {
     return;
   }
 
+  const summary = getOrganizationDependencySummary(type, id);
+  els.orgEditorHint.textContent = entity.is_active
+    ? summary.canDelete
+      ? "這個組織目前是啟用中，且已符合空組織條件。"
+      : `這個組織目前是啟用中；若要刪除，還需先處理 ${summary.blockerText}。`
+    : summary.canDelete
+      ? "這個組織目前已封存，若確認不再需要可直接刪除。"
+      : `這個組織目前已封存；若要刪除，還需先處理 ${summary.blockerText}。`;
   els.orgNameInput.value = entity.name || "";
   els.orgDescriptionInput.value = entity.description || "";
   setHidden(els.orgEditorCard, false);
+  requestAnimationFrame(() => {
+    els.orgEditorCard.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+    els.orgNameInput.focus({ preventScroll: true });
+  });
 }
 
 function closeOrgEditor() {
@@ -2001,7 +2419,14 @@ async function handleSaveOrganization(event) {
       },
     });
 
+    const focusType = state.ui.orgEditorMode;
+    const focusId = state.ui.editingOrgId;
     closeOrgEditor();
+    queueOrganizationFocus({
+      type: focusType,
+      id: focusId,
+      sectionId: getOrganizationSectionId(focusType),
+    });
     await loadAdminPanel();
     showToast("組織名稱已更新。");
   } catch (error) {
@@ -2019,6 +2444,10 @@ function renderInvites() {
   }
 
   const candidates = getInviteCandidates();
+  const activeInviteCount = state.adminData.invites.filter((invite) => {
+    return !invite.used_at && new Date(invite.expires_at).getTime() >= Date.now();
+  }).length;
+
   fillSelect(
     els.inviteMemberSelect,
     candidates.map((member) => ({
@@ -2029,6 +2458,12 @@ function renderInvites() {
       placeholder: candidates.length ? "請選擇領袖" : "目前沒有可產生邀請碼的人",
     },
   );
+
+  if (els.inviteSummary) {
+    els.inviteSummary.textContent = candidates.length
+      ? `目前可產生邀請碼 ${candidates.length} 位，仍可使用 ${activeInviteCount} 組`
+      : "目前沒有可產生邀請碼的對象";
+  }
 
   renderInviteTable();
   renderLatestInvite();
@@ -2059,7 +2494,7 @@ function getInviteCandidates() {
 function renderInviteTable() {
   if (!state.adminData.invites.length) {
     els.inviteTableBody.innerHTML =
-      '<tr><td colspan="5" class="empty-cell">目前沒有邀請碼資料。</td></tr>';
+      '<div class="empty-state-card">目前沒有邀請碼資料。</div>';
     return;
   }
 
@@ -2072,13 +2507,39 @@ function renderInviteTable() {
           : '<span class="status-chip neutral">可使用</span>';
 
       return `
-        <tr>
-          <td data-label="對象">${escapeHtml(invite.target_name)}</td>
-          <td data-label="職分">${escapeHtml(getRoleLabel(invite.target_role))}</td>
-          <td data-label="邀請碼"><code>${escapeHtml(invite.invite_code)}</code></td>
-          <td data-label="狀態">${status}</td>
-          <td data-label="到期日">${escapeHtml(formatDateTime(invite.expires_at))}</td>
-        </tr>
+        <article class="invite-card">
+          <div class="invite-card-head">
+            <div class="row-meta">
+              <strong>${escapeHtml(invite.target_name)}</strong>
+              <div class="member-card-chips">
+                <span class="role-pill role-${escapeHtml(invite.target_role)}">${escapeHtml(getRoleLabel(invite.target_role))}</span>
+                ${status}
+              </div>
+            </div>
+          </div>
+
+          <div class="invite-code-row">
+            <code class="invite-code-display">${escapeHtml(invite.invite_code)}</code>
+            <button
+              type="button"
+              class="secondary invite-copy-btn"
+              data-invite-code="${escapeHtml(invite.invite_code)}"
+            >
+              複製
+            </button>
+          </div>
+
+          <div class="invite-meta-grid">
+            <div class="info-item">
+              <span class="info-label">到期日</span>
+              <span>${escapeHtml(formatDateTime(invite.expires_at))}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">邀請碼狀態</span>
+              <span>${invite.used_at ? "已完成綁定" : new Date(invite.expires_at).getTime() < Date.now() ? "已失效" : "等待對方輸入"}</span>
+            </div>
+          </div>
+        </article>
       `;
     })
     .join("");
@@ -2098,6 +2559,28 @@ function renderLatestInvite() {
     state.adminData.latestInvite.target_role,
   )}）`;
   setHidden(els.latestInviteBox, false);
+}
+
+function handleInviteTableClick(event) {
+  const copyButton = event.target.closest(".invite-copy-btn");
+  if (!copyButton) {
+    return;
+  }
+
+  copyInviteCode(copyButton.dataset.inviteCode || "");
+}
+
+function handleCopyLatestInvite() {
+  copyInviteCode(els.latestInviteCode.textContent.trim());
+}
+
+async function copyInviteCode(inviteCode) {
+  if (!inviteCode) {
+    return;
+  }
+
+  const copied = await copyTextToClipboard(inviteCode);
+  showToast(copied ? `已複製邀請碼：${inviteCode}` : "複製失敗，請手動複製。");
 }
 
 async function handleCreateInvite(event) {
@@ -2162,6 +2645,38 @@ function handleAdminRefresh() {
       console.error(error);
       showToast(error.message || "重新載入管理資料失敗。");
     });
+}
+
+async function copyTextToClipboard(text) {
+  if (!text) {
+    return false;
+  }
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (error) {
+    console.warn("Clipboard API failed", error);
+  }
+
+  try {
+    const input = document.createElement("textarea");
+    input.value = text;
+    input.setAttribute("readonly", "");
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    document.body.appendChild(input);
+    input.select();
+    input.setSelectionRange(0, input.value.length);
+    const copied = document.execCommand("copy");
+    document.body.removeChild(input);
+    return copied;
+  } catch (error) {
+    console.warn("execCommand copy failed", error);
+    return false;
+  }
 }
 
 function setButtonLoading(button, isLoading) {
@@ -2332,9 +2847,7 @@ function getMondayIso(source) {
 
 function buildWeekLabel(weekStartIso) {
   const start = parseIsoDate(weekStartIso);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  return `${formatDate(start)} 到 ${formatDate(end)}`;
+  return formatDate(start);
 }
 
 function parseIsoDate(isoDate) {

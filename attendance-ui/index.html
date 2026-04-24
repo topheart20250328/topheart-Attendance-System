@@ -195,7 +195,7 @@
               上一週
             </button>
             <label class="week-label">
-              <span>週次起始日</span>
+              <span>週次</span>
               <input id="weekInput" type="date" />
             </label>
             <button id="nextWeekBtn" type="button" class="secondary">
@@ -263,23 +263,12 @@
               </label>
             </div>
 
-            <div class="table-wrap compact-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>姓名</th>
-                    <th>職分</th>
-                    <th>區 / 大家 / 小家</th>
-                    <th>LINE</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody id="peopleTableBody">
-                  <tr>
-                    <td colspan="5" class="empty-cell">尚未載入可編輯的人員資料。</td>
-                  </tr>
-                </tbody>
-              </table>
+            <div id="peopleSummary" class="list-count-chip">
+              尚未載入可編輯的人員資料
+            </div>
+
+            <div id="peopleTableBody" class="people-card-list">
+              <div class="empty-state-card">尚未載入可編輯的人員資料。</div>
             </div>
           </section>
 
@@ -544,6 +533,9 @@
         <p class="muted">
           產生後請把邀請碼傳給該領袖；對方用自己的 LINE 登入後，會在「綁定領袖帳號」畫面輸入這組邀請碼。
         </p>
+        <div id="inviteSummary" class="list-count-chip">
+          目前尚未載入邀請碼摘要
+        </div>
 
         <div class="management-layout single-column">
           <section class="card-subsection">
@@ -562,41 +554,34 @@
               </div>
             </form>
 
-            <div id="latestInviteBox" class="result-box hidden">
-              <div class="info-item">
-                <span class="info-label">最新邀請碼</span>
-                <strong id="latestInviteCode"></strong>
+            <div id="latestInviteBox" class="latest-invite-card hidden">
+              <div class="latest-invite-head">
+                <div class="info-item">
+                  <span class="info-label">最新邀請碼</span>
+                  <strong id="latestInviteCode" class="invite-code-display"></strong>
+                </div>
+                <button id="copyLatestInviteBtn" type="button" class="secondary">
+                  複製邀請碼
+                </button>
               </div>
-              <div class="info-item">
-                <span class="info-label">有效期限</span>
-                <span id="latestInviteExpires"></span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">發給</span>
-                <span id="latestInviteTarget"></span>
+
+              <div class="latest-invite-grid">
+                <div class="info-item">
+                  <span class="info-label">有效期限</span>
+                  <span id="latestInviteExpires"></span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">發給</span>
+                  <span id="latestInviteTarget"></span>
+                </div>
               </div>
             </div>
           </section>
 
           <section class="card-subsection">
             <h3>目前邀請碼</h3>
-            <div class="table-wrap compact-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>對象</th>
-                    <th>職分</th>
-                    <th>邀請碼</th>
-                    <th>狀態</th>
-                    <th>到期日</th>
-                  </tr>
-                </thead>
-                <tbody id="inviteTableBody">
-                  <tr>
-                    <td colspan="5" class="empty-cell">尚未載入邀請碼資料。</td>
-                  </tr>
-                </tbody>
-              </table>
+            <div id="inviteTableBody" class="invite-card-list">
+              <div class="empty-state-card">尚未載入邀請碼資料。</div>
             </div>
           </section>
         </div>

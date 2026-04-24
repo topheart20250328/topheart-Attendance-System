@@ -1,3 +1,5 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
 import {
   buildWeekLabel,
   cleanupExpiredAuthArtifacts,
@@ -11,6 +13,12 @@ import {
   MemberDirectoryRow,
   sha256Hex,
 } from "../_shared/common.ts";
+
+declare const Deno: {
+  serve: (
+    handler: (request: Request) => Response | Promise<Response>,
+  ) => void;
+};
 
 type AppSessionRow = {
   id: string;
@@ -56,6 +64,7 @@ type DistrictRow = {
   id: number;
   name: string;
   description: string;
+  is_active: boolean;
 };
 
 type BigFamilyRow = {
@@ -63,6 +72,7 @@ type BigFamilyRow = {
   district_id: number;
   name: string;
   description: string;
+  is_active: boolean;
 };
 
 type SmallGroupRow = {
@@ -71,6 +81,33 @@ type SmallGroupRow = {
   big_family_id: number | null;
   name: string;
   description: string;
+  is_active: boolean;
+};
+
+type OrganizationType = "district" | "big_family" | "small_group";
+
+type ResolveMemberScopeOptions = {
+  autoCreate: boolean;
+  fullName: string;
+  allowedArchivedIds?: {
+    district_id: number | null;
+    big_family_id: number | null;
+    small_group_id: number | null;
+  };
+};
+
+type OrganizationDeleteCheck = {
+  big_family_count: number;
+  small_group_count: number;
+  member_count: number;
+  can_delete: boolean;
+  reasons: string[];
+};
+
+type ResolvedMemberScope = {
+  district_id: number;
+  big_family_id: number | null;
+  small_group_id: number | null;
 };
 
 const VALID_ATTENDANCE_STATUS = new Set(["unknown", "present", "absent"]);
@@ -79,6 +116,11 @@ const LOGIN_CAPABLE_ROLES = new Set([
   "big_family_leader",
   "small_group_leader",
 ]);
+const ORG_LABELS: Record<OrganizationType, string> = {
+  district: "區",
+  big_family: "大家",
+  small_group: "小家",
+};
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
@@ -138,6 +180,42 @@ Deno.serve(async (request) => {
 
     if (request.method === "POST" && action === "update-small-group") {
       return await handleUpdateSmallGroup(adminClient, request);
+    }
+
+    if (request.method === "POST" && action === "archive-district") {
+      return await handleArchiveOrganization(adminClient, request, "district");
+    }
+
+    if (request.method === "POST" && action === "restore-district") {
+      return await handleRestoreOrganization(adminClient, request, "district");
+    }
+
+    if (request.method === "POST" && action === "delete-district") {
+      return await handleDeleteOrganization(adminClient, request, "district");
+    }
+
+    if (request.method === "POST" && action === "archive-big-family") {
+      return await handleArchiveOrganization(adminClient, request, "big_family");
+    }
+
+    if (request.method === "POST" && action === "restore-big-family") {
+      return await handleRestoreOrganization(adminClient, request, "big_family");
+    }
+
+    if (request.method === "POST" && action === "delete-big-family") {
+      return await handleDeleteOrganization(adminClient, request, "big_family");
+    }
+
+    if (request.method === "POST" && action === "archive-small-group") {
+      return await handleArchiveOrganization(adminClient, request, "small_group");
+    }
+
+    if (request.method === "POST" && action === "restore-small-group") {
+      return await handleRestoreOrganization(adminClient, request, "small_group");
+    }
+
+    if (request.method === "POST" && action === "delete-small-group") {
+      return await handleDeleteOrganization(adminClient, request, "small_group");
     }
 
     if (request.method === "POST" && action === "create-member") {
@@ -435,7 +513,9 @@ async function handleSaveAttendance(
 
   const week = await ensureWeek(adminClient, weekStart);
   const rosterMembers = await loadVisibleMembers(adminClient, sessionContext.member);
-  const visibleMembers = new Map(rosterMembers.map((member) => [member.id, member]));
+  const visibleMembers = new Map<number, MemberDirectoryRow>(
+    rosterMembers.map((member) => [member.id, member]),
+  );
   const notesToUpdate: Array<{ member_id: number; note: string }> = [];
 
   const rowsToUpsert: Array<{
@@ -628,6 +708,10 @@ async function handleCreateBigFamily(
     return jsonResponse({ error: "District not found." }, 404);
   }
 
+  if (!district.is_active) {
+    return jsonResponse({ error: "此區已封存，請先恢復後再新增大家。" }, 409);
+  }
+
   if (!canManageDistrict(sessionContext.member, district.id)) {
     return jsonResponse({ error: "No permission to create in this district." }, 403);
   }
@@ -728,6 +812,18 @@ async function handleCreateSmallGroup(
       return jsonResponse({ error: "Big family not found." }, 404);
     }
 
+    const district = await fetchDistrict(adminClient, bigFamily.district_id);
+    if (!district) {
+      return jsonResponse({ error: "District not found." }, 404);
+    }
+
+    if (!district.is_active || !bigFamily.is_active) {
+      return jsonResponse(
+        { error: "所屬區或大家已封存，請先恢復後再新增小家。" },
+        409,
+      );
+    }
+
     targetDistrictId = bigFamily.district_id;
     if (!canManageDistrict(sessionContext.member, bigFamily.district_id)) {
       return jsonResponse(
@@ -739,6 +835,10 @@ async function handleCreateSmallGroup(
     const district = await fetchDistrict(adminClient, districtId);
     if (!district) {
       return jsonResponse({ error: "District not found." }, 404);
+    }
+
+    if (!district.is_active) {
+      return jsonResponse({ error: "此區已封存，請先恢復後再新增小家。" }, 409);
     }
 
     targetDistrictId = district.id;
@@ -815,6 +915,181 @@ async function handleUpdateSmallGroup(
   return jsonResponse({ small_group: data });
 }
 
+async function handleArchiveOrganization(
+  adminClient: ReturnType<typeof createAdminClient>,
+  request: Request,
+  orgType: OrganizationType,
+) {
+  const sessionContext = await getSessionContext(adminClient, request.headers);
+  if (!sessionContext) {
+    return jsonResponse({ error: "Unauthorized." }, 401);
+  }
+
+  if (!sessionContext.member.is_admin) {
+    return jsonResponse({ error: "Only admins can archive organizations." }, 403);
+  }
+
+  const orgId = await parseOrganizationActionBody(request, orgType);
+  if (!orgId) {
+    return jsonResponse(
+      { error: `${getOrganizationIdKey(orgType)} is required.` },
+      400,
+    );
+  }
+
+  const organization = await fetchOrganizationByType(adminClient, orgType, orgId);
+  if (!organization) {
+    return jsonResponse({ error: `${ORG_LABELS[orgType]}不存在。` }, 404);
+  }
+
+  if (!organization.is_active) {
+    return jsonResponse({
+      status: "ok",
+      message: `這個${ORG_LABELS[orgType]}已經是封存狀態。`,
+    });
+  }
+
+  await updateOrganizationActiveState(adminClient, orgType, orgId, false);
+  if (orgType === "district") {
+    await cascadeArchiveDistrict(adminClient, orgId);
+  } else if (orgType === "big_family") {
+    await cascadeArchiveBigFamily(adminClient, orgId);
+  }
+
+  return jsonResponse({
+    status: "ok",
+    message:
+      orgType === "district"
+        ? "已封存區，底下大家與小家也已同步封存。"
+        : orgType === "big_family"
+          ? "已封存大家，底下小家也已同步封存。"
+          : "已封存小家。",
+  });
+}
+
+async function handleRestoreOrganization(
+  adminClient: ReturnType<typeof createAdminClient>,
+  request: Request,
+  orgType: OrganizationType,
+) {
+  const sessionContext = await getSessionContext(adminClient, request.headers);
+  if (!sessionContext) {
+    return jsonResponse({ error: "Unauthorized." }, 401);
+  }
+
+  if (!sessionContext.member.is_admin) {
+    return jsonResponse({ error: "Only admins can restore organizations." }, 403);
+  }
+
+  const orgId = await parseOrganizationActionBody(request, orgType);
+  if (!orgId) {
+    return jsonResponse(
+      { error: `${getOrganizationIdKey(orgType)} is required.` },
+      400,
+    );
+  }
+
+  const organization = await fetchOrganizationByType(adminClient, orgType, orgId);
+  if (!organization) {
+    return jsonResponse({ error: `${ORG_LABELS[orgType]}不存在。` }, 404);
+  }
+
+  if (organization.is_active) {
+    return jsonResponse({
+      status: "ok",
+      message: `這個${ORG_LABELS[orgType]}已經是啟用狀態。`,
+    });
+  }
+
+  if (orgType === "big_family") {
+    const bigFamily = organization as BigFamilyRow;
+    const district = await fetchDistrict(adminClient, bigFamily.district_id);
+    if (!district || !district.is_active) {
+      return jsonResponse(
+        { error: "上層區仍是封存狀態，請先恢復區後再恢復大家。" },
+        409,
+      );
+    }
+  }
+
+  if (orgType === "small_group") {
+    const smallGroup = organization as SmallGroupRow;
+    const district = await fetchDistrict(adminClient, smallGroup.district_id);
+    if (!district || !district.is_active) {
+      return jsonResponse(
+        { error: "上層區仍是封存狀態，請先恢復區後再恢復小家。" },
+        409,
+      );
+    }
+
+    if (smallGroup.big_family_id) {
+      const bigFamily = await fetchBigFamily(adminClient, smallGroup.big_family_id);
+      if (!bigFamily || !bigFamily.is_active) {
+        return jsonResponse(
+          { error: "所屬大家仍是封存狀態，請先恢復大家後再恢復小家。" },
+          409,
+        );
+      }
+    }
+  }
+
+  await updateOrganizationActiveState(adminClient, orgType, orgId, true);
+
+  return jsonResponse({
+    status: "ok",
+    message: `已恢復${ORG_LABELS[orgType]}。`,
+  });
+}
+
+async function handleDeleteOrganization(
+  adminClient: ReturnType<typeof createAdminClient>,
+  request: Request,
+  orgType: OrganizationType,
+) {
+  const sessionContext = await getSessionContext(adminClient, request.headers);
+  if (!sessionContext) {
+    return jsonResponse({ error: "Unauthorized." }, 401);
+  }
+
+  if (!sessionContext.member.is_admin) {
+    return jsonResponse({ error: "Only admins can delete organizations." }, 403);
+  }
+
+  const orgId = await parseOrganizationActionBody(request, orgType);
+  if (!orgId) {
+    return jsonResponse(
+      { error: `${getOrganizationIdKey(orgType)} is required.` },
+      400,
+    );
+  }
+
+  const organization = await fetchOrganizationByType(adminClient, orgType, orgId);
+  if (!organization) {
+    return jsonResponse({ error: `${ORG_LABELS[orgType]}不存在。` }, 404);
+  }
+
+  const deleteCheck = await buildOrganizationDeleteCheck(adminClient, orgType, orgId);
+  if (!deleteCheck.can_delete) {
+    return jsonResponse(
+      { error: formatOrganizationDeleteMessage(orgType, deleteCheck) },
+      409,
+    );
+  }
+
+  const { error } = await adminClient
+    .from(getOrganizationTableName(orgType))
+    .delete()
+    .eq("id", orgId);
+  if (error) {
+    return jsonResponse({ error: error.message }, 500);
+  }
+
+  return jsonResponse({
+    status: "ok",
+    message: `已刪除${ORG_LABELS[orgType]}。`,
+  });
+}
+
 async function handleCreateMember(
   adminClient: ReturnType<typeof createAdminClient>,
   request: Request,
@@ -844,10 +1119,18 @@ async function handleCreateMember(
     return jsonResponse({ error: "No permission to create this role." }, 403);
   }
 
-  const scope = await resolveMemberScope(adminClient, body, role, {
-    autoCreate: true,
-    fullName,
-  });
+  let scope: ResolvedMemberScope | null = null;
+  try {
+    scope = await resolveMemberScope(adminClient, body, role, {
+      autoCreate: true,
+      fullName,
+    });
+  } catch (error) {
+    return jsonResponse(
+      { error: error instanceof Error ? error.message : "Invalid hierarchy scope for this role." },
+      400,
+    );
+  }
   if (!scope) {
     return jsonResponse({ error: "Invalid hierarchy scope for this role." }, 400);
   }
@@ -925,10 +1208,23 @@ async function handleUpdateMember(
     return jsonResponse({ error: "District leaders cannot change role." }, 403);
   }
 
-  const scope = await resolveMemberScope(adminClient, body, targetRole, {
-    autoCreate: false,
-    fullName: String(body?.full_name || targetMember.full_name).trim(),
-  });
+  let scope: ResolvedMemberScope | null = null;
+  try {
+    scope = await resolveMemberScope(adminClient, body, targetRole, {
+      autoCreate: false,
+      fullName: String(body?.full_name || targetMember.full_name).trim(),
+      allowedArchivedIds: {
+        district_id: targetMember.district_id,
+        big_family_id: targetMember.big_family_id,
+        small_group_id: targetMember.small_group_id,
+      },
+    });
+  } catch (error) {
+    return jsonResponse(
+      { error: error instanceof Error ? error.message : "Invalid hierarchy scope for this role." },
+      400,
+    );
+  }
   if (!scope) {
     return jsonResponse({ error: "Invalid hierarchy scope for this role." }, 400);
   }
@@ -1179,7 +1475,7 @@ async function ensureWeek(
 async function loadVisibleMembers(
   adminClient: ReturnType<typeof createAdminClient>,
   viewer: MemberDirectoryRow,
-) {
+): Promise<MemberDirectoryRow[]> {
   let query = adminClient
     .from("member_directory")
     .select("*")
@@ -1191,7 +1487,7 @@ async function loadVisibleMembers(
       throw new Error(error.message);
     }
 
-    return (data || []).filter((member) => member.id !== viewer.id);
+    return ((data || []) as MemberDirectoryRow[]).filter((member) => member.id !== viewer.id);
   }
 
   if (viewer.role === "district_leader") {
@@ -1215,7 +1511,7 @@ async function loadVisibleMembers(
     throw new Error(error.message);
   }
 
-  return (data || []).filter((member) => member.id !== viewer.id);
+  return ((data || []) as MemberDirectoryRow[]).filter((member) => member.id !== viewer.id);
 }
 
 async function loadAttendanceMap(
@@ -1373,20 +1669,24 @@ async function buildAdminOverview(
 
   const { data: bigFamilies, error: bigFamilyError } = await adminClient
     .from("big_families")
-    .select("id, district_id, name, description")
+    .select("id, district_id, name, description, is_active")
     .in("district_id", districtIds.length ? districtIds : [-1])
+    .order("is_active", { ascending: false })
     .order("name");
 
   if (bigFamilyError) {
     throw new Error(bigFamilyError.message);
   }
 
-  const bigFamilyMap = new Map((bigFamilies || []).map((item) => [item.id, item]));
+  const bigFamilyMap = new Map<number, BigFamilyRow>(
+    (bigFamilies || []).map((item) => [item.id, item as BigFamilyRow]),
+  );
 
   const { data: smallGroups, error: smallGroupError } = await adminClient
     .from("small_groups")
-    .select("id, district_id, big_family_id, name, description")
+    .select("id, district_id, big_family_id, name, description, is_active")
     .in("district_id", districtIds.length ? districtIds : [-1])
+    .order("is_active", { ascending: false })
     .order("name");
 
   if (smallGroupError) {
@@ -1403,7 +1703,9 @@ async function buildAdminOverview(
     throw new Error(memberError.message);
   }
 
-  const memberMap = new Map((members || []).map((member) => [member.id, member]));
+  const memberMap = new Map<number, MemberDirectoryRow>(
+    (members || []).map((member) => [member.id, member as MemberDirectoryRow]),
+  );
   const { data: inviteRows, error: inviteError } = await adminClient
     .from("login_invites")
     .select("*")
@@ -1430,7 +1732,7 @@ async function buildAdminOverview(
     throw new Error(creatorError.message);
   }
 
-  const creatorMap = new Map(
+  const creatorMap = new Map<number, string>(
     (creatorMembers || []).map((creator) => [creator.id, creator.full_name]),
   );
 
@@ -1482,28 +1784,33 @@ async function buildAdminOverview(
 async function loadManagedDistricts(
   adminClient: ReturnType<typeof createAdminClient>,
   viewer: MemberDirectoryRow,
-) {
-  const query = adminClient.from("districts").select("*").order("name");
+): Promise<DistrictRow[]> {
+  const query = adminClient
+    .from("districts")
+    .select("*")
+    .order("is_active", { ascending: false })
+    .order("name");
   if (viewer.is_admin) {
     const { data, error } = await query;
     if (error) {
       throw new Error(error.message);
     }
 
-    return data || [];
+    return (data || []) as DistrictRow[];
   }
 
   const { data, error } = await adminClient
     .from("districts")
     .select("*")
     .eq("id", viewer.district_id)
+    .order("is_active", { ascending: false })
     .order("name");
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return data || [];
+  return (data || []) as DistrictRow[];
 }
 
 async function fetchDistrict(
@@ -1557,12 +1864,244 @@ async function fetchSmallGroup(
   return data as SmallGroupRow | null;
 }
 
+function getOrganizationIdKey(orgType: OrganizationType) {
+  if (orgType === "district") {
+    return "district_id";
+  }
+
+  if (orgType === "big_family") {
+    return "big_family_id";
+  }
+
+  return "small_group_id";
+}
+
+function getOrganizationTableName(orgType: OrganizationType) {
+  if (orgType === "district") {
+    return "districts";
+  }
+
+  if (orgType === "big_family") {
+    return "big_families";
+  }
+
+  return "small_groups";
+}
+
+async function parseOrganizationActionBody(request: Request, orgType: OrganizationType) {
+  const body = await request.json().catch(() => null);
+  return toPositiveInt(body?.[getOrganizationIdKey(orgType)]);
+}
+
+async function fetchOrganizationByType(
+  adminClient: ReturnType<typeof createAdminClient>,
+  orgType: OrganizationType,
+  orgId: number,
+) {
+  if (orgType === "district") {
+    return await fetchDistrict(adminClient, orgId);
+  }
+
+  if (orgType === "big_family") {
+    return await fetchBigFamily(adminClient, orgId);
+  }
+
+  return await fetchSmallGroup(adminClient, orgId);
+}
+
+async function updateOrganizationActiveState(
+  adminClient: ReturnType<typeof createAdminClient>,
+  orgType: OrganizationType,
+  orgId: number,
+  isActive: boolean,
+) {
+  const { error } = await adminClient
+    .from(getOrganizationTableName(orgType))
+    .update({ is_active: isActive })
+    .eq("id", orgId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function cascadeArchiveDistrict(
+  adminClient: ReturnType<typeof createAdminClient>,
+  districtId: number,
+) {
+  const { error: bigFamilyError } = await adminClient
+    .from("big_families")
+    .update({ is_active: false })
+    .eq("district_id", districtId);
+  if (bigFamilyError) {
+    throw new Error(bigFamilyError.message);
+  }
+
+  const { error: smallGroupError } = await adminClient
+    .from("small_groups")
+    .update({ is_active: false })
+    .eq("district_id", districtId);
+  if (smallGroupError) {
+    throw new Error(smallGroupError.message);
+  }
+}
+
+async function cascadeArchiveBigFamily(
+  adminClient: ReturnType<typeof createAdminClient>,
+  bigFamilyId: number,
+) {
+  const { error } = await adminClient
+    .from("small_groups")
+    .update({ is_active: false })
+    .eq("big_family_id", bigFamilyId);
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function countRows(queryPromise: PromiseLike<any>) {
+  const { count, error } = await queryPromise;
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return count || 0;
+}
+
+async function buildOrganizationDeleteCheck(
+  adminClient: ReturnType<typeof createAdminClient>,
+  orgType: OrganizationType,
+  orgId: number,
+): Promise<OrganizationDeleteCheck> {
+  if (orgType === "district") {
+    const [bigFamilyCount, smallGroupCount, memberCount] = await Promise.all([
+      countRows(
+        adminClient
+          .from("big_families")
+          .select("id", { head: true, count: "exact" })
+          .eq("district_id", orgId),
+      ),
+      countRows(
+        adminClient
+          .from("small_groups")
+          .select("id", { head: true, count: "exact" })
+          .eq("district_id", orgId),
+      ),
+      countRows(
+        adminClient
+          .from("member_directory")
+          .select("id", { head: true, count: "exact" })
+          .eq("district_id", orgId),
+      ),
+    ]);
+
+    const reasons = [
+      bigFamilyCount ? `${bigFamilyCount} 個大家` : "",
+      smallGroupCount ? `${smallGroupCount} 個小家` : "",
+      memberCount ? `${memberCount} 位成員` : "",
+    ].filter(Boolean);
+
+    return {
+      big_family_count: bigFamilyCount,
+      small_group_count: smallGroupCount,
+      member_count: memberCount,
+      can_delete: reasons.length === 0,
+      reasons,
+    };
+  }
+
+  if (orgType === "big_family") {
+    const [smallGroupCount, memberCount] = await Promise.all([
+      countRows(
+        adminClient
+          .from("small_groups")
+          .select("id", { head: true, count: "exact" })
+          .eq("big_family_id", orgId),
+      ),
+      countRows(
+        adminClient
+          .from("member_directory")
+          .select("id", { head: true, count: "exact" })
+          .eq("big_family_id", orgId),
+      ),
+    ]);
+
+    const reasons = [
+      smallGroupCount ? `${smallGroupCount} 個小家` : "",
+      memberCount ? `${memberCount} 位成員` : "",
+    ].filter(Boolean);
+
+    return {
+      big_family_count: 0,
+      small_group_count: smallGroupCount,
+      member_count: memberCount,
+      can_delete: reasons.length === 0,
+      reasons,
+    };
+  }
+
+  const memberCount = await countRows(
+    adminClient
+      .from("member_directory")
+      .select("id", { head: true, count: "exact" })
+      .eq("small_group_id", orgId),
+  );
+  const reasons = [memberCount ? `${memberCount} 位成員` : ""].filter(Boolean);
+
+  return {
+    big_family_count: 0,
+    small_group_count: 0,
+    member_count: memberCount,
+    can_delete: reasons.length === 0,
+    reasons,
+  };
+}
+
+function formatOrganizationDeleteMessage(
+  orgType: OrganizationType,
+  deleteCheck: OrganizationDeleteCheck,
+) {
+  return `${ORG_LABELS[orgType]}尚未清空，仍有${deleteCheck.reasons.join("、")}，請先整理後再刪除。`;
+}
+
+function isAllowedArchivedSelection(
+  orgType: OrganizationType,
+  orgId: number,
+  options: ResolveMemberScopeOptions,
+) {
+  const allowedArchivedIds = options.allowedArchivedIds;
+  if (!allowedArchivedIds) {
+    return false;
+  }
+
+  if (orgType === "district") {
+    return allowedArchivedIds.district_id === orgId;
+  }
+
+  if (orgType === "big_family") {
+    return allowedArchivedIds.big_family_id === orgId;
+  }
+
+  return allowedArchivedIds.small_group_id === orgId;
+}
+
+function assertOrganizationSelectable(
+  orgType: OrganizationType,
+  organization: { id: number; is_active: boolean },
+  options: ResolveMemberScopeOptions,
+  archivedMessage: string,
+) {
+  if (!organization.is_active && !isAllowedArchivedSelection(orgType, organization.id, options)) {
+    throw new Error(archivedMessage);
+  }
+}
+
 async function resolveMemberScope(
   adminClient: ReturnType<typeof createAdminClient>,
   body: any,
   role: string,
-  options: { autoCreate: boolean; fullName: string },
-) {
+  options: ResolveMemberScopeOptions,
+): Promise<ResolvedMemberScope | null> {
   const explicitDistrictId = toPositiveInt(body?.district_id);
   const explicitBigFamilyId = toPositiveInt(body?.big_family_id);
   const explicitSmallGroupId = toPositiveInt(body?.small_group_id);
@@ -1573,6 +2112,13 @@ async function resolveMemberScope(
       if (!district) {
         return null;
       }
+
+      assertOrganizationSelectable(
+        "district",
+        district,
+        options,
+        "已封存的區不能作為新資料歸屬。",
+      );
 
       return {
         district_id: district.id,
@@ -1612,9 +2158,27 @@ async function resolveMemberScope(
         return null;
       }
 
+      const district = await fetchDistrict(adminClient, bigFamily.district_id);
+      if (!district) {
+        return null;
+      }
+
       if (explicitDistrictId && explicitDistrictId !== bigFamily.district_id) {
         return null;
       }
+
+      assertOrganizationSelectable(
+        "district",
+        district,
+        options,
+        "已封存的區不能作為新資料歸屬。",
+      );
+      assertOrganizationSelectable(
+        "big_family",
+        bigFamily,
+        options,
+        "已封存的大家不能作為新資料歸屬。",
+      );
 
       return {
         district_id: bigFamily.district_id,
@@ -1631,6 +2195,13 @@ async function resolveMemberScope(
     if (!district) {
       return null;
     }
+
+    assertOrganizationSelectable(
+      "district",
+      district,
+      options,
+      "已封存的區不能作為新資料歸屬。",
+    );
 
     const { data: createdBigFamily, error } = await adminClient
       .from("big_families")
@@ -1660,9 +2231,17 @@ async function resolveMemberScope(
         return null;
       }
 
+      const district = await fetchDistrict(adminClient, smallGroup.district_id);
+      if (!district) {
+        return null;
+      }
+
       const bigFamily = smallGroup.big_family_id
         ? await fetchBigFamily(adminClient, smallGroup.big_family_id)
         : null;
+      if (smallGroup.big_family_id && !bigFamily) {
+        return null;
+      }
 
       if (explicitBigFamilyId && explicitBigFamilyId !== (bigFamily?.id || 0)) {
         return null;
@@ -1671,6 +2250,27 @@ async function resolveMemberScope(
       if (explicitDistrictId && explicitDistrictId !== smallGroup.district_id) {
         return null;
       }
+
+      assertOrganizationSelectable(
+        "district",
+        district,
+        options,
+        "已封存的區不能作為新資料歸屬。",
+      );
+      if (bigFamily) {
+        assertOrganizationSelectable(
+          "big_family",
+          bigFamily,
+          options,
+          "已封存的大家不能作為新資料歸屬。",
+        );
+      }
+      assertOrganizationSelectable(
+        "small_group",
+        smallGroup,
+        options,
+        "已封存的小家不能作為新資料歸屬。",
+      );
 
       return {
         district_id: smallGroup.district_id,
@@ -1688,12 +2288,26 @@ async function resolveMemberScope(
       return null;
     }
 
-    let bigFamilyId = null;
+    assertOrganizationSelectable(
+      "district",
+      district,
+      options,
+      "已封存的區不能作為新資料歸屬。",
+    );
+
+    let bigFamilyId: number | null = null;
     if (explicitBigFamilyId) {
       const bigFamily = await fetchBigFamily(adminClient, explicitBigFamilyId);
       if (!bigFamily || bigFamily.district_id !== district.id) {
         return null;
       }
+
+      assertOrganizationSelectable(
+        "big_family",
+        bigFamily,
+        options,
+        "已封存的大家不能作為新資料歸屬。",
+      );
       bigFamilyId = bigFamily.id;
     }
 
@@ -1729,9 +2343,17 @@ async function resolveMemberScope(
       return null;
     }
 
+    const district = await fetchDistrict(adminClient, smallGroup.district_id);
+    if (!district) {
+      return null;
+    }
+
     const bigFamily = smallGroup.big_family_id
       ? await fetchBigFamily(adminClient, smallGroup.big_family_id)
       : null;
+    if (smallGroup.big_family_id && !bigFamily) {
+      return null;
+    }
 
     if (explicitBigFamilyId && explicitBigFamilyId !== (bigFamily?.id || 0)) {
       return null;
@@ -1740,6 +2362,27 @@ async function resolveMemberScope(
     if (explicitDistrictId && explicitDistrictId !== smallGroup.district_id) {
       return null;
     }
+
+    assertOrganizationSelectable(
+      "district",
+      district,
+      options,
+      "已封存的區不能作為新資料歸屬。",
+    );
+    if (bigFamily) {
+      assertOrganizationSelectable(
+        "big_family",
+        bigFamily,
+        options,
+        "已封存的大家不能作為新資料歸屬。",
+      );
+    }
+    assertOrganizationSelectable(
+      "small_group",
+      smallGroup,
+      options,
+      "已封存的小家不能作為新資料歸屬。",
+    );
 
     return {
       district_id: smallGroup.district_id,

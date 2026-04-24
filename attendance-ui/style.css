@@ -283,12 +283,12 @@ code {
 .user-bar {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   background: rgba(255, 255, 255, 0.82);
   border: 1px solid rgba(217, 226, 240, 0.92);
   border-radius: 18px;
   box-shadow: var(--shadow);
-  padding: 12px 14px;
+  padding: 10px 12px;
 }
 
 .user-meta {
@@ -373,12 +373,12 @@ code {
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 10px;
+  margin-bottom: 14px;
 }
 
 .summary-item {
-  padding: 14px 16px;
+  padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface-alt);
@@ -410,9 +410,9 @@ code {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 14px 16px;
-  margin-bottom: 16px;
-  padding: 14px 16px;
+  gap: 12px 14px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface-alt);
@@ -433,16 +433,16 @@ code {
 .attendance-guide-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 16px;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 .legend-chip {
   display: inline-flex;
   align-items: center;
-  padding: 0.45rem 0.85rem;
+  padding: 0.38rem 0.72rem;
   border-radius: 999px;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   font-weight: 600;
   background: #eef4ff;
   color: #36528b;
@@ -460,7 +460,7 @@ code {
 
 .roster-list {
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .empty-state-card {
@@ -474,8 +474,8 @@ code {
 
 .attendance-card {
   display: grid;
-  gap: 14px;
-  padding: 16px;
+  gap: 12px;
+  padding: 14px;
   border: 1px solid var(--border);
   border-radius: 20px;
   background: #fff;
@@ -513,14 +513,14 @@ code {
 
 .attendance-event-grid {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .attendance-event-card {
   display: grid;
-  gap: 10px;
-  padding: 12px;
+  gap: 8px;
+  padding: 10px;
   border: 1px solid var(--border);
   border-radius: 18px;
   background: var(--surface-alt);
@@ -565,16 +565,17 @@ code {
 .attendance-toggle {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .attendance-option {
-  min-height: 46px;
+  min-height: 42px;
   border-radius: 14px;
   border: 1px solid var(--border);
   background: #fff;
   color: var(--text);
   font-weight: 700;
+  padding: 0.65rem 0.75rem;
 }
 
 .attendance-option:hover {
@@ -602,7 +603,7 @@ code {
 
 .attendance-note-details {
   border-top: 1px dashed var(--border);
-  padding-top: 12px;
+  padding-top: 10px;
 }
 
 .attendance-note-details summary {
@@ -632,9 +633,9 @@ code {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 14px;
-  margin-top: 18px;
-  padding: 14px 16px;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.94);
@@ -650,6 +651,99 @@ code {
 
 .attendance-save-meta strong {
   font-size: 1rem;
+}
+
+.list-count-chip {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 0.42rem 0.8rem;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #36528b;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.people-card-list,
+.invite-card-list {
+  display: grid;
+  gap: 12px;
+}
+
+.member-card,
+.invite-card,
+.latest-invite-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+.latest-invite-card {
+  margin-top: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+}
+
+.member-card-head,
+.invite-card-head,
+.latest-invite-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.member-card-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.member-card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.member-card-grid,
+.invite-meta-grid,
+.latest-invite-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.invite-code-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.invite-code-display {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 46px;
+  padding: 0.7rem 0.9rem;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  background: #f4f8ff;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
 }
 
 .table-wrap {
@@ -749,6 +843,11 @@ tbody tr:last-child td {
   color: var(--warning);
 }
 
+.status-chip.archived {
+  background: #eceff5;
+  color: #5c667a;
+}
+
 .row-meta {
   display: grid;
   gap: 4px;
@@ -813,6 +912,83 @@ tbody tr:last-child td {
   gap: 16px;
   margin-top: 16px;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.org-section-card {
+  display: grid;
+  gap: 14px;
+}
+
+.org-card-list {
+  display: grid;
+  gap: 12px;
+}
+
+.org-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+.org-card.is-archived {
+  background: #f5f7fb;
+  opacity: 0.76;
+}
+
+.org-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.org-card-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.org-card-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.org-card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.org-card-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.org-card-hint.warning {
+  color: #8a5616;
+  font-weight: 700;
+}
+
+.danger-button {
+  border-color: #f0c7c7;
+  background: #fff7f7;
+  color: #b42318;
+}
+
+.danger-button:hover {
+  background: #ffecec;
+}
+
+.danger-button.is-blocked {
+  border-style: dashed;
 }
 
 .editor-details {
@@ -881,6 +1057,13 @@ tbody tr:last-child td {
   .attendance-card-actions {
     justify-content: flex-start;
   }
+
+  .member-card-head,
+  .invite-card-head,
+  .latest-invite-head,
+  .org-card-head {
+    flex-direction: column;
+  }
 }
 
 @media (max-width: 720px) {
@@ -903,9 +1086,21 @@ tbody tr:last-child td {
   }
 
   .user-bar {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .user-bar .compact-buttons {
+    justify-content: flex-end;
+    flex: 0 0 auto;
+  }
+
+  .user-bar .button-row > button,
+  .user-bar .button-row > .button-link {
+    width: auto;
+    flex: 0 0 auto;
   }
 
   .toolbar-group,
@@ -978,10 +1173,21 @@ tbody tr:last-child td {
     flex-direction: column;
     align-items: stretch;
     bottom: calc(8px + env(safe-area-inset-bottom));
-    padding: 12px;
+    padding: 10px 12px;
   }
 
   .attendance-save-bar button {
+    width: 100%;
+  }
+
+  .invite-code-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .invite-code-row button,
+  .member-card-head .people-edit-btn,
+  .latest-invite-head button {
     width: 100%;
   }
 
@@ -1084,15 +1290,33 @@ tbody tr:last-child td {
   .info-grid,
   .result-box,
   .org-management-grid,
-  .toolbar-group {
+  .org-card-grid,
+  .toolbar-group,
+  .member-card-grid,
+  .invite-meta-grid,
+  .latest-invite-grid {
     grid-template-columns: 1fr;
   }
 
   .attendance-card {
-    padding: 14px;
+    padding: 12px;
   }
 
   .attendance-card-actions > * {
+    width: 100%;
+  }
+
+  .user-bar {
+    align-items: stretch;
+  }
+
+  .user-bar .compact-buttons {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .user-bar .compact-buttons > button,
+  .user-bar .compact-buttons > .button-link {
     width: 100%;
   }
 
