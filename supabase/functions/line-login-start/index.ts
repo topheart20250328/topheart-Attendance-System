@@ -60,6 +60,10 @@ Deno.serve(async (request) => {
       code_challenge_method: "S256",
     }).toString();
 
+    if (url.searchParams.get("mode") === "redirect") {
+      return Response.redirect(authorizationUrl.toString(), 302);
+    }
+
     return jsonResponse({
       authorization_url: authorizationUrl.toString(),
       callback_url: callbackUrl,

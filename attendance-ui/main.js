@@ -186,6 +186,7 @@ async function boot() {
   bindEvents();
   hydrateLocalState();
   updateCallbackPreview();
+  syncSignInLink();
   handleAuthReturnFromHash();
 
   if (!els.weekInput.value) {
@@ -200,7 +201,6 @@ function bindEvents() {
   els.clearConfigBtn.addEventListener("click", handleClearConfig);
   els.loginSettingsBtn.addEventListener("click", handleToggleSettings);
   els.toggleSettingsBtn.addEventListener("click", handleToggleSettings);
-  els.signInBtn.addEventListener("click", handleSignIn);
   els.signOutBtn.addEventListener("click", handleSignOut);
   els.bindForm.addEventListener("submit", handleBindInvite);
 
@@ -312,6 +312,37 @@ function updateCallbackPreview() {
     `${projectUrl}/functions/v1/line-login-start`;
 }
 
+function buildLineLoginStartUrl(projectUrl) {
+  if (!projectUrl) {
+    return "";
+  }
+
+  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const url = new URL(`${projectUrl}/functions/v1/line-login-start`);
+
+  // Keep the final LINE auth request as a real navigation from the user's tap.
+  url.searchParams.set("mode", "redirect");
+  url.searchParams.set("redirect_to", redirectTo);
+  return url.toString();
+}
+
+function syncSignInLink() {
+  const href = buildLineLoginStartUrl(state.config.projectUrl);
+
+  if (href) {
+    els.signInBtn.href = href;
+    els.signInBtn.classList.remove("is-disabled");
+    els.signInBtn.setAttribute("aria-disabled", "false");
+    els.signInBtn.removeAttribute("tabindex");
+    return;
+  }
+
+  els.signInBtn.removeAttribute("href");
+  els.signInBtn.classList.add("is-disabled");
+  els.signInBtn.setAttribute("aria-disabled", "true");
+  els.signInBtn.setAttribute("tabindex", "-1");
+}
+
 function handleAuthReturnFromHash() {
   const hash = window.location.hash.startsWith("#")
     ? window.location.hash.slice(1)
@@ -392,6 +423,7 @@ async function handleSaveConfig(event) {
     JSON.stringify(state.config),
   );
   updateCallbackPreview();
+  syncSignInLink();
   if (state.currentMember) {
     state.ui.settingsOpen = false;
   }
@@ -434,6 +466,7 @@ async function handleClearConfig() {
 
   els.projectUrlInput.value = state.config.projectUrl || "";
   updateCallbackPreview();
+  syncSignInLink();
   renderLayout();
   showToast("已清除專案設定。");
 }
@@ -441,32 +474,6 @@ async function handleClearConfig() {
 function handleToggleSettings() {
   state.ui.settingsOpen = !state.ui.settingsOpen;
   renderLayout();
-}
-
-async function handleSignIn() {
-  if (!hasProjectUrl()) {
-    showToast("請先儲存 Supabase Project URL。");
-    return;
-  }
-
-  try {
-    const redirectTo = `${window.location.origin}${window.location.pathname}`;
-    const url = new URL(
-      `${state.config.projectUrl}/functions/v1/line-login-start`,
-    );
-    url.searchParams.set("redirect_to", redirectTo);
-
-    const response = await fetch(url.toString());
-    const data = await response.json().catch(() => null);
-    if (!response.ok || !data?.authorization_url) {
-      throw new Error(data?.error || "無法開始 LINE 登入流程。");
-    }
-
-    window.location.assign(data.authorization_url);
-  } catch (error) {
-    console.error(error);
-    showToast(error.message || "無法開始 LINE 登入流程。");
-  }
 }
 
 async function handleSignOut() {
@@ -597,7 +604,7 @@ function renderLayout() {
     els.authSummary.textContent = hasProjectUrl()
       ? "請使用 LINE 登入。"
       : "請先填寫並儲存 Supabase Project URL。";
-    els.signInBtn.disabled = !hasProjectUrl();
+    syncSignInLink();
     renderPendingProfile();
     return;
   }
@@ -815,21 +822,21 @@ function renderAttendanceRows() {
 
       return `
         <tr>
-          <td>
+          <td data-label="姓名">
             <div class="row-meta">
               <strong>${escapeHtml(member.full_name)}</strong>
               ${renderGenderBadge(member.gender)}
             </div>
           </td>
-          <td>
+          <td data-label="職分 / 歸屬">
             <div class="row-meta">
               <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
               ${meta ? `<span class="muted">${escapeHtml(meta)}</span>` : ""}
             </div>
           </td>
-          <td>${renderAttendanceSelect(member, "sunday_service")}</td>
-          <td>${renderAttendanceSelect(member, "small_group_fellowship")}</td>
-          <td>
+          <td data-label="主日聚會">${renderAttendanceSelect(member, "sunday_service")}</td>
+          <td data-label="小家團契">${renderAttendanceSelect(member, "small_group_fellowship")}</td>
+          <td data-label="近況備註">
             <textarea
               class="note-input"
               data-member-id="${member.id}"
@@ -837,7 +844,7 @@ function renderAttendanceRows() {
               ${noteDisabled}
             >${noteValue}</textarea>
           </td>
-          <td>
+          <td data-label="資料">
             <div class="row-actions">${editButton}</div>
           </td>
         </tr>
@@ -1181,16 +1188,16 @@ function renderPeopleTable(editableMembers) {
 
       return `
         <tr>
-          <td>
+          <td data-label="姓名">
             <div class="row-meta">
               <strong>${escapeHtml(member.full_name)}</strong>
               ${renderGenderBadge(member.gender)}
             </div>
           </td>
-          <td><span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span></td>
-          <td>${escapeHtml(path || "-")}</td>
-          <td>${lineStatus}</td>
-          <td>
+          <td data-label="職分"><span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span></td>
+          <td data-label="區 / 大家 / 小家">${escapeHtml(path || "-")}</td>
+          <td data-label="LINE">${lineStatus}</td>
+          <td data-label="操作">
             <div class="row-actions">
               <button type="button" class="secondary people-edit-btn" data-member-id="${member.id}">編輯</button>
             </div>
@@ -1725,9 +1732,9 @@ function renderDistrictTable() {
     .map(
       (district) => `
         <tr>
-          <td>${escapeHtml(district.name)}</td>
-          <td>${escapeHtml(district.description || "-")}</td>
-          <td>
+          <td data-label="名稱">${escapeHtml(district.name)}</td>
+          <td data-label="說明">${escapeHtml(district.description || "-")}</td>
+          <td data-label="操作">
             <button type="button" class="secondary org-edit-btn" data-org-type="district" data-org-id="${district.id}">編輯</button>
           </td>
         </tr>
@@ -1747,9 +1754,9 @@ function renderBigFamilyTable() {
     .map(
       (bigFamily) => `
         <tr>
-          <td>${escapeHtml(bigFamily.name)}</td>
-          <td>${escapeHtml(bigFamily.district_name || "-")}</td>
-          <td>
+          <td data-label="名稱">${escapeHtml(bigFamily.name)}</td>
+          <td data-label="所屬區">${escapeHtml(bigFamily.district_name || "-")}</td>
+          <td data-label="操作">
             <button type="button" class="secondary org-edit-btn" data-org-type="big_family" data-org-id="${bigFamily.id}">編輯</button>
           </td>
         </tr>
@@ -1773,9 +1780,9 @@ function renderSmallGroupTable() {
 
       return `
         <tr>
-          <td>${escapeHtml(smallGroup.name)}</td>
-          <td>${escapeHtml(path || "直屬區")}</td>
-          <td>
+          <td data-label="名稱">${escapeHtml(smallGroup.name)}</td>
+          <td data-label="歸屬">${escapeHtml(path || "直屬區")}</td>
+          <td data-label="操作">
             <button type="button" class="secondary org-edit-btn" data-org-type="small_group" data-org-id="${smallGroup.id}">編輯</button>
           </td>
         </tr>
@@ -1935,11 +1942,11 @@ function renderInviteTable() {
 
       return `
         <tr>
-          <td>${escapeHtml(invite.target_name)}</td>
-          <td>${escapeHtml(getRoleLabel(invite.target_role))}</td>
-          <td><code>${escapeHtml(invite.invite_code)}</code></td>
-          <td>${status}</td>
-          <td>${escapeHtml(formatDateTime(invite.expires_at))}</td>
+          <td data-label="對象">${escapeHtml(invite.target_name)}</td>
+          <td data-label="職分">${escapeHtml(getRoleLabel(invite.target_role))}</td>
+          <td data-label="邀請碼"><code>${escapeHtml(invite.invite_code)}</code></td>
+          <td data-label="狀態">${status}</td>
+          <td data-label="到期日">${escapeHtml(formatDateTime(invite.expires_at))}</td>
         </tr>
       `;
     })
