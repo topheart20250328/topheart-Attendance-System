@@ -26,7 +26,7 @@ const GENDER_LABELS = {
 };
 
 const STATUS_LABELS = {
-  unknown: "未填寫",
+  unknown: "待確認",
   present: "出席",
   absent: "未出席",
 };
@@ -84,6 +84,10 @@ const els = {
   nextWeekBtn: document.querySelector("#nextWeekBtn"),
   refreshBtn: document.querySelector("#refreshBtn"),
   saveAttendanceBtn: document.querySelector("#saveAttendanceBtn"),
+  saveAttendanceBtnBottom: document.querySelector("#saveAttendanceBtnBottom"),
+  attendanceSaveBar: document.querySelector("#attendanceSaveBar"),
+  attendanceSaveWeek: document.querySelector("#attendanceSaveWeek"),
+  attendanceSaveStatus: document.querySelector("#attendanceSaveStatus"),
   weekSummary: document.querySelector("#weekSummary"),
   rosterTableBody: document.querySelector("#rosterTableBody"),
   peopleView: document.querySelector("#peopleView"),
@@ -212,6 +216,7 @@ function bindEvents() {
   els.nextWeekBtn.addEventListener("click", () => handleShiftWeek(7));
   els.refreshBtn.addEventListener("click", handleRefreshDashboard);
   els.saveAttendanceBtn.addEventListener("click", handleSaveAttendance);
+  els.saveAttendanceBtnBottom.addEventListener("click", handleSaveAttendance);
   els.weekInput.addEventListener("change", handleWeekChange);
   els.rosterTableBody.addEventListener("change", handleAttendanceFieldChange);
   els.rosterTableBody.addEventListener("input", handleAttendanceFieldChange);
@@ -266,20 +271,9 @@ function hydrateLocalState() {
 }
 
 function loadConfig() {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEYS.config);
-    if (!raw) {
-      return { projectUrl: DEFAULT_PROJECT_URL };
-    }
-
-    const parsed = JSON.parse(raw);
-    return {
-      projectUrl: normalizeProjectUrl(parsed.projectUrl || ""),
-    };
-  } catch (error) {
-    console.warn("Unable to parse saved config", error);
-    return { projectUrl: DEFAULT_PROJECT_URL };
-  }
+  return {
+    projectUrl: DEFAULT_PROJECT_URL,
+  };
 }
 
 function loadStoredValue(key) {
@@ -585,23 +579,23 @@ async function refreshSessionState() {
 function renderLayout() {
   const isAuthenticated = Boolean(state.currentMember);
   const isPending = Boolean(state.pendingProfile && !state.currentMember);
-  const showSettings = !hasProjectUrl() || state.ui.settingsOpen;
+  const showSettings = false;
 
-  setHidden(els.setupCard, !showSettings);
+  setHidden(els.setupCard, true);
   setHidden(els.loginCard, isAuthenticated || isPending);
-  setHidden(els.loginSettingsBtn, !hasProjectUrl() || showSettings || isAuthenticated || isPending);
+  setHidden(els.loginSettingsBtn, true);
   setHidden(els.bindCard, !isPending);
   setHidden(els.userBar, !isAuthenticated);
   setHidden(els.navCard, !isAuthenticated);
+  setHidden(els.toggleSettingsBtn, true);
 
   if (!isAuthenticated) {
     setHidden(els.attendanceView, true);
     setHidden(els.peopleView, true);
     setHidden(els.invitesView, true);
     setBadge(els.sessionBadge, isPending ? "待綁定" : "尚未登入", isPending ? "warning" : "neutral");
-    els.authSummary.textContent = hasProjectUrl()
-      ? "請使用 LINE 登入。"
-      : "請先填寫並儲存 Supabase Project URL。";
+    els.authSummary.textContent =
+      "請使用 LINE 登入。若這是第一次登入，系統會在下一步引導你輸入邀請碼。";
     syncSignInLink();
     renderPendingProfile();
     return;
@@ -720,6 +714,12 @@ async function loadDashboard(options = {}) {
 function enrichRosterMember(member) {
   return {
     ...member,
+    note: member.note || "",
+    attendance: {
+      sunday_service: member.attendance?.sunday_service || "unknown",
+      small_group_fellowship:
+        member.attendance?.small_group_fellowship || "unknown",
+    },
     can_edit_note: Boolean(
       member.can_edit_note ?? member.can_edit_attendance,
     ),
@@ -730,6 +730,7 @@ function enrichRosterMember(member) {
 function renderAttendanceHeader() {
   if (!state.currentMember) {
     els.attendanceHeaderPanel.innerHTML = "";
+    els.attendanceSaveWeek.textContent = "尚未載入週次";
     return;
   }
 
@@ -763,13 +764,15 @@ function renderAttendanceHeader() {
       </div>
     </div>
   `;
+
+  els.attendanceSaveWeek.textContent =
+    state.currentWeek?.label ||
+    buildWeekLabel(els.weekInput.value || getMondayIso(new Date()));
 }
 
 function renderWeekSummary() {
   const visibleCount = state.roster.length;
-  const editableCount = state.roster.filter(
-    (member) => member.can_edit_attendance,
-  ).length;
+  const pendingCount = state.roster.filter(hasPendingAttendance).length;
   const sundayPresentCount = countStatus("sunday_service", "present");
   const fellowshipPresentCount = countStatus(
     "small_group_fellowship",
@@ -782,8 +785,8 @@ function renderWeekSummary() {
       <strong>${visibleCount}</strong>
     </div>
     <div class="summary-item">
-      <span class="info-label">可點名</span>
-      <strong>${editableCount}</strong>
+      <span class="info-label">待確認</span>
+      <strong>${pendingCount}</strong>
     </div>
     <div class="summary-item">
       <span class="info-label">主日出席 / 出席率</span>
@@ -805,71 +808,186 @@ function renderWeekSummary() {
 function renderAttendanceRows() {
   if (!state.roster.length) {
     els.rosterTableBody.innerHTML =
-      '<tr><td colspan="6" class="empty-cell">目前沒有可顯示的人員資料。</td></tr>';
+      '<div class="empty-state-card">目前沒有可顯示的人員資料。</div>';
     return;
   }
 
   els.rosterTableBody.innerHTML = state.roster
     .map((member) => {
       const meta = formatMemberScopeSummary(member);
-      const noteDisabled = member.can_edit_note ? "" : "disabled";
       const noteValue = escapeHtml(member.note || "");
+      const readOnlyLabel = member.can_edit_attendance ? "可直接點名" : "僅可檢視";
       const editButton = member.can_edit_profile
         ? `<button type="button" class="secondary roster-edit-btn" data-member-id="${member.id}">編輯資料</button>`
-        : `<span class="muted">-</span>`;
+        : "";
 
       return `
-        <tr>
-          <td data-label="姓名">
+        <article class="attendance-card${member.can_edit_attendance ? "" : " is-readonly"}">
+          <div class="attendance-card-head">
             <div class="row-meta">
-              <strong>${escapeHtml(member.full_name)}</strong>
-              ${renderGenderBadge(member.gender)}
+              <div class="attendance-name-line">
+                <strong class="attendance-member-name">${escapeHtml(member.full_name)}</strong>
+                ${renderGenderBadge(member.gender)}
+              </div>
+              <div class="attendance-meta-line">
+                <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
+                ${meta ? `<span class="muted small-text">${escapeHtml(meta)}</span>` : ""}
+              </div>
             </div>
-          </td>
-          <td data-label="職分 / 歸屬">
-            <div class="row-meta">
-              <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
-              ${meta ? `<span class="muted">${escapeHtml(meta)}</span>` : ""}
+            <div class="attendance-card-actions">
+              <span class="status-chip neutral">${readOnlyLabel}</span>
+              ${editButton}
             </div>
-          </td>
-          <td data-label="主日聚會">${renderAttendanceSelect(member, "sunday_service")}</td>
-          <td data-label="小家團契">${renderAttendanceSelect(member, "small_group_fellowship")}</td>
-          <td data-label="近況備註">
+          </div>
+
+          <div class="attendance-event-grid">
+            ${renderAttendanceEventCard(member, "sunday_service", "主日聚會")}
+            ${renderAttendanceEventCard(member, "small_group_fellowship", "小家團契")}
+          </div>
+
+          <details class="attendance-note-details${member.note.trim() ? " is-filled" : ""}">
+            <summary>${buildNoteSummary(member)}</summary>
             <textarea
               class="note-input"
               data-member-id="${member.id}"
-              placeholder="記錄近況備註"
-              ${noteDisabled}
+              placeholder="記錄近況、代禱與需要跟進的事項"
+              ${member.can_edit_note ? "" : "disabled"}
             >${noteValue}</textarea>
-          </td>
-          <td data-label="資料">
-            <div class="row-actions">${editButton}</div>
-          </td>
-        </tr>
+          </details>
+        </article>
       `;
     })
     .join("");
 }
 
+function renderAttendanceEventCard(member, eventType, label) {
+  const status = getAttendanceStatus(member, eventType);
+
+  return `
+    <section class="attendance-event-card status-${status}" data-status="${status}">
+      <div class="attendance-event-head">
+        <span class="attendance-event-title">${label}</span>
+        <span class="attendance-status-text">${STATUS_LABELS[status]}</span>
+      </div>
+      ${renderAttendanceSelect(member, eventType)}
+    </section>
+  `;
+}
+
+function buildNoteSummary(member) {
+  if (member.note.trim()) {
+    return "已填寫近況備註";
+  }
+
+  return member.can_edit_note ? "新增近況備註" : "目前無近況備註";
+}
+
+function hasPendingAttendance(member) {
+  return ["sunday_service", "small_group_fellowship"].some(
+    (eventType) => getAttendanceStatus(member, eventType) === "unknown",
+  );
+}
+
+function getAttendanceStatus(member, eventType) {
+  return member.attendance?.[eventType] || "unknown";
+}
+
+function updateMemberAttendance(memberId, eventType, status) {
+  const member = state.roster.find((item) => item.id === memberId);
+  if (!member) {
+    return null;
+  }
+
+  const currentStatus = getAttendanceStatus(member, eventType);
+  const nextStatus = currentStatus === status ? "unknown" : status;
+
+  member.attendance = {
+    ...member.attendance,
+    [eventType]: nextStatus,
+  };
+
+  return {
+    member,
+    status: nextStatus,
+  };
+}
+
+function updateMemberNote(memberId, note) {
+  const member = state.roster.find((item) => item.id === memberId);
+  if (!member) {
+    return null;
+  }
+
+  member.note = note;
+  return member;
+}
+
+function syncAttendanceOptionUi(group, status) {
+  if (!group) {
+    return;
+  }
+
+  const options = group.querySelectorAll(".attendance-option");
+  for (const option of options) {
+    option.classList.toggle("is-active", option.dataset.status === status);
+  }
+
+  const eventCard = group.closest(".attendance-event-card");
+  if (eventCard) {
+    eventCard.dataset.status = status;
+    eventCard.classList.remove("status-unknown", "status-present", "status-absent");
+    eventCard.classList.add(`status-${status}`);
+    const statusText = eventCard.querySelector(".attendance-status-text");
+    if (statusText) {
+      statusText.textContent = STATUS_LABELS[status];
+    }
+  }
+}
+
+function syncNoteSummary(details, member) {
+  if (!details || !member) {
+    return;
+  }
+
+  details.classList.toggle("is-filled", Boolean(member.note.trim()));
+  const summary = details.querySelector("summary");
+  if (summary) {
+    summary.textContent = buildNoteSummary(member);
+  }
+}
+
 function renderAttendanceSelect(member, eventType) {
   const label = eventType === "sunday_service" ? "主日聚會" : "小家團契";
   const disabled = member.can_edit_attendance ? "" : "disabled";
-  const checked =
-    (member.attendance?.[eventType] || "unknown") === "present" ? "checked" : "";
+  const currentStatus = getAttendanceStatus(member, eventType);
 
   return `
-    <label class="checkbox-row">
-      <input
-      type="checkbox"
-      class="attendance-checkbox"
-      data-member-id="${member.id}"
-      data-event-type="${eventType}"
+    <div
+      class="attendance-toggle"
+      role="group"
       aria-label="${escapeHtml(member.full_name)} ${label}"
-      ${disabled}
-      ${checked}
-      />
-      <span>出席</span>
-    </label>
+    >
+      <button
+        type="button"
+        class="attendance-option is-present${currentStatus === "present" ? " is-active" : ""}"
+        data-member-id="${member.id}"
+        data-event-type="${eventType}"
+        data-status="present"
+        ${disabled}
+      >
+        出席
+      </button>
+      <button
+        type="button"
+        class="attendance-option is-absent${currentStatus === "absent" ? " is-active" : ""}"
+        data-member-id="${member.id}"
+        data-event-type="${eventType}"
+        data-status="absent"
+        ${disabled}
+      >
+        未出席
+      </button>
+    </div>
   `;
 }
 
@@ -880,27 +998,13 @@ function countStatus(eventType, status) {
 }
 
 function getSelectedAttendanceStatus(memberId, eventType) {
-  const checkbox = document.querySelector(
-    `.attendance-checkbox[data-member-id="${memberId}"][data-event-type="${eventType}"]`,
-  );
-  if (checkbox) {
-    return checkbox.checked ? "present" : "absent";
-  }
-
   const member = state.roster.find((item) => item.id === memberId);
-  return member?.attendance?.[eventType] || "unknown";
+  return member ? getAttendanceStatus(member, eventType) : "unknown";
 }
 
 function getSelectedNote(memberId) {
-  const noteInput = document.querySelector(
-    `.note-input[data-member-id="${memberId}"]`,
-  );
-  if (noteInput) {
-    return noteInput.value.trim();
-  }
-
   const member = state.roster.find((item) => item.id === memberId);
-  return member?.note || "";
+  return member?.note.trim() || "";
 }
 
 async function handleShiftWeek(dayDelta) {
@@ -932,18 +1036,45 @@ async function handleWeekChange() {
 }
 
 function handleAttendanceFieldChange(event) {
-  if (
-    !event.target.matches(".attendance-checkbox") &&
-    !event.target.matches(".note-input")
-  ) {
+  if (!event.target.matches(".note-input")) {
     return;
   }
 
+  const memberId = Number(event.target.dataset.memberId);
+  if (!memberId) {
+    return;
+  }
+
+  const member = updateMemberNote(memberId, event.target.value);
+  syncNoteSummary(event.target.closest(".attendance-note-details"), member);
   setDirty(true);
-  renderWeekSummary();
 }
 
 function handleRosterActions(event) {
+  const attendanceOption = event.target.closest(".attendance-option");
+  if (attendanceOption) {
+    const memberId = Number(attendanceOption.dataset.memberId);
+    const eventType = attendanceOption.dataset.eventType;
+    const status = attendanceOption.dataset.status;
+
+    if (!memberId || !eventType || !status) {
+      return;
+    }
+
+    const updated = updateMemberAttendance(memberId, eventType, status);
+    if (!updated) {
+      return;
+    }
+
+    syncAttendanceOptionUi(
+      attendanceOption.closest(".attendance-toggle"),
+      updated.status,
+    );
+    setDirty(true);
+    renderWeekSummary();
+    return;
+  }
+
   const button = event.target.closest(".roster-edit-btn");
   if (!button) {
     return;
@@ -982,6 +1113,7 @@ async function handleSaveAttendance() {
   }
 
   setButtonLoading(els.saveAttendanceBtn, true);
+  setButtonLoading(els.saveAttendanceBtnBottom, true);
   try {
     const data = await apiRequest("save-attendance", {
       method: "POST",
@@ -1000,6 +1132,7 @@ async function handleSaveAttendance() {
     showToast(error.message || "儲存點名失敗。");
   } finally {
     setButtonLoading(els.saveAttendanceBtn, false);
+    setButtonLoading(els.saveAttendanceBtnBottom, false);
   }
 }
 
@@ -2032,6 +2165,10 @@ function handleAdminRefresh() {
 }
 
 function setButtonLoading(button, isLoading) {
+  if (!button) {
+    return;
+  }
+
   button.disabled = isLoading;
 }
 
@@ -2100,6 +2237,12 @@ function setDirty(isDirty) {
     isDirty ? "尚有未儲存變更" : "已同步",
     isDirty ? "warning" : "neutral",
   );
+
+  if (els.attendanceSaveStatus) {
+    els.attendanceSaveStatus.textContent = isDirty
+      ? "你有尚未儲存的點名變更"
+      : "目前已同步，可直接離開";
+  }
 }
 
 function canDiscardDirtyChanges() {

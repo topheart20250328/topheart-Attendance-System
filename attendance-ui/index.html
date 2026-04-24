@@ -56,7 +56,7 @@
             <div id="userScopeText" class="muted small-text"></div>
           </div>
           <div class="button-row compact-buttons">
-            <button id="toggleSettingsBtn" type="button" class="secondary">
+            <button id="toggleSettingsBtn" type="button" class="secondary hidden system-only">
               系統設定
             </button>
             <button id="signOutBtn" type="button" class="secondary">
@@ -66,7 +66,7 @@
         </div>
       </header>
 
-      <section id="setupCard" class="card">
+      <section id="setupCard" class="card hidden system-only">
         <div class="card-header">
           <div>
             <p class="eyebrow">設定</p>
@@ -115,14 +115,14 @@
             <h2>LINE 登入</h2>
           </div>
           <div class="button-row compact-buttons">
-            <button id="loginSettingsBtn" type="button" class="secondary hidden">
+            <button id="loginSettingsBtn" type="button" class="secondary hidden system-only">
               系統設定
             </button>
             <div id="sessionBadge" class="badge neutral">尚未登入</div>
           </div>
         </div>
         <p id="authSummary" class="muted">
-          儲存 Project URL 後即可開始 LINE 登入。第一次登入若尚未綁定資料，系統會引導你輸入邀請碼。
+          使用 LINE 登入後即可開始使用。第一次登入若尚未綁定資料，系統會引導你輸入邀請碼。
         </p>
         <div class="button-row">
           <a id="signInBtn" class="button-link is-disabled" aria-disabled="true">
@@ -212,24 +212,25 @@
 
         <div id="weekSummary" class="summary-grid"></div>
 
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>姓名</th>
-                <th>職分 / 歸屬</th>
-                <th>主日聚會</th>
-                <th>小家團契</th>
-                <th>近況備註</th>
-                <th>資料</th>
-              </tr>
-            </thead>
-            <tbody id="rosterTableBody">
-              <tr>
-                <td colspan="6" class="empty-cell">登入後即可載入名單。</td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="attendance-guide-row">
+          <span class="legend-chip neutral">未選擇代表待確認</span>
+          <span class="legend-chip success">綠色代表出席</span>
+          <span class="legend-chip warning">橘色代表未出席</span>
+        </div>
+
+        <div id="rosterTableBody" class="roster-list">
+          <div class="empty-state-card">登入後即可載入名單。</div>
+        </div>
+
+        <div id="attendanceSaveBar" class="attendance-save-bar">
+          <div class="attendance-save-meta">
+            <span class="info-label">本週點名</span>
+            <strong id="attendanceSaveWeek">尚未載入週次</strong>
+            <span id="attendanceSaveStatus" class="muted small-text">
+              目前已同步，可直接離開
+            </span>
+          </div>
+          <button id="saveAttendanceBtnBottom" type="button">儲存本週點名</button>
         </div>
       </section>
 

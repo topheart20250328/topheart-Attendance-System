@@ -209,6 +209,10 @@ code {
   display: none !important;
 }
 
+.system-only {
+  display: none !important;
+}
+
 .form-grid {
   display: grid;
   gap: 16px;
@@ -297,6 +301,14 @@ code {
 .user-name {
   font-weight: 700;
   overflow-wrap: anywhere;
+}
+
+#navCard {
+  position: sticky;
+  top: calc(10px + env(safe-area-inset-top));
+  z-index: 6;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(14px);
 }
 
 #userScopeText {
@@ -416,6 +428,228 @@ code {
 
 .week-label {
   min-width: 180px;
+}
+
+.attendance-guide-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.legend-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  background: #eef4ff;
+  color: #36528b;
+}
+
+.legend-chip.success {
+  background: #dcfce7;
+  color: var(--success);
+}
+
+.legend-chip.warning {
+  background: #ffedd5;
+  color: var(--warning);
+}
+
+.roster-list {
+  display: grid;
+  gap: 14px;
+}
+
+.empty-state-card {
+  padding: 20px;
+  border: 1px dashed var(--border);
+  border-radius: 18px;
+  background: #fff;
+  color: var(--muted);
+  text-align: center;
+}
+
+.attendance-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+}
+
+.attendance-card.is-readonly {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.attendance-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.attendance-member-name {
+  font-size: 1.05rem;
+  line-height: 1.3;
+}
+
+.attendance-name-line,
+.attendance-meta-line,
+.attendance-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.attendance-card-actions {
+  justify-content: flex-end;
+}
+
+.attendance-event-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.attendance-event-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface-alt);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.attendance-event-card.status-present {
+  border-color: rgba(22, 101, 52, 0.24);
+  background: #f1fbf4;
+}
+
+.attendance-event-card.status-absent {
+  border-color: rgba(154, 52, 18, 0.22);
+  background: #fff7f2;
+}
+
+.attendance-event-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.attendance-event-title {
+  font-weight: 700;
+}
+
+.attendance-status-text {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.attendance-event-card.status-present .attendance-status-text {
+  color: var(--success);
+}
+
+.attendance-event-card.status-absent .attendance-status-text {
+  color: var(--warning);
+}
+
+.attendance-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.attendance-option {
+  min-height: 46px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.attendance-option:hover {
+  background: #f4f8ff;
+}
+
+.attendance-option.is-active.is-present {
+  background: #dcfce7;
+  color: var(--success);
+  border-color: rgba(22, 101, 52, 0.2);
+}
+
+.attendance-option.is-active.is-absent {
+  background: #ffedd5;
+  color: var(--warning);
+  border-color: rgba(154, 52, 18, 0.18);
+}
+
+.attendance-option:disabled {
+  opacity: 1;
+  cursor: default;
+  background: #f5f7fb;
+  color: var(--muted);
+}
+
+.attendance-note-details {
+  border-top: 1px dashed var(--border);
+  padding-top: 12px;
+}
+
+.attendance-note-details summary {
+  cursor: pointer;
+  list-style: none;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.attendance-note-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.attendance-note-details[open] summary,
+.attendance-note-details.is-filled summary {
+  color: var(--text);
+}
+
+.attendance-note-details textarea {
+  margin-top: 12px;
+}
+
+.attendance-save-bar {
+  position: sticky;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: 5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(14px);
+}
+
+.attendance-save-meta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.attendance-save-meta strong {
+  font-size: 1rem;
 }
 
 .table-wrap {
@@ -639,6 +873,14 @@ tbody tr:last-child td {
   .management-layout {
     grid-template-columns: 1fr;
   }
+
+  .attendance-card-head {
+    flex-direction: column;
+  }
+
+  .attendance-card-actions {
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 720px) {
@@ -697,6 +939,18 @@ tbody tr:last-child td {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .attendance-guide-row {
+    flex-wrap: nowrap;
+    overflow: auto;
+    padding-bottom: 4px;
+    margin-bottom: 14px;
+    scrollbar-width: none;
+  }
+
+  .attendance-guide-row::-webkit-scrollbar {
+    display: none;
+  }
+
   .toolbar {
     padding: 0;
     border: none;
@@ -714,6 +968,21 @@ tbody tr:last-child td {
     min-width: 0;
     grid-column: 1 / -1;
     order: -1;
+  }
+
+  .attendance-event-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .attendance-save-bar {
+    flex-direction: column;
+    align-items: stretch;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    padding: 12px;
+  }
+
+  .attendance-save-bar button {
+    width: 100%;
   }
 
   .pending-profile {
@@ -817,6 +1086,14 @@ tbody tr:last-child td {
   .org-management-grid,
   .toolbar-group {
     grid-template-columns: 1fr;
+  }
+
+  .attendance-card {
+    padding: 14px;
+  }
+
+  .attendance-card-actions > * {
+    width: 100%;
   }
 
   .compact-buttons > button,
