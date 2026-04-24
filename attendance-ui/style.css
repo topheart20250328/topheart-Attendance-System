@@ -151,6 +151,14 @@ code {
   line-height: 1.65;
 }
 
+#authSummary {
+  margin: 0 0 12px;
+}
+
+#loginCard .button-row {
+  margin-top: 0;
+}
+
 .eyebrow {
   margin: 0;
   color: var(--primary);
@@ -388,6 +396,14 @@ code {
   display: block;
   margin-top: 6px;
   font-size: 1.1rem;
+}
+
+.summary-subtext {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
 
 .info-grid {
@@ -1086,6 +1102,20 @@ tbody tr:last-child td {
     width: min(1180px, calc(100vw - 16px));
     padding-top: max(14px, env(safe-area-inset-top));
     padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+
+  .app-header {
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  #loginCard .card-header {
+    margin-bottom: 10px;
+  }
+
+  #authSummary {
+    margin-bottom: 10px;
+    line-height: 1.55;
   }
 
   .card,

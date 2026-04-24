@@ -174,6 +174,7 @@ const state = {
   currentMember: null,
   pendingProfile: null,
   currentWeek: null,
+  attendanceAnalytics: emptyAttendanceAnalytics(),
   roster: [],
   adminData: emptyAdminData(),
   ui: {
@@ -447,6 +448,7 @@ async function handleClearConfig() {
   state.currentMember = null;
   state.pendingProfile = null;
   state.currentWeek = null;
+  state.attendanceAnalytics = emptyAttendanceAnalytics();
   state.roster = [];
   state.adminData = emptyAdminData();
   state.ui.activeTab = TABS.attendance;
@@ -541,6 +543,8 @@ async function refreshSessionState() {
   if (!hasProjectUrl()) {
     state.currentMember = null;
     state.pendingProfile = null;
+    state.currentWeek = null;
+    state.attendanceAnalytics = emptyAttendanceAnalytics();
     state.adminData = emptyAdminData();
     renderLayout();
     return;
@@ -569,6 +573,8 @@ async function refreshSessionState() {
     if (data?.status === "pending_binding") {
       state.currentMember = null;
       state.pendingProfile = data.pending_profile;
+      state.currentWeek = null;
+      state.attendanceAnalytics = emptyAttendanceAnalytics();
       state.adminData = emptyAdminData();
       renderLayout();
       return;
@@ -582,6 +588,8 @@ async function refreshSessionState() {
   state.pendingToken = null;
   state.currentMember = null;
   state.pendingProfile = null;
+  state.currentWeek = null;
+  state.attendanceAnalytics = emptyAttendanceAnalytics();
   state.adminData = emptyAdminData();
   saveStoredValue(STORAGE_KEYS.appToken, "");
   saveStoredValue(STORAGE_KEYS.pendingToken, "");
@@ -711,7 +719,8 @@ async function loadDashboard(options = {}) {
     );
 
     state.currentMember = data.current_member;
-    state.currentWeek = data.week;
+    state.currentWeek = normalizeWeek(data.week, weekStart);
+    state.attendanceAnalytics = normalizeAttendanceAnalytics(data.analytics);
     state.roster = sortMembers((data.roster || []).map(enrichRosterMember));
     renderAttendanceHeader();
     renderWeekSummary();
@@ -737,6 +746,58 @@ function enrichRosterMember(member) {
     ),
     can_edit_profile: canEditProfile(member),
   };
+}
+
+function normalizeWeek(week, fallbackWeekStart) {
+  if (!week) {
+    return null;
+  }
+
+  const weekStart = week.week_start_date || fallbackWeekStart || "";
+  return {
+    ...week,
+    label: buildWeekLabel(weekStart),
+  };
+}
+
+function normalizeAttendanceAnalytics(analytics) {
+  const empty = emptyAttendanceAnalytics();
+  if (!analytics) {
+    return empty;
+  }
+
+  return {
+    recentThreeMonths: {
+      ...empty.recentThreeMonths,
+      ...analytics.recent_three_months,
+      sunday_service: {
+        ...empty.recentThreeMonths.sunday_service,
+        ...(analytics.recent_three_months?.sunday_service || {}),
+      },
+      small_group_fellowship: {
+        ...empty.recentThreeMonths.small_group_fellowship,
+        ...(analytics.recent_three_months?.small_group_fellowship || {}),
+      },
+    },
+    yearToDate: {
+      ...empty.yearToDate,
+      ...analytics.year_to_date,
+      sunday_service: {
+        ...empty.yearToDate.sunday_service,
+        ...(analytics.year_to_date?.sunday_service || {}),
+      },
+      small_group_fellowship: {
+        ...empty.yearToDate.small_group_fellowship,
+        ...(analytics.year_to_date?.small_group_fellowship || {}),
+      },
+    },
+  };
+}
+
+function getDisplayedWeekLabel() {
+  return buildWeekLabel(
+    state.currentWeek?.week_start_date || els.weekInput.value || getMondayIso(new Date()),
+  );
 }
 
 function renderAttendanceHeader() {
@@ -770,16 +831,12 @@ function renderAttendanceHeader() {
       </div>
       <div class="info-item">
         <span class="info-label">週次</span>
-        <span class="info-value">${escapeHtml(
-          state.currentWeek?.label || buildWeekLabel(els.weekInput.value || getMondayIso(new Date())),
-        )}</span>
+        <span class="info-value">${escapeHtml(getDisplayedWeekLabel())}</span>
       </div>
     </div>
   `;
 
-  els.attendanceSaveWeek.textContent =
-    state.currentWeek?.label ||
-    buildWeekLabel(els.weekInput.value || getMondayIso(new Date()));
+  els.attendanceSaveWeek.textContent = getDisplayedWeekLabel();
 }
 
 function renderWeekSummary() {
@@ -790,6 +847,8 @@ function renderWeekSummary() {
     "small_group_fellowship",
     "present",
   );
+  const recentThreeMonths = state.attendanceAnalytics.recentThreeMonths;
+  const yearToDate = state.attendanceAnalytics.yearToDate;
 
   els.weekSummary.innerHTML = `
     <div class="summary-item">
@@ -814,7 +873,51 @@ function renderWeekSummary() {
         visibleCount,
       )}</strong>
     </div>
+    ${renderAnalyticsSummaryCard("近三個月主日出席率", recentThreeMonths.sunday_service)}
+    ${renderAnalyticsSummaryCard(
+      "近三個月小家出席率",
+      recentThreeMonths.small_group_fellowship,
+    )}
+    ${renderAnalyticsSummaryCard("今年主日出席率", yearToDate.sunday_service)}
+    ${renderAnalyticsSummaryCard(
+      "今年小家出席率",
+      yearToDate.small_group_fellowship,
+    )}
   `;
+}
+
+function renderAnalyticsSummaryCard(label, stats) {
+  return `
+    <div class="summary-item">
+      <span class="info-label">${escapeHtml(label)}</span>
+      <strong>${escapeHtml(formatAnalyticsRate(stats))}</strong>
+      <span class="summary-subtext">${escapeHtml(formatAnalyticsBreakdown(stats))}</span>
+    </div>
+  `;
+}
+
+function formatAnalyticsRate(stats) {
+  if (!stats?.confirmed_count) {
+    return "尚無資料";
+  }
+
+  return formatPercent(stats.present_count || 0, stats.confirmed_count);
+}
+
+function formatAnalyticsBreakdown(stats) {
+  if (!stats) {
+    return "尚無歷史資料";
+  }
+
+  if (stats.confirmed_count) {
+    return `出席 ${stats.present_count || 0} / 已填 ${stats.confirmed_count}`;
+  }
+
+  if (stats.unknown_count) {
+    return `待確認 ${stats.unknown_count}`;
+  }
+
+  return "尚無歷史資料";
 }
 
 function renderAttendanceRows() {
@@ -2695,6 +2798,28 @@ function emptyAdminData() {
     members: [],
     invites: [],
     latestInvite: null,
+  };
+}
+
+function emptyAttendanceAnalytics() {
+  const emptyEventStats = () => ({
+    present_count: 0,
+    absent_count: 0,
+    unknown_count: 0,
+    confirmed_count: 0,
+  });
+
+  return {
+    recentThreeMonths: {
+      label: "近三個月",
+      sunday_service: emptyEventStats(),
+      small_group_fellowship: emptyEventStats(),
+    },
+    yearToDate: {
+      label: "今年",
+      sunday_service: emptyEventStats(),
+      small_group_fellowship: emptyEventStats(),
+    },
   };
 }
 

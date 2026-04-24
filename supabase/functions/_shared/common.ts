@@ -198,9 +198,7 @@ export function formatDate(date: Date) {
 
 export function buildWeekLabel(weekStartIso: string) {
   const start = parseIsoDate(weekStartIso);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  return `${formatDate(start)} 到 ${formatDate(end)}`;
+  return `${formatDate(start)}`;
 }
 
 export function isLoginEnabledMember(member: {

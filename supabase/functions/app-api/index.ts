@@ -110,6 +110,26 @@ type ResolvedMemberScope = {
   small_group_id: number | null;
 };
 
+type AttendanceEventAnalytics = {
+  present_count: number;
+  absent_count: number;
+  unknown_count: number;
+  confirmed_count: number;
+};
+
+type AttendanceAnalyticsRange = {
+  label: string;
+  start_date: string;
+  end_date: string;
+  sunday_service: AttendanceEventAnalytics;
+  small_group_fellowship: AttendanceEventAnalytics;
+};
+
+type DashboardAttendanceAnalytics = {
+  recent_three_months: AttendanceAnalyticsRange;
+  year_to_date: AttendanceAnalyticsRange;
+};
+
 const VALID_ATTENDANCE_STATUS = new Set(["unknown", "present", "absent"]);
 const LOGIN_CAPABLE_ROLES = new Set([
   "district_leader",
@@ -288,6 +308,11 @@ async function handleGetDashboard(
     week.id,
     rosterMembers.map((member) => member.id),
   );
+  const analytics = await loadAttendanceAnalytics(
+    adminClient,
+    rosterMembers.map((member) => member.id),
+    weekStart,
+  );
 
   const roster = rosterMembers.map((member) => ({
     ...member,
@@ -303,7 +328,11 @@ async function handleGetDashboard(
 
   return jsonResponse({
     current_member: sessionContext.member,
-    week,
+    week: {
+      ...week,
+      label: buildWeekLabel(week.week_start_date),
+    },
+    analytics,
     roster,
   });
 }
@@ -1544,6 +1573,143 @@ async function loadAttendanceMap(
   return map;
 }
 
+function createEmptyAttendanceEventAnalytics(): AttendanceEventAnalytics {
+  return {
+    present_count: 0,
+    absent_count: 0,
+    unknown_count: 0,
+    confirmed_count: 0,
+  };
+}
+
+function createAttendanceAnalyticsRange(
+  label: string,
+  startDate: string,
+  endDate: string,
+): AttendanceAnalyticsRange {
+  return {
+    label,
+    start_date: startDate,
+    end_date: endDate,
+    sunday_service: createEmptyAttendanceEventAnalytics(),
+    small_group_fellowship: createEmptyAttendanceEventAnalytics(),
+  };
+}
+
+function createEmptyDashboardAttendanceAnalytics(
+  anchorWeekStart: string,
+): DashboardAttendanceAnalytics {
+  const recentThreeMonthsStart = shiftIsoDateByDays(anchorWeekStart, -89);
+  const yearStart = `${parseIsoDate(anchorWeekStart).getFullYear()}-01-01`;
+
+  return {
+    recent_three_months: createAttendanceAnalyticsRange(
+      "近三個月",
+      recentThreeMonthsStart,
+      anchorWeekStart,
+    ),
+    year_to_date: createAttendanceAnalyticsRange("今年", yearStart, anchorWeekStart),
+  };
+}
+
+function accumulateAttendanceAnalytics(
+  stats: AttendanceEventAnalytics,
+  status: string,
+) {
+  if (status === "present") {
+    stats.present_count += 1;
+    stats.confirmed_count += 1;
+    return;
+  }
+
+  if (status === "absent") {
+    stats.absent_count += 1;
+    stats.confirmed_count += 1;
+    return;
+  }
+
+  stats.unknown_count += 1;
+}
+
+async function loadAttendanceAnalytics(
+  adminClient: ReturnType<typeof createAdminClient>,
+  memberIds: number[],
+  anchorWeekStart: string,
+): Promise<DashboardAttendanceAnalytics> {
+  const analytics = createEmptyDashboardAttendanceAnalytics(anchorWeekStart);
+  if (!memberIds.length) {
+    return analytics;
+  }
+
+  const earliestStartDate = analytics.year_to_date.start_date <= analytics.recent_three_months.start_date
+    ? analytics.year_to_date.start_date
+    : analytics.recent_three_months.start_date;
+
+  const { data: weeks, error: weeksError } = await adminClient
+    .from("attendance_weeks")
+    .select("id, week_start_date")
+    .gte("week_start_date", earliestStartDate)
+    .lte("week_start_date", anchorWeekStart)
+    .order("week_start_date");
+
+  if (weeksError) {
+    throw new Error(weeksError.message);
+  }
+
+  const weekRows = weeks || [];
+  if (!weekRows.length) {
+    return analytics;
+  }
+
+  const weekDateMap = new Map<number, string>(
+    weekRows.map((week) => [week.id as number, week.week_start_date as string]),
+  );
+
+  const { data: records, error: recordsError } = await adminClient
+    .from("attendance_records")
+    .select("attendance_week_id, event_type, status")
+    .in("attendance_week_id", Array.from(weekDateMap.keys()))
+    .in("member_id", memberIds);
+
+  if (recordsError) {
+    throw new Error(recordsError.message);
+  }
+
+  for (const record of records || []) {
+    const weekDate = weekDateMap.get(record.attendance_week_id as number);
+    if (!weekDate) {
+      continue;
+    }
+
+    const targetKey =
+      record.event_type === "small_group_fellowship"
+        ? "small_group_fellowship"
+        : "sunday_service";
+
+    if (
+      weekDate >= analytics.recent_three_months.start_date &&
+      weekDate <= analytics.recent_three_months.end_date
+    ) {
+      accumulateAttendanceAnalytics(
+        analytics.recent_three_months[targetKey],
+        String(record.status || "unknown"),
+      );
+    }
+
+    if (
+      weekDate >= analytics.year_to_date.start_date &&
+      weekDate <= analytics.year_to_date.end_date
+    ) {
+      accumulateAttendanceAnalytics(
+        analytics.year_to_date[targetKey],
+        String(record.status || "unknown"),
+      );
+    }
+  }
+
+  return analytics;
+}
+
 function canEditAttendance(viewer: MemberDirectoryRow, target: MemberDirectoryRow) {
   if (!target.is_active || target.id === viewer.id) {
     return false;
@@ -2445,4 +2611,10 @@ function formatDate(date: Date) {
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
   const day = `${date.getDate()}`.padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function shiftIsoDateByDays(isoDate: string, dayOffset: number) {
+  const date = parseIsoDate(isoDate);
+  date.setDate(date.getDate() + dayOffset);
+  return formatDate(date);
 }
