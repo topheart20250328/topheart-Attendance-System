@@ -873,14 +873,14 @@ function renderWeekSummary() {
       <strong>${pendingCount}</strong>
     </div>
     <div class="summary-item">
-      <span class="info-label">主日出席 / 出席率</span>
+      <span class="info-label">主日</span>
       <strong>${sundayPresentCount} / ${formatPercent(
         sundayPresentCount,
         visibleCount,
       )}</strong>
     </div>
     <div class="summary-item">
-      <span class="info-label">小家團契出席 / 出席率</span>
+      <span class="info-label">小家</span>
       <strong>${fellowshipPresentCount} / ${formatPercent(
         fellowshipPresentCount,
         visibleCount,
@@ -949,9 +949,6 @@ function renderAttendanceRows() {
     .map((member) => {
       const meta = formatMemberScopeSummary(member);
       const noteValue = escapeHtml(member.note || "");
-      const editButton = member.can_edit_profile
-        ? `<button type="button" class="secondary roster-edit-btn" data-member-id="${member.id}">編輯資料</button>`
-        : "";
       const readonlyBadge = member.can_edit_attendance
         ? ""
         : '<span class="status-chip neutral">僅檢視</span>';
@@ -969,14 +966,14 @@ function renderAttendanceRows() {
                 ${meta ? `<span class="muted small-text">${escapeHtml(meta)}</span>` : ""}
               </div>
             </div>
-            ${readonlyBadge || editButton
-              ? `<div class="attendance-card-actions">${readonlyBadge}${editButton}</div>`
+            ${readonlyBadge
+              ? `<div class="attendance-card-actions">${readonlyBadge}</div>`
               : ""}
           </div>
 
           <div class="attendance-event-grid">
-            ${renderAttendanceEventCard(member, "sunday_service", "主日聚會")}
-            ${renderAttendanceEventCard(member, "small_group_fellowship", "小家團契")}
+            ${renderAttendanceEventCard(member, "sunday_service", "主日")}
+            ${renderAttendanceEventCard(member, "small_group_fellowship", "小家")}
           </div>
 
           <details class="attendance-note-details${member.note.trim() ? " is-filled" : ""}">

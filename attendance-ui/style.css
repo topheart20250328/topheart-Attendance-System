@@ -729,6 +729,229 @@ code {
   font-size: 1rem;
 }
 
+body.is-authenticated #attendanceView.card {
+  padding: clamp(8px, 1.6vw, 14px);
+}
+
+#attendanceView .card-header {
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+#attendanceView .card-header h2 {
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
+}
+
+#attendanceView .badge {
+  min-height: 28px;
+  padding: 0.28rem 0.58rem;
+  font-size: 0.78rem;
+}
+
+#attendanceView .info-panel {
+  padding: 7px 10px;
+  border-radius: 12px;
+}
+
+#attendanceView .info-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+#attendanceView .info-item {
+  gap: 1px;
+  min-width: 0;
+}
+
+#attendanceView .info-value,
+#attendanceView .info-item span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#attendanceView .toolbar {
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+}
+
+#attendanceView .toolbar-group {
+  gap: 8px;
+}
+
+#attendanceView .toolbar button,
+#attendanceView .attendance-save-bar button {
+  min-height: 36px;
+  padding: 0.48rem 0.75rem;
+  font-size: 0.86rem;
+}
+
+#attendanceView .week-label {
+  gap: 3px;
+}
+
+#attendanceView .week-label span {
+  font-size: 0.78rem;
+}
+
+#attendanceView .week-label input {
+  min-height: 36px;
+  padding: 0.4rem 0.55rem;
+}
+
+#attendanceView .summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+#attendanceView .summary-item {
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 10px;
+}
+
+#attendanceView .summary-item strong {
+  margin-top: 2px;
+  font-size: 0.9rem;
+  line-height: 1.1;
+}
+
+#attendanceView .summary-details {
+  padding: 0 8px 8px;
+  border-radius: 10px;
+}
+
+#attendanceView .summary-details summary {
+  padding: 6px 0;
+  font-size: 0.82rem;
+}
+
+#attendanceView .attendance-guide-row {
+  display: none;
+}
+
+#attendanceView .roster-list {
+  gap: 6px;
+}
+
+#attendanceView .attendance-card {
+  grid-template-columns: minmax(90px, 0.9fr) minmax(240px, 1.5fr) minmax(62px, 0.35fr);
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+#attendanceView .attendance-card-head {
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+#attendanceView .row-meta {
+  min-width: 0;
+}
+
+#attendanceView .attendance-name-line,
+#attendanceView .attendance-meta-line,
+#attendanceView .attendance-card-actions {
+  gap: 4px;
+}
+
+#attendanceView .attendance-member-name {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.95rem;
+}
+
+#attendanceView .role-pill,
+#attendanceView .status-chip,
+#attendanceView .gender-badge {
+  padding: 0.15rem 0.42rem;
+  font-size: 0.72rem;
+}
+
+#attendanceView .small-text {
+  font-size: 0.76rem;
+}
+
+#attendanceView .attendance-event-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  min-width: 0;
+}
+
+#attendanceView .attendance-event-card {
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+}
+
+#attendanceView .attendance-event-head {
+  justify-content: center;
+}
+
+#attendanceView .attendance-event-title {
+  font-size: 0.76rem;
+  line-height: 1.1;
+}
+
+#attendanceView .attendance-status-text {
+  display: none;
+}
+
+#attendanceView .attendance-toggle {
+  gap: 3px;
+}
+
+#attendanceView .attendance-option {
+  min-height: 30px;
+  padding: 0.3rem 0.35rem;
+  border-radius: 8px;
+  font-size: 0.76rem;
+}
+
+#attendanceView .attendance-note-details {
+  padding-top: 0;
+  border-top: none;
+  min-width: 0;
+}
+
+#attendanceView .attendance-note-details summary {
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#attendanceView .attendance-note-details[open] {
+  grid-column: 1 / -1;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+
+#attendanceView .attendance-note-details textarea {
+  min-height: 72px;
+  margin-top: 7px;
+  padding: 0.55rem 0.65rem;
+}
+
+#attendanceView .attendance-save-bar {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 14px;
+}
+
 .list-count-chip {
   display: inline-flex;
   align-items: center;
@@ -1463,6 +1686,179 @@ tbody tr:last-child td {
 
   .pending-profile {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  body.is-authenticated .app-header > div:first-child,
+  #attendanceView .card-header,
+  #attendanceView .info-panel,
+  #attendanceView .summary-details {
+    display: none;
+  }
+
+  body.is-authenticated .page-shell {
+    width: calc(100vw - 8px);
+    padding-top: max(4px, env(safe-area-inset-top));
+  }
+
+  body.is-authenticated .app-header,
+  body.is-authenticated .card {
+    margin-bottom: 6px;
+  }
+
+  body.is-authenticated .user-bar {
+    padding: 6px 8px;
+    border-radius: 12px;
+  }
+
+  body.is-authenticated .user-name {
+    font-size: 0.88rem;
+  }
+
+  body.is-authenticated #userScopeText {
+    display: none;
+  }
+
+  #navCard {
+    top: max(4px, env(safe-area-inset-top));
+  }
+
+  #navCard.card {
+    padding: 4px;
+  }
+
+  .tab-row {
+    gap: 4px;
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
+
+  .tab-btn {
+    min-height: 32px;
+    padding: 0.38rem 0.62rem;
+    font-size: 0.82rem;
+  }
+
+  #attendanceView .toolbar {
+    gap: 5px;
+    margin-bottom: 6px;
+  }
+
+  #attendanceView .toolbar-group {
+    gap: 5px;
+  }
+
+  #attendanceView .toolbar-group:first-child {
+    grid-template-columns: 0.75fr 1.15fr 0.75fr;
+  }
+
+  #attendanceView .week-label {
+    grid-column: auto;
+    order: 0;
+  }
+
+  #attendanceView .week-label span {
+    display: none;
+  }
+
+  #attendanceView .toolbar button,
+  #attendanceView .attendance-save-bar button {
+    min-height: 32px;
+    padding: 0.36rem 0.42rem;
+    font-size: 0.78rem;
+  }
+
+  #attendanceView .week-label input {
+    min-height: 32px;
+    padding: 0.28rem 0.35rem;
+  }
+
+  #attendanceView .summary-grid {
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+
+  #attendanceView .summary-item {
+    padding: 4px 5px;
+    border-radius: 8px;
+  }
+
+  #attendanceView .summary-item .info-label {
+    font-size: 0.66rem;
+  }
+
+  #attendanceView .summary-item strong {
+    font-size: 0.78rem;
+  }
+
+  #attendanceView .attendance-card {
+    grid-template-columns: minmax(66px, 0.75fr) minmax(172px, 2fr) minmax(40px, 0.3fr);
+    gap: 4px;
+    padding: 5px;
+  }
+
+  #attendanceView .attendance-meta-line,
+  #attendanceView .gender-badge {
+    display: none;
+  }
+
+  #attendanceView .attendance-member-name {
+    font-size: 0.84rem;
+  }
+
+  #attendanceView .attendance-event-grid {
+    gap: 3px;
+  }
+
+  #attendanceView .attendance-event-card {
+    gap: 2px;
+    padding: 3px;
+  }
+
+  #attendanceView .attendance-event-title {
+    font-size: 0.66rem;
+  }
+
+  #attendanceView .attendance-option {
+    min-height: 28px;
+    padding: 0.24rem 0.22rem;
+    border-radius: 7px;
+    font-size: 0.7rem;
+  }
+
+  #attendanceView .attendance-note-details summary {
+    font-size: 0.66rem;
+  }
+
+  #attendanceView .attendance-save-bar {
+    bottom: calc(4px + env(safe-area-inset-bottom));
+    padding: 6px;
+  }
+
+  #attendanceView .attendance-save-meta {
+    display: none;
+  }
+}
+
+@media (max-width: 380px) {
+  #attendanceView .attendance-card {
+    grid-template-columns: minmax(58px, 0.7fr) minmax(158px, 2fr) minmax(34px, 0.25fr);
+    gap: 3px;
+  }
+
+  #attendanceView .attendance-member-name {
+    font-size: 0.78rem;
+  }
+
+  #attendanceView .attendance-event-title,
+  #attendanceView .attendance-note-details summary {
+    font-size: 0.62rem;
+  }
+
+  #attendanceView .attendance-option {
+    min-height: 26px;
+    font-size: 0.66rem;
   }
 }
 
