@@ -250,11 +250,14 @@ function bindEvents() {
     syncMemberFormScope();
   });
   els.memberDistrictSelect.addEventListener("change", () => {
+    els.memberBigFamilySelect.value = "";
+    els.memberSmallGroupSelect.value = "";
     syncEditorBigFamilyOptions();
     syncEditorSmallGroupOptions();
     syncMemberFormScope();
   });
   els.memberBigFamilySelect.addEventListener("change", () => {
+    els.memberSmallGroupSelect.value = "";
     syncEditorSmallGroupOptions();
     syncMemberFormScope();
   });
@@ -609,6 +612,7 @@ function renderLayout() {
   const isAuthenticated = Boolean(state.currentMember);
   const isPending = Boolean(state.pendingProfile && !state.currentMember);
   const showSettings = false;
+  document.body.classList.toggle("is-authenticated", isAuthenticated);
 
   setHidden(els.setupCard, true);
   setHidden(els.loginCard, isAuthenticated || isPending);
@@ -882,16 +886,21 @@ function renderWeekSummary() {
         visibleCount,
       )}</strong>
     </div>
-    ${renderAnalyticsSummaryCard("近三個月主日出席率", recentThreeMonths.sunday_service)}
-    ${renderAnalyticsSummaryCard(
-      "近三個月小家出席率",
-      recentThreeMonths.small_group_fellowship,
-    )}
-    ${renderAnalyticsSummaryCard("今年主日出席率", yearToDate.sunday_service)}
-    ${renderAnalyticsSummaryCard(
-      "今年小家出席率",
-      yearToDate.small_group_fellowship,
-    )}
+    <details class="summary-details">
+      <summary>歷史出席率</summary>
+      <div class="summary-details-grid">
+        ${renderAnalyticsSummaryCard("近三個月主日", recentThreeMonths.sunday_service)}
+        ${renderAnalyticsSummaryCard(
+          "近三個月小家",
+          recentThreeMonths.small_group_fellowship,
+        )}
+        ${renderAnalyticsSummaryCard("今年主日", yearToDate.sunday_service)}
+        ${renderAnalyticsSummaryCard(
+          "今年小家",
+          yearToDate.small_group_fellowship,
+        )}
+      </div>
+    </details>
   `;
 }
 
@@ -1692,9 +1701,17 @@ function getSelectableSmallGroups({
   includeSmallGroupId = 0,
 }) {
   return state.adminData.smallGroups.filter((smallGroup) => {
+    if (!districtId && !bigFamilyId) {
+      return smallGroup.id === includeSmallGroupId;
+    }
+
     const matchesScope =
       role === "member" || role === "best"
-        ? true
+        ? bigFamilyId
+          ? smallGroup.big_family_id === bigFamilyId
+          : districtId
+            ? smallGroup.district_id === districtId
+            : true
         : bigFamilyId
           ? smallGroup.big_family_id === bigFamilyId
           : districtId

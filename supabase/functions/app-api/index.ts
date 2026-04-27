@@ -1345,6 +1345,32 @@ async function handleUpdateMember(
     return jsonResponse({ error: updateError.message }, 500);
   }
 
+  if (targetRole === "small_group_leader" && scope.small_group_id && scope.district_id) {
+    const { error: smallGroupUpdateError } = await adminClient
+      .from("small_groups")
+      .update({
+        district_id: scope.district_id,
+        big_family_id: scope.big_family_id,
+      })
+      .eq("id", scope.small_group_id);
+
+    if (smallGroupUpdateError) {
+      return jsonResponse({ error: smallGroupUpdateError.message }, 500);
+    }
+
+    const { error: peerMemberUpdateError } = await adminClient
+      .from("members")
+      .update({
+        district_id: scope.district_id,
+        big_family_id: scope.big_family_id,
+      })
+      .eq("small_group_id", scope.small_group_id);
+
+    if (peerMemberUpdateError) {
+      return jsonResponse({ error: peerMemberUpdateError.message }, 500);
+    }
+  }
+
   const { data: updatedMember, error: updatedMemberError } = await adminClient
     .from("member_directory")
     .select("*")
