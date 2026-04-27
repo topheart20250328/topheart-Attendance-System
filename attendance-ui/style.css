@@ -796,9 +796,42 @@ body.is-authenticated #attendanceView.card {
   font-size: 0.78rem;
 }
 
+#attendanceView .week-label {
+  grid-template-columns: auto minmax(150px, 1fr) auto;
+  align-items: center;
+}
+
 #attendanceView .week-label input {
   min-height: 36px;
   padding: 0.4rem 0.55rem;
+}
+
+.week-status-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.week-status-chip.is-current {
+  background: #dcfce7;
+  color: var(--success);
+}
+
+.week-status-chip.is-past {
+  background: #ffedd5;
+  color: var(--warning);
+}
+
+.week-status-chip.is-future,
+.week-status-chip.is-neutral {
+  background: #edf2ff;
+  color: #36528b;
 }
 
 #attendanceView .summary-grid {
@@ -952,6 +985,10 @@ body.is-authenticated #attendanceView.card {
   border-radius: 14px;
 }
 
+#saveAttendanceBtn {
+  display: none;
+}
+
 .list-count-chip {
   display: inline-flex;
   align-items: center;
@@ -1051,6 +1088,161 @@ body.is-authenticated #attendanceView.card {
   min-height: 34px;
   padding: 0.42rem 0.65rem;
   font-size: 0.82rem;
+}
+
+#memberEditorCard {
+  padding: clamp(8px, 1.6vw, 12px);
+}
+
+#memberEditorCard .section-toolbar,
+#orgEditorCard .section-toolbar {
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+#memberEditorCard h3,
+#orgEditorCard h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+#memberEditorCard .muted,
+#orgEditorCard .muted,
+#memberScopeHint {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+#memberForm,
+#orgEditorForm,
+#peopleView .editor-details .form-grid {
+  gap: 9px;
+}
+
+#memberForm .form-columns,
+#orgEditorForm .form-columns {
+  gap: 9px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#memberForm label,
+#orgEditorForm label,
+#peopleView .editor-details label {
+  gap: 4px;
+}
+
+#memberForm label span,
+#orgEditorForm label span,
+#peopleView .editor-details label span {
+  font-size: 0.82rem;
+}
+
+#memberForm input,
+#memberForm select,
+#orgEditorForm input,
+#orgEditorForm select,
+#peopleView .editor-details input,
+#peopleView .editor-details select {
+  min-height: 38px;
+  padding: 0.48rem 0.62rem;
+  border-radius: 10px;
+  font-size: 0.92rem;
+}
+
+#memberForm textarea,
+#orgEditorForm textarea {
+  min-height: 70px;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  font-size: 0.92rem;
+}
+
+#memberForm .button-row button,
+#orgEditorForm .button-row button,
+#peopleView .editor-details button {
+  min-height: 36px;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.86rem;
+}
+
+#memberIsAdminWrap,
+#peopleView .checkbox-field {
+  gap: 6px;
+}
+
+#peopleView .compact-panel {
+  margin-top: 8px;
+  padding: 0 10px 10px;
+}
+
+#peopleView .compact-panel > summary {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding-top: 10px;
+}
+
+#peopleView .compact-panel[open] > summary {
+  padding-bottom: 10px;
+}
+
+#peopleView .summary-title {
+  font-size: 0.98rem;
+}
+
+#peopleView .summary-description {
+  font-size: 0.78rem;
+}
+
+#peopleView .org-grid,
+#peopleView .org-management-grid,
+#peopleView .org-card-list {
+  gap: 8px;
+}
+
+#peopleView .org-management-grid {
+  margin-top: 8px;
+}
+
+#peopleView .editor-details {
+  padding: 0 10px 10px;
+  border-radius: 12px;
+}
+
+#peopleView .editor-details summary {
+  padding: 9px 0;
+}
+
+#peopleView .org-section-card,
+#orgEditorCard {
+  padding: 9px;
+  border-radius: 12px;
+}
+
+#peopleView .org-card {
+  gap: 7px;
+  padding: 8px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+#peopleView .org-card-head {
+  align-items: center;
+  gap: 8px;
+}
+
+#peopleView .org-card-title strong {
+  font-size: 0.94rem;
+}
+
+#peopleView .org-card-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+#peopleView .org-card-hint {
+  display: none;
 }
 
 .member-card,
@@ -1833,28 +2025,36 @@ tbody tr:last-child td {
   }
 
   #attendanceView .toolbar-group:first-child {
-    grid-template-columns: 0.75fr 1.15fr 0.75fr;
+    grid-template-columns: 0.66fr 1.5fr 0.66fr;
   }
 
   #attendanceView .week-label {
     grid-column: auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     order: 0;
   }
 
-  #attendanceView .week-label span {
+  #attendanceView .week-label > span:first-child {
     display: none;
   }
 
   #attendanceView .toolbar button,
   #attendanceView .attendance-save-bar button {
-    min-height: 32px;
-    padding: 0.36rem 0.42rem;
-    font-size: 0.78rem;
+    min-height: 34px;
+    padding: 0.38rem 0.48rem;
+    font-size: 0.84rem;
   }
 
   #attendanceView .week-label input {
-    min-height: 32px;
-    padding: 0.28rem 0.35rem;
+    min-height: 34px;
+    padding: 0.3rem 0.38rem;
+    font-size: 0.9rem;
+  }
+
+  #attendanceView .week-status-chip {
+    min-height: 26px;
+    padding: 0.16rem 0.42rem;
+    font-size: 0.72rem;
   }
 
   #attendanceView .summary-grid {
@@ -1868,15 +2068,15 @@ tbody tr:last-child td {
   }
 
   #attendanceView .summary-item .info-label {
-    font-size: 0.66rem;
+    font-size: 0.74rem;
   }
 
   #attendanceView .summary-item strong {
-    font-size: 0.78rem;
+    font-size: 0.88rem;
   }
 
   #attendanceView .attendance-card {
-    grid-template-columns: minmax(66px, 0.75fr) minmax(172px, 2fr) minmax(40px, 0.3fr);
+    grid-template-columns: minmax(68px, 0.74fr) minmax(172px, 1.85fr) minmax(46px, 0.4fr);
     gap: 4px;
     padding: 5px;
   }
@@ -1887,7 +2087,7 @@ tbody tr:last-child td {
   }
 
   #attendanceView .attendance-member-name {
-    font-size: 0.84rem;
+    font-size: 0.9rem;
   }
 
   #attendanceView .attendance-event-grid {
@@ -1900,18 +2100,20 @@ tbody tr:last-child td {
   }
 
   #attendanceView .attendance-event-title {
-    font-size: 0.66rem;
+    font-size: 0.74rem;
   }
 
   #attendanceView .attendance-option {
-    min-height: 28px;
+    min-height: 30px;
     padding: 0.24rem 0.22rem;
     border-radius: 7px;
-    font-size: 0.7rem;
+    font-size: 0.78rem;
   }
 
   #attendanceView .attendance-note-details summary {
-    font-size: 0.66rem;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-align: center;
   }
 
   #attendanceView .attendance-save-bar {
@@ -1963,7 +2165,7 @@ tbody tr:last-child td {
   }
 
   #peopleView .search-field span {
-    font-size: 0.7rem;
+    font-size: 0.76rem;
   }
 
   #peopleView .search-field input,
@@ -1971,13 +2173,13 @@ tbody tr:last-child td {
     min-height: 34px;
     padding: 0.38rem 0.48rem;
     border-radius: 10px;
-    font-size: 0.82rem;
+    font-size: 0.9rem;
   }
 
   #peopleView .list-count-chip {
     margin-bottom: 5px;
     padding: 0.24rem 0.48rem;
-    font-size: 0.7rem;
+    font-size: 0.76rem;
   }
 
   #peopleView .member-card {
@@ -2001,7 +2203,7 @@ tbody tr:last-child td {
   }
 
   #peopleView .member-card-title strong {
-    font-size: 0.86rem;
+    font-size: 0.92rem;
   }
 
   #peopleView .member-card-chips {
@@ -2014,11 +2216,11 @@ tbody tr:last-child td {
   #peopleView .status-chip,
   #peopleView .gender-badge {
     padding: 0.13rem 0.36rem;
-    font-size: 0.66rem;
+    font-size: 0.72rem;
   }
 
   #peopleView .member-card-path {
-    font-size: 0.68rem;
+    font-size: 0.76rem;
     line-height: 1.2;
   }
 
@@ -2028,30 +2230,156 @@ tbody tr:last-child td {
   }
 
   #peopleView .row-actions button {
-    min-height: 30px;
+    min-height: 32px;
     padding: 0.28rem 0.42rem;
-    font-size: 0.72rem;
+    font-size: 0.78rem;
+  }
+
+  #memberEditorCard,
+  #orgEditorCard,
+  #peopleView .compact-panel {
+    padding: 7px;
+    border-radius: 12px;
+  }
+
+  #memberEditorCard .section-toolbar,
+  #orgEditorCard .section-toolbar {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 6px;
+  }
+
+  #memberEditorHint,
+  #orgEditorHint,
+  #memberScopeHint,
+  #peopleView .summary-description,
+  #peopleView .org-section-card .muted,
+  #peopleView .org-card-grid,
+  #peopleView .org-card-chips {
+    display: none;
+  }
+
+  #memberEditorCard h3,
+  #orgEditorCard h3,
+  #peopleView .summary-title {
+    font-size: 0.98rem;
+  }
+
+  #memberForm,
+  #orgEditorForm,
+  #peopleView .editor-details .form-grid {
+    gap: 7px;
+  }
+
+  #memberForm .form-columns,
+  #orgEditorForm .form-columns {
+    gap: 7px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #memberForm label span,
+  #orgEditorForm label span,
+  #peopleView .editor-details label span {
+    font-size: 0.78rem;
+  }
+
+  #memberForm input,
+  #memberForm select,
+  #orgEditorForm input,
+  #orgEditorForm select,
+  #peopleView .editor-details input,
+  #peopleView .editor-details select {
+    min-height: 36px;
+    padding: 0.38rem 0.48rem;
+    font-size: 0.88rem;
+  }
+
+  #memberForm textarea {
+    min-height: 56px;
+  }
+
+  #memberIsAdminWrap {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+  }
+
+  #memberForm .button-row button,
+  #orgEditorForm .button-row button,
+  #peopleView .editor-details button,
+  #closeMemberEditorBtn,
+  #closeOrgEditorBtn {
+    min-height: 32px;
+    padding: 0.32rem 0.56rem;
+    font-size: 0.82rem;
+  }
+
+  #peopleView .org-grid,
+  #peopleView .org-management-grid,
+  #peopleView .org-card-list {
+    gap: 6px;
+  }
+
+  #peopleView .editor-details {
+    padding: 0 7px 7px;
+  }
+
+  #peopleView .editor-details summary,
+  #peopleView .compact-panel > summary {
+    padding-top: 7px;
+  }
+
+  #peopleView .compact-panel[open] > summary {
+    padding-bottom: 7px;
+  }
+
+  #peopleView .org-section-card {
+    padding: 7px;
+  }
+
+  #peopleView .org-section-card .section-toolbar {
+    margin-bottom: 4px;
+  }
+
+  #peopleView .org-section-card h4 {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+
+  #peopleView .org-card {
+    padding: 6px;
+    border-radius: 10px;
+  }
+
+  #peopleView .org-card-head {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+
+  #peopleView .org-card-title strong {
+    font-size: 0.88rem;
   }
 }
 
 @media (max-width: 380px) {
   #attendanceView .attendance-card {
-    grid-template-columns: minmax(58px, 0.7fr) minmax(158px, 2fr) minmax(34px, 0.25fr);
+    grid-template-columns: minmax(60px, 0.66fr) minmax(150px, 1.85fr) minmax(42px, 0.42fr);
     gap: 3px;
   }
 
   #attendanceView .attendance-member-name {
-    font-size: 0.78rem;
+    font-size: 0.84rem;
   }
 
   #attendanceView .attendance-event-title,
   #attendanceView .attendance-note-details summary {
-    font-size: 0.62rem;
+    font-size: 0.72rem;
   }
 
   #attendanceView .attendance-option {
-    min-height: 26px;
-    font-size: 0.66rem;
+    min-height: 28px;
+    font-size: 0.74rem;
   }
 
   body.is-authenticated .user-bar {
@@ -2069,20 +2397,20 @@ tbody tr:last-child td {
   }
 
   #peopleView .member-card-title strong {
-    font-size: 0.8rem;
+    font-size: 0.86rem;
   }
 
   #peopleView .role-pill,
   #peopleView .status-chip,
   #peopleView .gender-badge,
   #peopleView .member-card-path {
-    font-size: 0.62rem;
+    font-size: 0.68rem;
   }
 
   #peopleView .row-actions button {
-    min-height: 28px;
+    min-height: 30px;
     padding-inline: 0.34rem;
-    font-size: 0.68rem;
+    font-size: 0.74rem;
   }
 }
 

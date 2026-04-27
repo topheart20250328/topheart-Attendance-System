@@ -80,6 +80,7 @@ const els = {
   attendanceHeaderPanel: document.querySelector("#attendanceHeaderPanel"),
   dirtyBadge: document.querySelector("#dirtyBadge"),
   weekInput: document.querySelector("#weekInput"),
+  weekStatusChip: document.querySelector("#weekStatusChip"),
   prevWeekBtn: document.querySelector("#prevWeekBtn"),
   nextWeekBtn: document.querySelector("#nextWeekBtn"),
   refreshBtn: document.querySelector("#refreshBtn"),
@@ -817,6 +818,33 @@ function getDisplayedWeekLabel() {
   );
 }
 
+function getDisplayedWeekStatus() {
+  const selectedWeek = state.currentWeek?.week_start_date || els.weekInput.value;
+  if (!selectedWeek) {
+    return { label: "未選週次", tone: "neutral" };
+  }
+
+  const selectedTime = parseIsoDate(selectedWeek).getTime();
+  const currentTime = parseIsoDate(getMondayIso(new Date())).getTime();
+  if (selectedTime === currentTime) {
+    return { label: "本週", tone: "current" };
+  }
+
+  return selectedTime < currentTime
+    ? { label: "過去週次", tone: "past" }
+    : { label: "未來週次", tone: "future" };
+}
+
+function syncWeekStatusChip() {
+  if (!els.weekStatusChip) {
+    return;
+  }
+
+  const status = getDisplayedWeekStatus();
+  els.weekStatusChip.textContent = status.label;
+  els.weekStatusChip.className = `week-status-chip is-${status.tone}`;
+}
+
 function renderAttendanceHeader() {
   if (!state.currentMember) {
     els.attendanceHeaderPanel.innerHTML = "";
@@ -854,6 +882,7 @@ function renderAttendanceHeader() {
   `;
 
   els.attendanceSaveWeek.textContent = getDisplayedWeekLabel();
+  syncWeekStatusChip();
 }
 
 function renderWeekSummary() {
@@ -1011,10 +1040,10 @@ function renderAttendanceEventCard(member, eventType, label) {
 
 function buildNoteSummary(member) {
   if (member.note.trim()) {
-    return "已填寫近況備註";
+    return "已備註";
   }
 
-  return member.can_edit_note ? "新增近況備註" : "目前無近況備註";
+  return member.can_edit_note ? "備註" : "無備註";
 }
 
 function hasPendingAttendance(member) {
