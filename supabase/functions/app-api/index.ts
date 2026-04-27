@@ -28,6 +28,11 @@ type AppSessionRow = {
   revoked_at: string | null;
 };
 
+type WeeklyMemberNote = {
+  note: string;
+  carryForward: boolean;
+};
+
 type PendingLoginRow = {
   id: string;
   token_hash: string;
@@ -57,7 +62,6 @@ type InviteRow = {
   used_by_line_user_id: string | null;
   created_by_member_id: number | null;
   created_at: string;
-  members: InviteMemberRow | InviteMemberRow[];
 };
 
 type DistrictRow = {
@@ -312,6 +316,11 @@ async function handleGetDashboard(
     week.id,
     rosterMembers.map((member) => member.id),
   );
+  const noteMap = await loadWeeklyNoteMap(
+    adminClient,
+    week.id,
+    rosterMembers,
+  );
   const analytics = await loadAttendanceAnalytics(
     adminClient,
     rosterMembers.map((member) => member.id),
@@ -320,6 +329,8 @@ async function handleGetDashboard(
 
   const roster = rosterMembers.map((member) => ({
     ...member,
+    note: noteMap.get(member.id)?.note ?? "",
+    note_carry_forward: noteMap.get(member.id)?.carryForward ?? true,
     can_edit_attendance: canEditAttendance(sessionContext.member, member),
     can_edit_note: canEditNote(sessionContext.member, member),
     attendance: {
@@ -350,7 +361,7 @@ async function handleGetAdminOverview(
     return jsonResponse({ error: "Unauthorized." }, 401);
   }
 
-  if (!sessionContext.member.is_admin) {
+  if (!canUseAdminPanel(sessionContext.member)) {
     return jsonResponse({ error: "Forbidden." }, 403);
   }
 
@@ -375,26 +386,7 @@ async function handleBindInvite(
 
   const { data: invite, error: inviteError } = await adminClient
     .from("login_invites")
-    .select(
-      `
-        id,
-        member_id,
-        invite_code,
-        expires_at,
-        used_at,
-        used_by_line_user_id,
-        created_by_member_id,
-        created_at,
-        members!inner (
-          id,
-          full_name,
-          role,
-          is_admin,
-          is_active,
-          line_user_id
-        )
-      `,
-    )
+    .select("id, member_id, invite_code, expires_at, used_at, used_by_line_user_id, created_by_member_id, created_at")
     .eq("invite_code", inviteCode)
     .maybeSingle();
 
@@ -407,9 +399,15 @@ async function handleBindInvite(
   }
 
   const inviteRow = invite as InviteRow;
-  const inviteMember = Array.isArray(inviteRow.members)
-    ? inviteRow.members[0]
-    : inviteRow.members;
+  const { data: inviteMember, error: inviteMemberError } = await adminClient
+    .from("members")
+    .select("id, full_name, role, is_admin, is_active, line_user_id")
+    .eq("id", inviteRow.member_id)
+    .maybeSingle();
+
+  if (inviteMemberError) {
+    return jsonResponse({ error: inviteMemberError.message }, 500);
+  }
 
   if (!inviteMember || !inviteMember.is_active) {
     return jsonResponse({ error: "此邀請碼對應的人員已停用。" }, 409);
@@ -549,13 +547,18 @@ async function handleSaveAttendance(
   const visibleMembers = new Map<number, MemberDirectoryRow>(
     rosterMembers.map((member) => [member.id, member]),
   );
-  const notesToUpdate: Array<{ member_id: number; note: string }> = [];
+  const notesToUpdate: Array<{
+    member_id: number;
+    note: string;
+    note_carry_forward: boolean;
+  }> = [];
 
   const rowsToUpsert: Array<{
     member_id: number;
     attendance_week_id: number;
     event_type: "sunday_service" | "small_group_fellowship";
     status: "unknown" | "present" | "absent";
+    note: string;
     recorded_by_member_id: number;
     recorded_at: string;
   }> = [];
@@ -575,12 +578,14 @@ async function handleSaveAttendance(
       entry?.small_group_fellowship,
     );
     const note = String(entry?.note || "").trim();
+    const noteCarryForward = entry?.note_carry_forward !== false;
     const nowIso = new Date().toISOString();
 
     if (canEditNote(sessionContext.member, targetMember)) {
       notesToUpdate.push({
         member_id: memberId,
-        note,
+        note: noteCarryForward ? note : "",
+        note_carry_forward: noteCarryForward,
       });
     }
 
@@ -591,6 +596,7 @@ async function handleSaveAttendance(
           attendance_week_id: week.id,
           event_type: "sunday_service",
           status: sundayStatus,
+          note,
           recorded_by_member_id: sessionContext.member.id,
           recorded_at: nowIso,
         },
@@ -599,6 +605,7 @@ async function handleSaveAttendance(
           attendance_week_id: week.id,
           event_type: "small_group_fellowship",
           status: fellowshipStatus,
+          note,
           recorded_by_member_id: sessionContext.member.id,
           recorded_at: nowIso,
         },
@@ -622,7 +629,10 @@ async function handleSaveAttendance(
   for (const noteUpdate of notesToUpdate) {
     const { error: noteError } = await adminClient
       .from("members")
-      .update({ note: noteUpdate.note })
+      .update({
+        note: noteUpdate.note,
+        note_carry_forward: noteUpdate.note_carry_forward,
+      })
       .eq("id", noteUpdate.member_id);
 
     if (noteError) {
@@ -843,6 +853,10 @@ async function handleCreateSmallGroup(
     const bigFamily = await fetchBigFamily(adminClient, bigFamilyId);
     if (!bigFamily) {
       return jsonResponse({ error: "Big family not found." }, 404);
+    }
+
+    if (!bigFamily.district_id) {
+      return jsonResponse({ error: "Big family is missing district." }, 409);
     }
 
     const district = await fetchDistrict(adminClient, bigFamily.district_id);
@@ -1089,6 +1103,10 @@ async function handleRestoreOrganization(
 
   if (orgType === "big_family") {
     const bigFamily = organization as BigFamilyRow;
+    if (!bigFamily.district_id) {
+      return jsonResponse({ error: "此大家缺少所屬區，無法恢復。" }, 409);
+    }
+
     const district = await fetchDistrict(adminClient, bigFamily.district_id);
     if (!district || !district.is_active) {
       return jsonResponse(
@@ -1100,6 +1118,10 @@ async function handleRestoreOrganization(
 
   if (orgType === "small_group") {
     const smallGroup = organization as SmallGroupRow;
+    if (!smallGroup.district_id) {
+      return jsonResponse({ error: "此小家缺少所屬區，無法恢復。" }, 409);
+    }
+
     const district = await fetchDistrict(adminClient, smallGroup.district_id);
     if (!district || !district.is_active) {
       return jsonResponse(
@@ -1449,7 +1471,7 @@ async function handleCreateInvite(
     return jsonResponse({ error: "Unauthorized." }, 401);
   }
 
-  if (!canUseAdminPanel(sessionContext.member)) {
+  if (!sessionContext.member.is_admin) {
     return jsonResponse({ error: "Forbidden." }, 403);
   }
 
@@ -1719,6 +1741,53 @@ async function loadAttendanceMap(
       `${row.member_id}:${row.event_type}`,
       row.status as "unknown" | "present" | "absent",
     );
+  }
+
+  return map;
+}
+
+async function loadWeeklyNoteMap(
+  adminClient: ReturnType<typeof createAdminClient>,
+  attendanceWeekId: number,
+  members: MemberDirectoryRow[],
+) {
+  const map = new Map<number, WeeklyMemberNote>();
+  if (!members.length) {
+    return map;
+  }
+
+  const memberIds = members.map((member) => member.id);
+  const { data, error } = await adminClient
+    .from("attendance_records")
+    .select("member_id, note")
+    .eq("attendance_week_id", attendanceWeekId)
+    .in("member_id", memberIds);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  for (const row of data || []) {
+    const note = String(row.note || "").trim();
+    const memberId = Number(row.member_id);
+    if (note || !map.has(memberId)) {
+      map.set(memberId, {
+        note,
+        carryForward: members.find((member) => member.id === memberId)
+          ?.note_carry_forward !== false,
+      });
+    }
+  }
+
+  for (const member of members) {
+    if (map.has(member.id)) {
+      continue;
+    }
+
+    map.set(member.id, {
+      note: member.note_carry_forward ? member.note || "" : "",
+      carryForward: member.note_carry_forward !== false,
+    });
   }
 
   return map;

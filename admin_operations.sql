@@ -5,6 +5,39 @@
 -- 3. Replace placeholder values before running
 
 -- =========================================================
+-- 0. 既有資料庫升級：新增備註是否自動帶到下週
+-- 已經跑過新版 setup_supabase.sql 的全新資料庫不需要再跑。
+-- =========================================================
+alter table public.members
+add column if not exists note_carry_forward boolean not null default true;
+
+create or replace view public.member_directory as
+select
+  m.id,
+  m.full_name,
+  m.birthday,
+  m.gender,
+  m.note,
+  m.note_carry_forward,
+  m.role,
+  m.is_admin,
+  m.line_user_id,
+  m.is_active,
+  m.last_line_login_at,
+  m.district_id,
+  d.name as district_name,
+  coalesce(m.big_family_id, sg.big_family_id) as big_family_id,
+  bf.name as big_family_name,
+  m.small_group_id,
+  sg.name as small_group_name,
+  m.created_at,
+  m.updated_at
+from public.members m
+left join public.small_groups sg on sg.id = m.small_group_id
+left join public.districts d on d.id = coalesce(m.district_id, sg.district_id)
+left join public.big_families bf on bf.id = coalesce(m.big_family_id, sg.big_family_id);
+
+-- =========================================================
 -- A. 第一次登入後，查看待綁定的 LINE 身分
 -- =========================================================
 select

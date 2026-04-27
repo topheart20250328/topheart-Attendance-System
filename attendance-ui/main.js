@@ -754,6 +754,7 @@ function enrichRosterMember(member) {
   return {
     ...member,
     note: member.note || "",
+    note_carry_forward: member.note_carry_forward !== false,
     attendance: {
       sunday_service: member.attendance?.sunday_service || "unknown",
       small_group_fellowship:
@@ -982,6 +983,7 @@ function renderAttendanceRows() {
     .map((member) => {
       const meta = formatMemberScopeSummary(member);
       const noteValue = escapeHtml(member.note || "");
+      const noteCarryChecked = member.note_carry_forward !== false ? "checked" : "";
       const readonlyBadge = member.can_edit_attendance
         ? ""
         : '<span class="status-chip neutral">僅檢視</span>';
@@ -998,6 +1000,7 @@ function renderAttendanceRows() {
                 <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
                 ${meta ? `<span class="muted small-text">${escapeHtml(meta)}</span>` : ""}
               </div>
+              <div class="attendance-role-line">${escapeHtml(getRoleLabel(member.role))}</div>
             </div>
             ${readonlyBadge
               ? `<div class="attendance-card-actions">${readonlyBadge}</div>`
@@ -1011,12 +1014,24 @@ function renderAttendanceRows() {
 
           <details class="attendance-note-details${member.note.trim() ? " is-filled" : ""}">
             <summary>${buildNoteSummary(member)}</summary>
-            <textarea
-              class="note-input"
-              data-member-id="${member.id}"
-              placeholder="記錄近況、代禱與需要跟進的事項"
-              ${member.can_edit_note ? "" : "disabled"}
-            >${noteValue}</textarea>
+            <div class="attendance-note-panel">
+              <textarea
+                class="note-input"
+                data-member-id="${member.id}"
+                placeholder="記錄近況、代禱與需要跟進的事項"
+                ${member.can_edit_note ? "" : "disabled"}
+              >${noteValue}</textarea>
+              <label class="note-carry-row">
+                <input
+                  class="note-carry-input"
+                  type="checkbox"
+                  data-member-id="${member.id}"
+                  ${noteCarryChecked}
+                  ${member.can_edit_note ? "" : "disabled"}
+                />
+                <span>自動填入到下週</span>
+              </label>
+            </div>
           </details>
         </article>
       `;
@@ -1083,6 +1098,16 @@ function updateMemberNote(memberId, note) {
   }
 
   member.note = note;
+  return member;
+}
+
+function updateMemberNoteCarryForward(memberId, shouldCarryForward) {
+  const member = state.roster.find((item) => item.id === memberId);
+  if (!member) {
+    return null;
+  }
+
+  member.note_carry_forward = shouldCarryForward;
   return member;
 }
 
@@ -1200,7 +1225,7 @@ async function handleWeekChange() {
 }
 
 function handleAttendanceFieldChange(event) {
-  if (!event.target.matches(".note-input")) {
+  if (!event.target.matches(".note-input, .note-carry-input")) {
     return;
   }
 
@@ -1209,8 +1234,12 @@ function handleAttendanceFieldChange(event) {
     return;
   }
 
-  const member = updateMemberNote(memberId, event.target.value);
-  syncNoteSummary(event.target.closest(".attendance-note-details"), member);
+  if (event.target.matches(".note-input")) {
+    const member = updateMemberNote(memberId, event.target.value);
+    syncNoteSummary(event.target.closest(".attendance-note-details"), member);
+  } else {
+    updateMemberNoteCarryForward(memberId, event.target.checked);
+  }
   setDirty(true);
 }
 
@@ -1269,6 +1298,7 @@ async function handleSaveAttendance() {
         "small_group_fellowship",
       ),
       note: getSelectedNote(member.id),
+      note_carry_forward: member.note_carry_forward !== false,
     }));
 
   if (!entries.length) {
@@ -3193,6 +3223,12 @@ function formatDate(date) {
 
 function sortMembers(members) {
   return [...members].sort((left, right) => {
+    const leftRole = ROLE_ORDER[left.role] || 99;
+    const rightRole = ROLE_ORDER[right.role] || 99;
+    if (leftRole !== rightRole) {
+      return leftRole - rightRole;
+    }
+
     const leftDistrict = left.district_name || "";
     const rightDistrict = right.district_name || "";
     if (leftDistrict !== rightDistrict) {
@@ -3209,12 +3245,6 @@ function sortMembers(members) {
     const rightSmallGroup = right.small_group_name || "";
     if (leftSmallGroup !== rightSmallGroup) {
       return leftSmallGroup.localeCompare(rightSmallGroup, "zh-Hant");
-    }
-
-    const leftRole = ROLE_ORDER[left.role] || 99;
-    const rightRole = ROLE_ORDER[right.role] || 99;
-    if (leftRole !== rightRole) {
-      return leftRole - rightRole;
     }
 
     return left.full_name.localeCompare(right.full_name, "zh-Hant");

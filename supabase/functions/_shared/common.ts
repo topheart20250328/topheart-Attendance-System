@@ -20,6 +20,7 @@ export type MemberDirectoryRow = {
   birthday: string | null;
   gender: "brother" | "sister" | null;
   note: string;
+  note_carry_forward: boolean;
   role:
     | "district_leader"
     | "big_family_leader"
