@@ -32,6 +32,15 @@ body {
   line-height: 1.5;
 }
 
+body.is-booting #signInBtn {
+  display: none;
+}
+
+body.is-booting #sessionBadge {
+  background: #edf2ff;
+  color: #36528b;
+}
+
 button,
 .button-link,
 input,
@@ -748,6 +757,12 @@ body.is-authenticated #attendanceView.card {
   font-size: 0.78rem;
 }
 
+body.is-authenticated #attendanceView,
+body.is-authenticated #peopleView,
+body.is-authenticated #invitesView {
+  font-size: 0.98rem;
+}
+
 #attendanceView .info-panel {
   padding: 7px 10px;
   border-radius: 12px;
@@ -903,7 +918,7 @@ body.is-authenticated #attendanceView.card {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.95rem;
+  font-size: 1rem;
 }
 
 #attendanceView .attendance-role-line {
@@ -912,6 +927,11 @@ body.is-authenticated #attendanceView.card {
   font-size: 0.76rem;
   font-weight: 700;
   line-height: 1.1;
+}
+
+#attendanceView .attendance-role-line .role-pill {
+  padding: 0.12rem 0.42rem;
+  font-size: 0.74rem;
 }
 
 #attendanceView .role-pill,
@@ -977,6 +997,23 @@ body.is-authenticated #attendanceView.card {
   white-space: nowrap;
 }
 
+#attendanceView .attendance-note-details.is-filled summary {
+  color: var(--primary);
+  background: #edf4ff;
+  border-radius: 999px;
+  padding: 0.22rem 0.45rem;
+}
+
+#attendanceView .attendance-card.has-priority-note .attendance-note-details summary {
+  color: #fff;
+  background: #b42318;
+}
+
+#attendanceView .attendance-card.has-priority-note {
+  border-color: rgba(180, 35, 24, 0.32);
+  background: linear-gradient(180deg, #fff 0%, #fff7f7 100%);
+}
+
 #attendanceView .attendance-note-details[open] {
   padding-top: 0;
   border-top: none;
@@ -986,6 +1023,12 @@ body.is-authenticated #attendanceView.card {
   display: grid;
   gap: 7px;
   margin-top: 7px;
+}
+
+#attendanceView .attendance-note-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
 }
 
 #attendanceView .attendance-note-panel textarea {
@@ -1004,7 +1047,7 @@ body.is-authenticated #attendanceView.card {
   border-radius: 999px;
   background: #f4f8ff;
   color: #36528b;
-  font-size: 0.84rem;
+  font-size: 0.82rem;
   font-weight: 800;
 }
 
@@ -2181,11 +2224,11 @@ tbody tr:last-child td {
   }
 
   #attendanceView .summary-item .info-label {
-    font-size: 0.74rem;
+    font-size: 0.78rem;
   }
 
   #attendanceView .summary-item strong {
-    font-size: 0.88rem;
+    font-size: 0.92rem;
   }
 
   #attendanceView .attendance-card {
@@ -2203,8 +2246,12 @@ tbody tr:last-child td {
     display: block;
   }
 
+  #attendanceView .attendance-role-line .role-pill {
+    font-size: 0.72rem;
+  }
+
   #attendanceView .attendance-member-name {
-    font-size: 0.9rem;
+    font-size: 0.95rem;
   }
 
   #attendanceView .attendance-event-grid {
@@ -2256,8 +2303,12 @@ tbody tr:last-child td {
 
   #attendanceView .note-carry-row {
     min-height: 30px;
-    padding: 0.26rem 0.5rem;
-    font-size: 0.78rem;
+    padding: 0.24rem 0.36rem;
+    font-size: 0.74rem;
+  }
+
+  #attendanceView .attendance-note-actions {
+    gap: 5px;
   }
 
   #attendanceView .attendance-save-bar {
@@ -2579,7 +2630,7 @@ tbody tr:last-child td {
   }
 
   #attendanceView .attendance-member-name {
-    font-size: 0.84rem;
+    font-size: 0.9rem;
   }
 
   #attendanceView .attendance-event-title,
@@ -2589,7 +2640,7 @@ tbody tr:last-child td {
 
   #attendanceView .attendance-option {
     min-height: 28px;
-    font-size: 0.74rem;
+    font-size: 0.76rem;
   }
 
   body.is-authenticated .user-bar {

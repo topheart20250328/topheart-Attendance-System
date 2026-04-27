@@ -11,7 +11,15 @@
 alter table public.members
 add column if not exists note_carry_forward boolean not null default true;
 
-create or replace view public.member_directory as
+alter table public.members
+add column if not exists note_priority_high boolean not null default false;
+
+alter table public.attendance_records
+add column if not exists note_priority_high boolean not null default false;
+
+drop view if exists public.member_directory;
+
+create view public.member_directory as
 select
   m.id,
   m.full_name,
@@ -19,6 +27,7 @@ select
   m.gender,
   m.note,
   m.note_carry_forward,
+  m.note_priority_high,
   m.role,
   m.is_admin,
   m.line_user_id,

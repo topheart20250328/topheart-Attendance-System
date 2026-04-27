@@ -31,6 +31,7 @@ type AppSessionRow = {
 type WeeklyMemberNote = {
   note: string;
   carryForward: boolean;
+  priorityHigh: boolean;
 };
 
 type PendingLoginRow = {
@@ -331,6 +332,7 @@ async function handleGetDashboard(
     ...member,
     note: noteMap.get(member.id)?.note ?? "",
     note_carry_forward: noteMap.get(member.id)?.carryForward ?? true,
+    note_priority_high: noteMap.get(member.id)?.priorityHigh ?? false,
     can_edit_attendance: canEditAttendance(sessionContext.member, member),
     can_edit_note: canEditNote(sessionContext.member, member),
     attendance: {
@@ -551,6 +553,7 @@ async function handleSaveAttendance(
     member_id: number;
     note: string;
     note_carry_forward: boolean;
+    note_priority_high: boolean;
   }> = [];
 
   const rowsToUpsert: Array<{
@@ -559,6 +562,7 @@ async function handleSaveAttendance(
     event_type: "sunday_service" | "small_group_fellowship";
     status: "unknown" | "present" | "absent";
     note: string;
+    note_priority_high: boolean;
     recorded_by_member_id: number;
     recorded_at: string;
   }> = [];
@@ -579,6 +583,7 @@ async function handleSaveAttendance(
     );
     const note = String(entry?.note || "").trim();
     const noteCarryForward = entry?.note_carry_forward !== false;
+    const notePriorityHigh = Boolean(note && entry?.note_priority_high);
     const nowIso = new Date().toISOString();
 
     if (canEditNote(sessionContext.member, targetMember)) {
@@ -586,6 +591,7 @@ async function handleSaveAttendance(
         member_id: memberId,
         note: noteCarryForward ? note : "",
         note_carry_forward: noteCarryForward,
+        note_priority_high: noteCarryForward ? notePriorityHigh : false,
       });
     }
 
@@ -597,6 +603,7 @@ async function handleSaveAttendance(
           event_type: "sunday_service",
           status: sundayStatus,
           note,
+          note_priority_high: notePriorityHigh,
           recorded_by_member_id: sessionContext.member.id,
           recorded_at: nowIso,
         },
@@ -606,6 +613,7 @@ async function handleSaveAttendance(
           event_type: "small_group_fellowship",
           status: fellowshipStatus,
           note,
+          note_priority_high: notePriorityHigh,
           recorded_by_member_id: sessionContext.member.id,
           recorded_at: nowIso,
         },
@@ -632,6 +640,7 @@ async function handleSaveAttendance(
       .update({
         note: noteUpdate.note,
         note_carry_forward: noteUpdate.note_carry_forward,
+        note_priority_high: noteUpdate.note_priority_high,
       })
       .eq("id", noteUpdate.member_id);
 
@@ -1759,7 +1768,7 @@ async function loadWeeklyNoteMap(
   const memberIds = members.map((member) => member.id);
   const { data, error } = await adminClient
     .from("attendance_records")
-    .select("member_id, note")
+    .select("member_id, note, note_priority_high")
     .eq("attendance_week_id", attendanceWeekId)
     .in("member_id", memberIds);
 
@@ -1773,6 +1782,7 @@ async function loadWeeklyNoteMap(
     if (note || !map.has(memberId)) {
       map.set(memberId, {
         note,
+        priorityHigh: Boolean(note && row.note_priority_high),
         carryForward: members.find((member) => member.id === memberId)
           ?.note_carry_forward !== false,
       });
@@ -1787,6 +1797,7 @@ async function loadWeeklyNoteMap(
     map.set(member.id, {
       note: member.note_carry_forward ? member.note || "" : "",
       carryForward: member.note_carry_forward !== false,
+      priorityHigh: Boolean(member.note_carry_forward && member.note && member.note_priority_high),
     });
   }
 

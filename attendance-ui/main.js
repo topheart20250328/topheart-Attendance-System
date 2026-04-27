@@ -20,6 +20,12 @@ const ROLE_ORDER = {
   best: 5,
 };
 
+const ORG_SUFFIXES = {
+  district: "區",
+  big_family: "大家",
+  small_group: "小家",
+};
+
 const GENDER_LABELS = {
   brother: "弟兄",
   sister: "姊妹",
@@ -195,12 +201,18 @@ const state = {
   },
   dirty: false,
   toastTimer: null,
+  dashboardCache: new Map(),
+  prefetchingWeeks: new Set(),
 };
 
-boot().catch((error) => {
-  console.error(error);
-  showToast(error.message || "初始化失敗，請檢查設定。");
-});
+boot()
+  .catch((error) => {
+    console.error(error);
+    showToast(error.message || "初始化失敗，請檢查設定。");
+  })
+  .finally(() => {
+    document.body.classList.remove("is-booting");
+  });
 
 async function boot() {
   bindEvents();
@@ -728,25 +740,57 @@ async function loadDashboard(options = {}) {
     const weekStart = getMondayIso(els.weekInput.value || new Date());
     els.weekInput.value = weekStart;
 
-    const data = await apiRequest(
-      `dashboard&week_start=${encodeURIComponent(weekStart)}`,
-      {
-        method: "GET",
-        authMode: "app",
-      },
-    );
-
-    state.currentMember = data.current_member;
-    state.currentWeek = normalizeWeek(data.week, weekStart);
-    state.attendanceAnalytics = normalizeAttendanceAnalytics(data.analytics);
-    state.roster = sortMembers((data.roster || []).map(enrichRosterMember));
-    renderAttendanceHeader();
-    renderWeekSummary();
-    renderAttendanceRows();
+    const data = await fetchDashboardData(weekStart);
+    applyDashboardData(data, weekStart);
     setDirty(false);
+    prefetchAdjacentWeeks(weekStart);
   } catch (error) {
     console.error(error);
     showToast(error.message || "載入點名資料失敗。");
+  }
+}
+
+async function fetchDashboardData(weekStart) {
+  const cacheKey = getDashboardCacheKey(weekStart);
+  const data = await apiRequest(
+    `dashboard&week_start=${encodeURIComponent(weekStart)}`,
+    {
+      method: "GET",
+      authMode: "app",
+    },
+  );
+  state.dashboardCache.set(cacheKey, data);
+  return data;
+}
+
+function applyDashboardData(data, weekStart) {
+  state.currentMember = data.current_member;
+  state.currentWeek = normalizeWeek(data.week, weekStart);
+  state.attendanceAnalytics = normalizeAttendanceAnalytics(data.analytics);
+  state.roster = sortMembers((data.roster || []).map(enrichRosterMember));
+  renderAttendanceHeader();
+  renderWeekSummary();
+  renderAttendanceRows();
+}
+
+function getDashboardCacheKey(weekStart) {
+  return String(weekStart || "");
+}
+
+function prefetchAdjacentWeeks(weekStart) {
+  for (const dayDelta of [-7, 7]) {
+    const target = parseIsoDate(weekStart);
+    target.setDate(target.getDate() + dayDelta);
+    const targetWeek = getMondayIso(target);
+    const cacheKey = getDashboardCacheKey(targetWeek);
+    if (state.dashboardCache.has(cacheKey) || state.prefetchingWeeks.has(cacheKey)) {
+      continue;
+    }
+
+    state.prefetchingWeeks.add(cacheKey);
+    fetchDashboardData(targetWeek)
+      .catch((error) => console.warn("Prefetch dashboard failed", error))
+      .finally(() => state.prefetchingWeeks.delete(cacheKey));
   }
 }
 
@@ -755,6 +799,7 @@ function enrichRosterMember(member) {
     ...member,
     note: member.note || "",
     note_carry_forward: member.note_carry_forward !== false,
+    note_priority_high: Boolean(member.note && member.note_priority_high),
     attendance: {
       sunday_service: member.attendance?.sunday_service || "unknown",
       small_group_fellowship:
@@ -889,6 +934,7 @@ function renderAttendanceHeader() {
 function renderWeekSummary() {
   const visibleCount = state.roster.length;
   const pendingCount = state.roster.filter(hasPendingAttendance).length;
+  const completedCount = Math.max(visibleCount - pendingCount, 0);
   const sundayPresentCount = countStatus("sunday_service", "present");
   const fellowshipPresentCount = countStatus(
     "small_group_fellowship",
@@ -903,8 +949,9 @@ function renderWeekSummary() {
       <strong>${visibleCount}</strong>
     </div>
     <div class="summary-item">
-      <span class="info-label">待確認</span>
-      <strong>${pendingCount}</strong>
+      <span class="info-label">完成 / 待確認</span>
+      <strong>${completedCount} / ${pendingCount}</strong>
+      <span class="summary-subtext">${formatPercent(completedCount, visibleCount)} 已完成</span>
     </div>
     <div class="summary-item">
       <span class="info-label">主日</span>
@@ -984,12 +1031,14 @@ function renderAttendanceRows() {
       const meta = formatMemberScopeSummary(member);
       const noteValue = escapeHtml(member.note || "");
       const noteCarryChecked = member.note_carry_forward !== false ? "checked" : "";
+      const notePriorityChecked = member.note_priority_high ? "checked" : "";
+      const notePriorityDisabled = member.note.trim() && member.can_edit_note ? "" : "disabled";
       const readonlyBadge = member.can_edit_attendance
         ? ""
         : '<span class="status-chip neutral">僅檢視</span>';
 
       return `
-        <article class="attendance-card${member.can_edit_attendance ? "" : " is-readonly"}">
+        <article class="attendance-card${member.can_edit_attendance ? "" : " is-readonly"}${member.note_priority_high ? " has-priority-note" : ""}">
           <div class="attendance-card-head">
             <div class="row-meta">
               <div class="attendance-name-line">
@@ -1000,7 +1049,9 @@ function renderAttendanceRows() {
                 <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
                 ${meta ? `<span class="muted small-text">${escapeHtml(meta)}</span>` : ""}
               </div>
-              <div class="attendance-role-line">${escapeHtml(getRoleLabel(member.role))}</div>
+              <div class="attendance-role-line">
+                <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
+              </div>
             </div>
             ${readonlyBadge
               ? `<div class="attendance-card-actions">${readonlyBadge}</div>`
@@ -1021,16 +1072,28 @@ function renderAttendanceRows() {
                 placeholder="記錄近況、代禱與需要跟進的事項"
                 ${member.can_edit_note ? "" : "disabled"}
               >${noteValue}</textarea>
-              <label class="note-carry-row">
-                <input
-                  class="note-carry-input"
-                  type="checkbox"
-                  data-member-id="${member.id}"
-                  ${noteCarryChecked}
-                  ${member.can_edit_note ? "" : "disabled"}
-                />
-                <span>自動填入到下週</span>
-              </label>
+              <div class="attendance-note-actions">
+                <label class="note-carry-row">
+                  <input
+                    class="note-carry-input"
+                    type="checkbox"
+                    data-member-id="${member.id}"
+                    ${noteCarryChecked}
+                    ${member.can_edit_note ? "" : "disabled"}
+                  />
+                  <span>自動填入到下週</span>
+                </label>
+                <label class="note-carry-row note-priority-row">
+                  <input
+                    class="note-priority-input"
+                    type="checkbox"
+                    data-member-id="${member.id}"
+                    ${notePriorityChecked}
+                    ${notePriorityDisabled}
+                  />
+                  <span>高優先度</span>
+                </label>
+              </div>
             </div>
           </details>
         </article>
@@ -1054,6 +1117,10 @@ function renderAttendanceEventCard(member, eventType, label) {
 }
 
 function buildNoteSummary(member) {
+  if (member.note_priority_high) {
+    return "高優先";
+  }
+
   if (member.note.trim()) {
     return "已備註";
   }
@@ -1098,6 +1165,9 @@ function updateMemberNote(memberId, note) {
   }
 
   member.note = note;
+  if (!member.note.trim()) {
+    member.note_priority_high = false;
+  }
   return member;
 }
 
@@ -1108,6 +1178,16 @@ function updateMemberNoteCarryForward(memberId, shouldCarryForward) {
   }
 
   member.note_carry_forward = shouldCarryForward;
+  return member;
+}
+
+function updateMemberNotePriority(memberId, isPriority) {
+  const member = state.roster.find((item) => item.id === memberId);
+  if (!member) {
+    return null;
+  }
+
+  member.note_priority_high = Boolean(member.note.trim() && isPriority);
   return member;
 }
 
@@ -1139,9 +1219,19 @@ function syncNoteSummary(details, member) {
   }
 
   details.classList.toggle("is-filled", Boolean(member.note.trim()));
+  details.closest(".attendance-card")?.classList.toggle(
+    "has-priority-note",
+    Boolean(member.note_priority_high),
+  );
   const summary = details.querySelector("summary");
   if (summary) {
     summary.textContent = buildNoteSummary(member);
+  }
+
+  const priorityInput = details.querySelector(".note-priority-input");
+  if (priorityInput) {
+    priorityInput.disabled = !member.can_edit_note || !member.note.trim();
+    priorityInput.checked = Boolean(member.note_priority_high);
   }
 }
 
@@ -1203,7 +1293,16 @@ async function handleShiftWeek(dayDelta) {
 
   const current = parseIsoDate(els.weekInput.value || getMondayIso(new Date()));
   current.setDate(current.getDate() + dayDelta);
-  els.weekInput.value = getMondayIso(current);
+  const weekStart = getMondayIso(current);
+  els.weekInput.value = weekStart;
+  const cached = state.dashboardCache.get(getDashboardCacheKey(weekStart));
+  if (cached) {
+    applyDashboardData(cached, weekStart);
+    setDirty(false);
+    prefetchAdjacentWeeks(weekStart);
+    return;
+  }
+
   await loadDashboard();
 }
 
@@ -1225,7 +1324,7 @@ async function handleWeekChange() {
 }
 
 function handleAttendanceFieldChange(event) {
-  if (!event.target.matches(".note-input, .note-carry-input")) {
+  if (!event.target.matches(".note-input, .note-carry-input, .note-priority-input")) {
     return;
   }
 
@@ -1237,8 +1336,11 @@ function handleAttendanceFieldChange(event) {
   if (event.target.matches(".note-input")) {
     const member = updateMemberNote(memberId, event.target.value);
     syncNoteSummary(event.target.closest(".attendance-note-details"), member);
-  } else {
+  } else if (event.target.matches(".note-carry-input")) {
     updateMemberNoteCarryForward(memberId, event.target.checked);
+  } else {
+    const member = updateMemberNotePriority(memberId, event.target.checked);
+    syncNoteSummary(event.target.closest(".attendance-note-details"), member);
   }
   setDirty(true);
 }
@@ -1299,6 +1401,7 @@ async function handleSaveAttendance() {
       ),
       note: getSelectedNote(member.id),
       note_carry_forward: member.note_carry_forward !== false,
+      note_priority_high: Boolean(member.note.trim() && member.note_priority_high),
     }));
 
   if (!entries.length) {
@@ -1742,6 +1845,18 @@ function getOrganizationDisplayName(name, isActive) {
   return isActive ? name : `${name}（已封存）`;
 }
 
+function getOrganizationBaseName(name, orgType) {
+  const suffix = ORG_SUFFIXES[orgType];
+  const value = String(name || "").trim();
+  return suffix && value.endsWith(suffix) ? value.slice(0, -suffix.length) : value;
+}
+
+function buildOrganizationName(value, orgType) {
+  const suffix = ORG_SUFFIXES[orgType];
+  const baseName = getOrganizationBaseName(value, orgType);
+  return suffix && baseName ? `${baseName}${suffix}` : baseName;
+}
+
 function getSelectableDistricts(includeDistrictId = 0) {
   return state.adminData.districts.filter(
     (district) => district.is_active || district.id === includeDistrictId,
@@ -2153,7 +2268,7 @@ function syncOrgEditorBigFamilyOptions() {
 
 async function handleCreateDistrict(event) {
   event.preventDefault();
-  const name = els.districtNameInput.value.trim();
+  const name = buildOrganizationName(els.districtNameInput.value, "district");
   if (!name) {
     showToast("請輸入區名稱。");
     return;
@@ -2189,7 +2304,7 @@ async function handleCreateDistrict(event) {
 async function handleCreateBigFamily(event) {
   event.preventDefault();
   const districtId = Number(els.bigFamilyDistrictSelect.value || 0);
-  const name = els.bigFamilyNameInput.value.trim();
+  const name = buildOrganizationName(els.bigFamilyNameInput.value, "big_family");
   if (!districtId || !name) {
     showToast("請完整選擇區並輸入大家名稱。");
     return;
@@ -2227,7 +2342,7 @@ async function handleCreateSmallGroup(event) {
   event.preventDefault();
   const districtId = Number(els.smallGroupDistrictSelect.value || 0);
   const bigFamilyId = Number(els.smallGroupBigFamilySelect.value || 0);
-  const name = els.smallGroupNameInput.value.trim();
+  const name = buildOrganizationName(els.smallGroupNameInput.value, "small_group");
   if (!districtId || !name) {
     showToast("請完整選擇區並輸入小家名稱。");
     return;
@@ -2672,7 +2787,7 @@ function openOrgEditor(type, id) {
     : summary.canDelete
       ? "這個組織目前已封存，若確認不再需要可直接刪除。"
       : `這個組織目前已封存；若要刪除，還需先處理 ${summary.blockerText}。`;
-  els.orgNameInput.value = entity.name || "";
+  els.orgNameInput.value = getOrganizationBaseName(entity.name, type);
   els.orgDescriptionInput.value = entity.description || "";
   setHidden(els.orgEditorCard, false);
   requestAnimationFrame(() => {
@@ -2699,7 +2814,7 @@ async function handleSaveOrganization(event) {
     return;
   }
 
-  const name = els.orgNameInput.value.trim();
+  const name = buildOrganizationName(els.orgNameInput.value, state.ui.orgEditorMode);
   if (!name) {
     showToast("請輸入名稱。");
     return;

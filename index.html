@@ -9,7 +9,7 @@
     <title>Topheart 教會點名系統</title>
     <link rel="stylesheet" href="./attendance-ui/style.css" />
   </head>
-  <body>
+  <body class="is-booting">
     <div class="page-shell">
       <header class="app-header">
         <div>
@@ -92,7 +92,7 @@
           </div>
         </div>
         <p id="authSummary" class="muted">
-          使用 LINE 登入後即可開始使用。第一次登入若尚未綁定資料，系統會引導你輸入邀請碼。
+          正在確認登入狀態，請稍候...
         </p>
         <div class="button-row">
           <a id="signInBtn" class="button-link is-disabled" aria-disabled="true">
@@ -332,7 +332,7 @@
               <form id="districtForm" class="form-grid">
                 <label>
                   <span>區名稱</span>
-                  <input id="districtNameInput" type="text" placeholder="例如：第一區" required />
+                  <input id="districtNameInput" type="text" placeholder="例如：社青（系統會加上「區」）" required />
                 </label>
                 <label>
                   <span>說明</span>
@@ -353,7 +353,7 @@
                 </label>
                 <label>
                   <span>大家名稱</span>
-                  <input id="bigFamilyNameInput" type="text" placeholder="例如：恩典大家" required />
+                  <input id="bigFamilyNameInput" type="text" placeholder="例如：恩典（系統會加上「大家」）" required />
                 </label>
                 <label>
                   <span>說明</span>
@@ -378,7 +378,7 @@
                 </label>
                 <label>
                   <span>小家名稱</span>
-                  <input id="smallGroupNameInput" type="text" placeholder="例如：喜樂小家" required />
+                  <input id="smallGroupNameInput" type="text" placeholder="例如：喜樂（系統會加上「小家」）" required />
                 </label>
                 <label>
                   <span>說明</span>
