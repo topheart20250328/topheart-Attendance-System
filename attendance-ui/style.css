@@ -662,6 +662,7 @@ code {
   color: var(--text);
   font-weight: 700;
   padding: 0.65rem 0.75rem;
+  white-space: nowrap;
 }
 
 .attendance-option:hover {
@@ -2233,7 +2234,7 @@ tbody tr:last-child td {
   }
 
   #attendanceView .attendance-card {
-    grid-template-columns: minmax(68px, 0.78fr) minmax(0, 1.85fr) minmax(72px, 0.48fr);
+    grid-template-columns: minmax(58px, 0.55fr) minmax(0, 2.4fr) minmax(58px, 0.32fr);
     gap: 4px;
     padding: 5px;
   }
@@ -2270,13 +2271,15 @@ tbody tr:last-child td {
 
   #attendanceView .attendance-option {
     min-height: 30px;
-    padding: 0.24rem 0.22rem;
+    padding: 0.24rem 0.12rem;
     border-radius: 7px;
-    font-size: 0.78rem;
+    font-size: 0.74rem;
+    line-height: 1;
   }
 
   #attendanceView .attendance-note-details summary {
     width: 100%;
+    padding-inline: 0.32rem;
     font-size: 0.78rem;
     font-weight: 800;
     text-align: center;
@@ -2300,7 +2303,7 @@ tbody tr:last-child td {
 
   #attendanceView .attendance-note-panel textarea {
     min-height: 66px;
-    font-size: 0.86rem;
+    font-size: 16px;
   }
 
   #attendanceView .note-carry-row {
@@ -2627,7 +2630,7 @@ tbody tr:last-child td {
   }
 
   #attendanceView .attendance-card {
-    grid-template-columns: minmax(58px, 0.68fr) minmax(0, 1.85fr) minmax(68px, 0.5fr);
+    grid-template-columns: minmax(50px, 0.45fr) minmax(0, 2.5fr) minmax(58px, 0.28fr);
     gap: 3px;
   }
 
@@ -2642,7 +2645,8 @@ tbody tr:last-child td {
 
   #attendanceView .attendance-option {
     min-height: 28px;
-    font-size: 0.76rem;
+    padding-inline: 0.08rem;
+    font-size: 0.72rem;
   }
 
   body.is-authenticated .user-bar {
