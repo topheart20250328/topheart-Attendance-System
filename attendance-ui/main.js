@@ -147,6 +147,10 @@ const els = {
   orgEditorHint: document.querySelector("#orgEditorHint"),
   closeOrgEditorBtn: document.querySelector("#closeOrgEditorBtn"),
   orgEditorForm: document.querySelector("#orgEditorForm"),
+  orgDistrictLabel: document.querySelector("#orgDistrictLabel"),
+  orgDistrictSelect: document.querySelector("#orgDistrictSelect"),
+  orgBigFamilyLabel: document.querySelector("#orgBigFamilyLabel"),
+  orgBigFamilySelect: document.querySelector("#orgBigFamilySelect"),
   orgNameInput: document.querySelector("#orgNameInput"),
   orgDescriptionInput: document.querySelector("#orgDescriptionInput"),
   orgSubmitBtn: document.querySelector("#orgSubmitBtn"),
@@ -240,7 +244,11 @@ function bindEvents() {
   els.closeMemberEditorBtn.addEventListener("click", closeMemberEditor);
 
   els.memberForm.addEventListener("submit", handleSaveMember);
-  els.memberRoleSelect.addEventListener("change", syncMemberFormScope);
+  els.memberRoleSelect.addEventListener("change", () => {
+    syncEditorBigFamilyOptions();
+    syncEditorSmallGroupOptions();
+    syncMemberFormScope();
+  });
   els.memberDistrictSelect.addEventListener("change", () => {
     syncEditorBigFamilyOptions();
     syncEditorSmallGroupOptions();
@@ -261,6 +269,7 @@ function bindEvents() {
   els.smallGroupTableBody.addEventListener("click", handleOrgTableClick);
   els.closeOrgEditorBtn.addEventListener("click", closeOrgEditor);
   els.orgEditorForm.addEventListener("submit", handleSaveOrganization);
+  els.orgDistrictSelect.addEventListener("change", syncOrgEditorBigFamilyOptions);
 
   els.inviteForm.addEventListener("submit", handleCreateInvite);
   els.inviteTableBody.addEventListener("click", handleInviteTableClick);
@@ -1336,9 +1345,24 @@ function renderManagement() {
   const editableMembers = getEditableManagementMembers();
   renderPeopleFilters(editableMembers);
   renderPeopleTable(editableMembers);
-  renderMemberEditor();
   renderOrganizationTools();
+  refreshOpenMemberEditorOptions();
+  renderMemberEditor();
   renderOrganizationTables();
+}
+
+function refreshOpenMemberEditorOptions() {
+  if (!state.ui.editorMode) {
+    return;
+  }
+
+  const editingMember = state.ui.editingMemberId
+    ? state.adminData.members.find((member) => member.id === state.ui.editingMemberId)
+    : null;
+
+  syncEditorBigFamilyOptions(editingMember);
+  syncEditorSmallGroupOptions(editingMember);
+  syncMemberFormScope();
 }
 
 function renderPeopleFilters(editableMembers) {
@@ -1440,6 +1464,7 @@ function renderPeopleTable(editableMembers) {
       const activeStatus = member.is_active
         ? '<span class="status-chip success">啟用中</span>'
         : '<span class="status-chip warning">已停用</span>';
+      const canDelete = canDeleteMember(member);
 
       return `
         <article class="member-card">
@@ -1455,7 +1480,12 @@ function renderPeopleTable(editableMembers) {
                 ${activeStatus}
               </div>
             </div>
-            <button type="button" class="secondary people-edit-btn" data-member-id="${member.id}">編輯</button>
+            <div class="row-actions">
+              <button type="button" class="secondary people-edit-btn" data-member-id="${member.id}">編輯</button>
+              ${canDelete
+                ? `<button type="button" class="secondary danger-button people-delete-btn" data-member-id="${member.id}" data-member-name="${escapeHtml(member.full_name)}">刪除</button>`
+                : ""}
+            </div>
           </div>
 
           <div class="member-card-grid">
@@ -1481,17 +1511,62 @@ function handlePeopleFilters() {
 }
 
 function handlePeopleTableClick(event) {
-  const button = event.target.closest(".people-edit-btn");
-  if (!button) {
+  const deleteButton = event.target.closest(".people-delete-btn");
+  if (deleteButton) {
+    const memberId = Number(deleteButton.dataset.memberId);
+    const memberName = deleteButton.dataset.memberName || "這位人員";
+    if (!memberId) {
+      return;
+    }
+
+    handleDeleteMember(deleteButton, memberId, memberName);
     return;
   }
 
-  const memberId = Number(button.dataset.memberId);
+  const editButton = event.target.closest(".people-edit-btn");
+  if (!editButton) {
+    return;
+  }
+
+  const memberId = Number(editButton.dataset.memberId);
   if (!memberId) {
     return;
   }
 
   openMemberEditor("edit", memberId);
+}
+
+async function handleDeleteMember(button, memberId, memberName) {
+  if (
+    !window.confirm(
+      `確定要刪除「${memberName}」嗎？此動作會一併移除他的點名紀錄、登入綁定與邀請碼，且無法復原。`,
+    )
+  ) {
+    return;
+  }
+
+  setButtonLoading(button, true);
+  try {
+    const data = await apiRequest("delete-member", {
+      method: "POST",
+      authMode: "app",
+      body: {
+        member_id: memberId,
+      },
+    });
+
+    if (state.ui.editingMemberId === memberId) {
+      closeMemberEditor();
+    }
+
+    await Promise.all([loadAdminPanel(), loadDashboard({ skipDirtyCheck: true })]);
+    showToast(data?.message || "人員已刪除。");
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "刪除人員失敗。");
+  } finally {
+    setButtonLoading(button, false);
+  }
 }
 
 function renderMemberEditor() {
@@ -1523,9 +1598,9 @@ function openMemberEditor(mode, memberId = null) {
 
   populateRoleOptions(mode, editableMember);
   populateDistrictOptions(editableMember);
+  fillMemberForm(mode, editableMember);
   syncEditorBigFamilyOptions(editableMember);
   syncEditorSmallGroupOptions(editableMember);
-  fillMemberForm(mode, editableMember);
   syncMemberFormScope();
   setHidden(els.memberEditorCard, false);
   requestAnimationFrame(() => {
@@ -1637,15 +1712,13 @@ function populateDistrictOptions(member) {
     label: getOrganizationDisplayName(district.name, district.is_active),
   }));
   fillSelect(els.memberDistrictSelect, districtOptions, {
-    placeholder: districtOptions.length ? "請選擇區" : "尚無可選區",
+    placeholder: districtOptions.length ? "可留空（無區）" : "可留空（無區）",
   });
 
   if (state.currentMember?.is_admin) {
     els.memberDistrictSelect.disabled = false;
     if (member?.district_id) {
       els.memberDistrictSelect.value = String(member.district_id);
-    } else if (state.adminData.districts[0]) {
-      els.memberDistrictSelect.value = String(state.adminData.districts[0].id);
     }
   } else {
     const districtId = String(state.currentMember?.district_id || "");
@@ -1747,26 +1820,24 @@ function fillMemberForm(mode, member) {
 function syncMemberFormScope() {
   const role = els.memberRoleSelect.value;
   const isCreateMode = state.ui.editorMode === "create";
+  const isEditMode = state.ui.editorMode === "edit";
   const needsBigFamily =
     role === "member" || role === "best"
-      ? false
+      ? isEditMode
       : role === "big_family_leader"
         ? !isCreateMode
         : role === "small_group_leader"
           ? true
           : false;
-  const needsSmallGroup = role === "member" || role === "best";
   const showSmallGroupField =
     role === "member" ||
     role === "best" ||
     (role === "small_group_leader" && !isCreateMode);
   const showDistrictField =
     (role !== "district_leader" || !isCreateMode) &&
-    !["member", "best"].includes(role);
+    (!["member", "best"].includes(role) || isEditMode);
   const districtRequired =
-    role === "big_family_leader" ||
-    role === "small_group_leader" ||
-    (!isCreateMode && role === "district_leader");
+    isCreateMode && ["big_family_leader", "small_group_leader"].includes(role);
 
   setHidden(els.memberDistrictLabel, !showDistrictField);
   setHidden(els.memberBigFamilyLabel, !needsBigFamily);
@@ -1774,9 +1845,9 @@ function syncMemberFormScope() {
   setHidden(els.memberIsAdminWrap, !state.currentMember?.is_admin);
 
   els.memberDistrictSelect.required = districtRequired;
-  els.memberBigFamilySelect.required =
-    role === "big_family_leader" && !isCreateMode ? true : false;
-  els.memberSmallGroupSelect.required = role === "member" || role === "best";
+  els.memberBigFamilySelect.required = false;
+  els.memberSmallGroupSelect.required =
+    isCreateMode && (role === "member" || role === "best");
   els.memberIsAdminInput.disabled = !state.currentMember?.is_admin;
 
   if (!state.currentMember?.is_admin) {
@@ -1786,15 +1857,19 @@ function syncMemberFormScope() {
   const hints = {
     district_leader: isCreateMode
       ? "新增區長時，系統會自動建立「姓名區」。"
-      : "編輯區長時，可調整基本資料與所屬區。",
+      : "編輯區長時，可調整基本資料；所屬區也可留空。",
     big_family_leader: isCreateMode
       ? "新增大家長時，只需選區；系統會自動建立「姓名大家」。"
-      : "編輯大家長時，可調整基本資料與所屬區/大家。",
+      : "編輯大家長時，可調整基本資料；所屬區/大家可留空。",
     small_group_leader: isCreateMode
       ? "新增小家長時，只需選區，大家可留空；系統會自動建立「姓名小家」。"
-      : "編輯小家長時，可調整基本資料與所屬。",
-    member: "新增小家人時，只要選小家，系統會自動帶出上層歸屬。",
-    best: "新增新朋友時，只要選小家，系統會自動帶出上層歸屬。",
+      : "編輯小家長時，可調整基本資料；區、大家與小家都可暫時留空。",
+    member: isCreateMode
+      ? "新增小家人時，只要選小家，系統會自動帶出上層歸屬。"
+      : "編輯小家人時，可改派小家；若要暫時不歸屬任何小家，也可留空。",
+    best: isCreateMode
+      ? "新增新朋友時，只要選小家，系統會自動帶出上層歸屬。"
+      : "編輯新朋友時，可改派小家；若要暫時不歸屬任何小家，也可留空。",
   };
   els.memberScopeHint.textContent = hints[role] || "請選擇正確的職分與層級。";
 }
@@ -1811,7 +1886,7 @@ async function handleSaveMember(event) {
     role: els.memberRoleSelect.value,
     gender: els.memberGenderSelect.value || null,
     note: els.memberNoteInput.value.trim(),
-    district_id: Number(els.memberDistrictSelect.value || 0),
+    district_id: Number(els.memberDistrictSelect.value || 0) || null,
     big_family_id: Number(els.memberBigFamilySelect.value || 0) || null,
     small_group_id: Number(els.memberSmallGroupSelect.value || 0) || null,
     is_admin: els.memberIsAdminInput.checked,
@@ -1832,7 +1907,7 @@ async function handleSaveMember(event) {
     return;
   }
 
-  if (["member", "best"].includes(body.role) && !body.small_group_id) {
+  if (["member", "best"].includes(body.role) && !body.small_group_id && mode === "create") {
     showToast("新增小家人或新朋友時，請先選擇所屬小家。");
     return;
   }
@@ -1978,6 +2053,24 @@ function syncOrgSelects() {
 
   els.smallGroupBigFamilySelect.disabled = !districtId;
   els.smallGroupSubmitBtn.disabled = !districtId;
+}
+
+function syncOrgEditorBigFamilyOptions() {
+  const districtId = Number(els.orgDistrictSelect.value || 0);
+  const available = state.adminData.bigFamilies.filter((bigFamily) => {
+    return bigFamily.is_active && (districtId ? bigFamily.district_id === districtId : true);
+  });
+
+  fillSelect(
+    els.orgBigFamilySelect,
+    available.map((bigFamily) => ({
+      value: String(bigFamily.id),
+      label: bigFamily.name,
+    })),
+    {
+      placeholder: "可留空（無大家）",
+    },
+  );
 }
 
 async function handleCreateDistrict(event) {
@@ -2458,6 +2551,41 @@ function openOrgEditor(type, id) {
     return;
   }
 
+  const showParentControls = type === "small_group";
+  setHidden(els.orgDistrictLabel, !showParentControls);
+  setHidden(els.orgBigFamilyLabel, !showParentControls);
+
+  if (showParentControls) {
+    const activeDistricts = getManagedActiveDistricts();
+    const includeDistrict = state.adminData.districts.find(
+      (district) => district.id === entity.district_id,
+    );
+    const districtOptions = [
+      ...activeDistricts,
+      ...(includeDistrict && !activeDistricts.some((district) => district.id === includeDistrict.id)
+        ? [includeDistrict]
+        : []),
+    ];
+
+    fillSelect(
+      els.orgDistrictSelect,
+      districtOptions.map((district) => ({
+        value: String(district.id),
+        label: getOrganizationDisplayName(district.name, district.is_active),
+      })),
+      {
+        placeholder: "請選擇區",
+      },
+    );
+    els.orgDistrictSelect.value = entity.district_id ? String(entity.district_id) : "";
+    els.orgDistrictSelect.disabled = !state.currentMember?.is_admin;
+    syncOrgEditorBigFamilyOptions();
+    els.orgBigFamilySelect.value = entity.big_family_id ? String(entity.big_family_id) : "";
+  } else {
+    els.orgDistrictSelect.value = "";
+    els.orgBigFamilySelect.value = "";
+  }
+
   const summary = getOrganizationDependencySummary(type, id);
   els.orgEditorHint.textContent = entity.is_active
     ? summary.canDelete
@@ -2482,6 +2610,8 @@ function closeOrgEditor() {
   state.ui.orgEditorMode = null;
   state.ui.editingOrgId = null;
   els.orgEditorForm.reset();
+  setHidden(els.orgDistrictLabel, true);
+  setHidden(els.orgBigFamilyLabel, true);
   setHidden(els.orgEditorCard, true);
 }
 
@@ -2510,16 +2640,23 @@ async function handleSaveOrganization(event) {
 
   const action = actionMap[state.ui.orgEditorMode];
   const idKey = idKeyMap[state.ui.orgEditorMode];
+  const requestBody = {
+    [idKey]: state.ui.editingOrgId,
+    name,
+    description: els.orgDescriptionInput.value.trim(),
+  };
+
+  if (state.ui.orgEditorMode === "small_group") {
+    requestBody.district_id = Number(els.orgDistrictSelect.value || 0) || null;
+    requestBody.big_family_id = Number(els.orgBigFamilySelect.value || 0) || null;
+  }
+
   setButtonLoading(els.orgSubmitBtn, true);
   try {
     await apiRequest(action, {
       method: "POST",
       authMode: "app",
-      body: {
-        [idKey]: state.ui.editingOrgId,
-        name,
-        description: els.orgDescriptionInput.value.trim(),
-      },
+      body: requestBody,
     });
 
     const focusType = state.ui.orgEditorMode;
@@ -2736,6 +2873,23 @@ function canEditProfile(member) {
 
   return (
     state.currentMember.role === "district_leader" &&
+    member.district_id === state.currentMember.district_id &&
+    ["member", "best"].includes(member.role)
+  );
+}
+
+function canDeleteMember(member) {
+  if (!state.currentMember || member.id === state.currentMember.id) {
+    return false;
+  }
+
+  if (state.currentMember.is_admin) {
+    return true;
+  }
+
+  return (
+    state.currentMember.role === "district_leader" &&
+    Boolean(state.currentMember.district_id) &&
     member.district_id === state.currentMember.district_id &&
     ["member", "best"].includes(member.role)
   );

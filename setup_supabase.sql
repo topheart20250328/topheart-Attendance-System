@@ -117,20 +117,15 @@ create table public.members (
   constraint members_scope_matches_role check (
     (
       role = 'district_leader'
-      and district_id is not null
       and big_family_id is null
       and small_group_id is null
     )
     or (
       role = 'big_family_leader'
-      and district_id is not null
-      and big_family_id is not null
       and small_group_id is null
     )
     or (
       role in ('small_group_leader', 'member', 'best')
-      and district_id is not null
-      and small_group_id is not null
     )
   )
 );
@@ -320,8 +315,8 @@ select
   m.created_at,
   m.updated_at
 from public.members m
-join public.districts d on d.id = m.district_id
 left join public.small_groups sg on sg.id = m.small_group_id
+left join public.districts d on d.id = coalesce(m.district_id, sg.district_id)
 left join public.big_families bf on bf.id = coalesce(m.big_family_id, sg.big_family_id)
 ;
 
