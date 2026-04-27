@@ -486,6 +486,7 @@ code {
 .info-label {
   color: var(--muted);
   font-size: 0.88rem;
+  white-space: nowrap;
 }
 
 .toolbar {
@@ -2232,7 +2233,7 @@ tbody tr:last-child td {
   }
 
   #attendanceView .attendance-card {
-    grid-template-columns: minmax(68px, 0.74fr) minmax(172px, 1.85fr) minmax(46px, 0.4fr);
+    grid-template-columns: minmax(68px, 0.78fr) minmax(0, 1.85fr) minmax(72px, 0.48fr);
     gap: 4px;
     padding: 5px;
   }
@@ -2275,6 +2276,7 @@ tbody tr:last-child td {
   }
 
   #attendanceView .attendance-note-details summary {
+    width: 100%;
     font-size: 0.78rem;
     font-weight: 800;
     text-align: center;
@@ -2625,7 +2627,7 @@ tbody tr:last-child td {
   }
 
   #attendanceView .attendance-card {
-    grid-template-columns: minmax(60px, 0.66fr) minmax(150px, 1.85fr) minmax(42px, 0.42fr);
+    grid-template-columns: minmax(58px, 0.68fr) minmax(0, 1.85fr) minmax(68px, 0.5fr);
     gap: 3px;
   }
 

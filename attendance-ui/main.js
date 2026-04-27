@@ -949,7 +949,7 @@ function renderWeekSummary() {
       <strong>${visibleCount}</strong>
     </div>
     <div class="summary-item">
-      <span class="info-label">完成 / 待確認</span>
+      <span class="info-label">完成/待確認</span>
       <strong>${completedCount} / ${pendingCount}</strong>
       <span class="summary-subtext">${formatPercent(completedCount, visibleCount)} 已完成</span>
     </div>
@@ -1118,7 +1118,7 @@ function renderAttendanceEventCard(member, eventType, label) {
 
 function buildNoteSummary(member) {
   if (member.note_priority_high) {
-    return "高優先";
+    return "高優先度";
   }
 
   if (member.note.trim()) {
