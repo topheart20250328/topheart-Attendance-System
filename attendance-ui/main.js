@@ -659,11 +659,15 @@ function renderTopBar() {
 }
 
 function renderTabs() {
-  const canManage = canUseManagement();
-  setHidden(els.tabPeopleBtn, !canManage);
-  setHidden(els.tabInvitesBtn, !canManage);
+  const canManagePeople = canUseManagement();
+  const canManageInvites = canUseInvites();
+  setHidden(els.tabPeopleBtn, !canManagePeople);
+  setHidden(els.tabInvitesBtn, !canManageInvites);
 
-  if (!canManage && state.ui.activeTab !== TABS.attendance) {
+  if (
+    (state.ui.activeTab === TABS.people && !canManagePeople) ||
+    (state.ui.activeTab === TABS.invites && !canManageInvites)
+  ) {
     state.ui.activeTab = TABS.attendance;
   }
 
@@ -674,8 +678,8 @@ function renderTabs() {
 
 function renderActiveView() {
   setHidden(els.attendanceView, state.ui.activeTab !== TABS.attendance);
-  setHidden(els.peopleView, state.ui.activeTab !== TABS.people);
-  setHidden(els.invitesView, state.ui.activeTab !== TABS.invites);
+  setHidden(els.peopleView, state.ui.activeTab !== TABS.people || !canUseManagement());
+  setHidden(els.invitesView, state.ui.activeTab !== TABS.invites || !canUseInvites());
 }
 
 function renderPendingProfile() {
@@ -1485,6 +1489,7 @@ function renderPeopleTable(editableMembers) {
                 ${lineStatus}
                 ${activeStatus}
               </div>
+              <div class="member-card-path muted small-text">${escapeHtml(path || "未設定")}</div>
             </div>
             <div class="row-actions">
               <button type="button" class="secondary people-edit-btn" data-member-id="${member.id}">編輯</button>
@@ -2692,7 +2697,7 @@ async function handleSaveOrganization(event) {
 }
 
 function renderInvites() {
-  if (!canUseManagement()) {
+  if (!canUseInvites()) {
     setHidden(els.invitesView, true);
     return;
   }
@@ -2724,6 +2729,10 @@ function renderInvites() {
 }
 
 function getInviteCandidates() {
+  if (!canUseInvites()) {
+    return [];
+  }
+
   return state.adminData.members.filter((member) => {
     if (!member.is_active || member.line_user_id) {
       return false;
@@ -2733,15 +2742,7 @@ function getInviteCandidates() {
       return false;
     }
 
-    if (state.currentMember.is_admin) {
-      return true;
-    }
-
-    return (
-      state.currentMember.role === "district_leader" &&
-      member.district_id === state.currentMember.district_id &&
-      ["big_family_leader", "small_group_leader"].includes(member.role)
-    );
+    return true;
   });
 }
 
@@ -2874,6 +2875,10 @@ function canUseManagement() {
     state.currentMember &&
       (state.currentMember.is_admin || state.currentMember.role === "district_leader"),
   );
+}
+
+function canUseInvites() {
+  return Boolean(state.currentMember?.is_admin);
 }
 
 function canEditProfile(member) {

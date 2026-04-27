@@ -350,7 +350,7 @@ async function handleGetAdminOverview(
     return jsonResponse({ error: "Unauthorized." }, 401);
   }
 
-  if (!canUseAdminPanel(sessionContext.member)) {
+  if (!sessionContext.member.is_admin) {
     return jsonResponse({ error: "Forbidden." }, 403);
   }
 
@@ -1957,16 +1957,7 @@ function canCreateRole(
 }
 
 function canIssueInvite(viewer: MemberDirectoryRow, target: MemberDirectoryRow) {
-  if (viewer.is_admin) {
-    return isLoginEnabledMember(target);
-  }
-
-  return (
-    viewer.role === "district_leader" &&
-    Boolean(viewer.district_id) &&
-    target.district_id === viewer.district_id &&
-    ["big_family_leader", "small_group_leader"].includes(target.role)
-  );
+  return viewer.is_admin && isLoginEnabledMember(target);
 }
 
 function canEditProfile(viewer: MemberDirectoryRow, target: MemberDirectoryRow) {
@@ -2088,29 +2079,31 @@ async function buildAdminOverview(
     (creatorMembers || []).map((creator) => [creator.id, creator.full_name]),
   );
 
-  const invites = (inviteRows || [])
-    .map((invite) => {
-      const target = memberMap.get(invite.member_id);
-      if (!target) {
-        return null;
-      }
+  const invites = viewer.is_admin
+    ? (inviteRows || [])
+        .map((invite) => {
+          const target = memberMap.get(invite.member_id);
+          if (!target) {
+            return null;
+          }
 
-      return {
-        id: invite.id,
-        invite_code: invite.invite_code,
-        expires_at: invite.expires_at,
-        used_at: invite.used_at,
-        used_by_line_user_id: invite.used_by_line_user_id,
-        target_member_id: target.id,
-        target_name: target.full_name,
-        target_role: target.role,
-        created_by_name: invite.created_by_member_id
-          ? creatorMap.get(invite.created_by_member_id) || "-"
-          : "-",
-        created_at: invite.created_at,
-      };
-    })
-    .filter(Boolean);
+          return {
+            id: invite.id,
+            invite_code: invite.invite_code,
+            expires_at: invite.expires_at,
+            used_at: invite.used_at,
+            used_by_line_user_id: invite.used_by_line_user_id,
+            target_member_id: target.id,
+            target_name: target.full_name,
+            target_role: target.role,
+            created_by_name: invite.created_by_member_id
+              ? creatorMap.get(invite.created_by_member_id) || "-"
+              : "-",
+            created_at: invite.created_at,
+          };
+        })
+        .filter(Boolean)
+    : [];
 
   return {
     districts,

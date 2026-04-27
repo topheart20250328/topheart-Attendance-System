@@ -976,6 +976,83 @@ body.is-authenticated #attendanceView.card {
   gap: 12px;
 }
 
+#peopleView.card {
+  padding: clamp(10px, 2vw, 18px);
+}
+
+#peopleView .card-header {
+  margin-bottom: 8px;
+}
+
+#peopleView > .muted {
+  margin: 0 0 10px;
+}
+
+#peopleView .management-layout {
+  gap: 10px;
+}
+
+#peopleView .management-list {
+  padding: clamp(8px, 1.6vw, 12px);
+}
+
+#peopleView .section-toolbar {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+#peopleView .people-card-list {
+  gap: 7px;
+}
+
+#peopleView .member-card {
+  gap: 7px;
+  padding: 8px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+#peopleView .member-card-head {
+  align-items: center;
+  gap: 8px;
+}
+
+#peopleView .member-card-title strong,
+#peopleView .member-card-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#peopleView .member-card-title strong {
+  max-width: 100%;
+  font-size: 0.96rem;
+}
+
+#peopleView .member-card-path {
+  max-width: min(420px, 100%);
+}
+
+#peopleView .member-card-chips {
+  gap: 5px;
+}
+
+#peopleView .member-card-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+#peopleView .row-actions {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+#peopleView .row-actions button {
+  min-height: 34px;
+  padding: 0.42rem 0.65rem;
+  font-size: 0.82rem;
+}
+
 .member-card,
 .invite-card,
 .latest-invite-card {
@@ -1708,8 +1785,14 @@ tbody tr:last-child td {
   }
 
   body.is-authenticated .user-bar {
+    flex-direction: row;
+    align-items: center;
     padding: 6px 8px;
     border-radius: 12px;
+  }
+
+  body.is-authenticated .user-meta {
+    flex: 1 1 auto;
   }
 
   body.is-authenticated .user-name {
@@ -1839,6 +1922,116 @@ tbody tr:last-child td {
   #attendanceView .attendance-save-meta {
     display: none;
   }
+
+  #peopleView > .muted,
+  #peopleView .member-card-grid {
+    display: none;
+  }
+
+  #peopleView.card {
+    padding: 8px;
+  }
+
+  #peopleView .card-header {
+    align-items: center;
+    margin-bottom: 6px;
+  }
+
+  #peopleView .card-header h2 {
+    font-size: 1rem;
+  }
+
+  #peopleView .management-layout,
+  #peopleView .management-list,
+  #peopleView .people-card-list {
+    gap: 6px;
+  }
+
+  #peopleView .management-list {
+    padding: 7px;
+    border-radius: 12px;
+  }
+
+  #peopleView .section-toolbar {
+    display: grid;
+    grid-template-columns: 1fr 0.72fr;
+    gap: 6px;
+  }
+
+  #peopleView .search-field {
+    gap: 3px;
+  }
+
+  #peopleView .search-field span {
+    font-size: 0.7rem;
+  }
+
+  #peopleView .search-field input,
+  #peopleView .search-field select {
+    min-height: 34px;
+    padding: 0.38rem 0.48rem;
+    border-radius: 10px;
+    font-size: 0.82rem;
+  }
+
+  #peopleView .list-count-chip {
+    margin-bottom: 5px;
+    padding: 0.24rem 0.48rem;
+    font-size: 0.7rem;
+  }
+
+  #peopleView .member-card {
+    padding: 6px;
+    border-radius: 10px;
+  }
+
+  #peopleView .member-card-head {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+
+  #peopleView .row-meta {
+    min-width: 0;
+  }
+
+  #peopleView .member-card-title {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  #peopleView .member-card-title strong {
+    font-size: 0.86rem;
+  }
+
+  #peopleView .member-card-chips {
+    flex-wrap: nowrap;
+    gap: 3px;
+    overflow: hidden;
+  }
+
+  #peopleView .role-pill,
+  #peopleView .status-chip,
+  #peopleView .gender-badge {
+    padding: 0.13rem 0.36rem;
+    font-size: 0.66rem;
+  }
+
+  #peopleView .member-card-path {
+    font-size: 0.68rem;
+    line-height: 1.2;
+  }
+
+  #peopleView .row-actions,
+  #peopleView .row-actions > * {
+    width: auto;
+  }
+
+  #peopleView .row-actions button {
+    min-height: 30px;
+    padding: 0.28rem 0.42rem;
+    font-size: 0.72rem;
+  }
 }
 
 @media (max-width: 380px) {
@@ -1859,6 +2052,37 @@ tbody tr:last-child td {
   #attendanceView .attendance-option {
     min-height: 26px;
     font-size: 0.66rem;
+  }
+
+  body.is-authenticated .user-bar {
+    gap: 6px;
+  }
+
+  body.is-authenticated .user-name {
+    font-size: 0.82rem;
+  }
+
+  #signOutBtn {
+    min-height: 30px;
+    padding: 0.32rem 0.55rem;
+    font-size: 0.74rem;
+  }
+
+  #peopleView .member-card-title strong {
+    font-size: 0.8rem;
+  }
+
+  #peopleView .role-pill,
+  #peopleView .status-chip,
+  #peopleView .gender-badge,
+  #peopleView .member-card-path {
+    font-size: 0.62rem;
+  }
+
+  #peopleView .row-actions button {
+    min-height: 28px;
+    padding-inline: 0.34rem;
+    font-size: 0.68rem;
   }
 }
 
