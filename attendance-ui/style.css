@@ -729,7 +729,7 @@ code {
 
 .attendance-save-bar {
   position: sticky;
-  bottom: calc(12px + env(safe-area-inset-bottom));
+  bottom: calc(6px + env(safe-area-inset-bottom));
   z-index: 5;
   display: flex;
   justify-content: space-between;
@@ -742,6 +742,10 @@ code {
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
   backdrop-filter: blur(14px);
+}
+
+#attendanceView {
+  padding-bottom: calc(18px + env(safe-area-inset-bottom));
 }
 
 .attendance-save-meta {
@@ -1680,6 +1684,29 @@ tbody tr:last-child td {
   padding: 10px 0;
 }
 
+#attendanceView .attendance-filter-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(104px, 0.45fr) minmax(104px, 0.45fr);
+  gap: 8px;
+  padding: 6px 0;
+}
+
+#attendanceView .attendance-filter-row .search-field {
+  min-width: 0;
+}
+
+#attendanceView .attendance-filter-row .search-field span {
+  font-size: 0.74rem;
+}
+
+#attendanceView .attendance-filter-row input,
+#attendanceView .attendance-filter-row select {
+  min-height: 34px;
+  padding: 0.38rem 0.52rem;
+  border-radius: 10px;
+  font-size: 0.86rem;
+}
+
 .compact-tabs {
   width: fit-content;
   margin-bottom: 12px;
@@ -1694,11 +1721,24 @@ tbody tr:last-child td {
 }
 
 .overview-week-chip {
+  display: grid;
+  gap: 1px;
   flex: 0 0 auto;
   min-height: 38px;
   padding: 0.45rem 0.75rem;
   background: #edf3ff;
   color: var(--text);
+}
+
+.overview-week-chip span {
+  font-size: 0.7rem;
+  font-weight: 700;
+  opacity: 0.82;
+}
+
+.overview-week-current {
+  background: #fff7ed;
+  color: #9a3412;
 }
 
 .overview-week-chip.is-active {
@@ -1743,8 +1783,15 @@ tbody tr:last-child td {
 }
 
 .overview-unit-stat {
-  min-width: 86px;
+  min-width: 132px;
   text-align: right;
+}
+
+.overview-mini-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 14px 12px;
 }
 
 .overview-detail-grid {
@@ -1783,6 +1830,35 @@ tbody tr:last-child td {
 .management-list,
 .management-editor {
   min-width: 0;
+}
+
+.people-scope-group {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.people-scope-group summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  cursor: pointer;
+  list-style: none;
+  background: #f8fbff;
+  font-weight: 800;
+}
+
+.people-scope-group summary::-webkit-details-marker {
+  display: none;
+}
+
+.people-scope-members {
+  display: grid;
+  gap: 7px;
+  padding: 7px;
 }
 
 .search-field {
@@ -2104,7 +2180,7 @@ tbody tr:last-child td {
   .attendance-save-bar {
     flex-direction: column;
     align-items: stretch;
-    bottom: calc(8px + env(safe-area-inset-bottom));
+    bottom: calc(4px + env(safe-area-inset-bottom));
     padding: 10px 12px;
   }
 
@@ -2465,9 +2541,30 @@ tbody tr:last-child td {
     gap: 5px;
   }
 
+  #attendanceView .attendance-filter-row {
+    grid-template-columns: 1fr 0.62fr 0.62fr;
+    gap: 5px;
+  }
+
+  #attendanceView .attendance-filter-row .search-field {
+    gap: 2px;
+  }
+
+  #attendanceView .attendance-filter-row .search-field span {
+    font-size: 0.68rem;
+  }
+
+  #attendanceView .attendance-filter-row input,
+  #attendanceView .attendance-filter-row select {
+    min-height: 30px;
+    padding: 0.28rem 0.36rem;
+    font-size: 0.78rem;
+  }
+
   #attendanceView .attendance-save-bar {
-    bottom: calc(4px + env(safe-area-inset-bottom));
+    bottom: env(safe-area-inset-bottom);
     padding: 6px;
+    margin-inline: -2px;
   }
 
   #attendanceView .attendance-save-meta {

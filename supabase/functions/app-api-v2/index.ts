@@ -15,6 +15,9 @@ type MemberRow = {
   small_group_id: number | null;
   small_group_name: string | null;
   gender: string | null;
+  note: string | null;
+  note_carry_forward: boolean | null;
+  note_priority_high: boolean | null;
 };
 
 type Scope = {
@@ -71,8 +74,16 @@ Deno.serve(async (request) => {
       return json(await handleAttendanceOverview(db, viewer, url));
     }
 
+    if (request.method === "GET" && action === "dashboard") {
+      return json(await handleDashboard(db, viewer, url));
+    }
+
     if (request.method === "POST" && action === "create-member") {
       return await handleCreateMember(db, viewer, request);
+    }
+
+    if (request.method === "POST" && action === "save-attendance") {
+      return await handleSaveAttendance(db, viewer, request);
     }
 
     if (request.method === "POST" && action === "update-member") {
@@ -337,7 +348,7 @@ async function resolveScope(
   const smallGroupId = toPositiveInt(body?.small_group_id);
 
   if (role === "preacher") {
-    return { district_id: null, big_family_id: null, small_group_id: null };
+    return { district_id: districtId || null, big_family_id: null, small_group_id: null };
   }
 
   if (role === "district_leader") {
@@ -426,6 +437,222 @@ async function insertOne(db: ReturnType<typeof createAdminClient>, table: string
     throw new Error(error.message);
   }
   return data;
+}
+
+async function handleDashboard(
+  db: ReturnType<typeof createAdminClient>,
+  viewer: MemberRow,
+  url: URL,
+) {
+  const weekStart = getMondayIso(url.searchParams.get("week_start") || new Date());
+  const week = await ensureWeek(db, weekStart);
+  const members = await loadVisibleMembers(db, viewer);
+  const memberIds = members.map((member) => member.id);
+  const records = await loadRecords(db, week.id, memberIds);
+  const recordMap = new Map(records.map((record) => [`${record.member_id}:${record.event_type}`, record]));
+
+  return {
+    current_member: viewer,
+    week: {
+      ...week,
+      label: weekStart,
+    },
+    analytics: createEmptyAnalytics(weekStart),
+    roster: members.map((member) => ({
+      ...member,
+      note: getFirstRecordValue(recordMap, member.id, "note", member.note || ""),
+      note_carry_forward: member.note_carry_forward !== false,
+      note_priority_high: Boolean(
+        getFirstRecordValue(recordMap, member.id, "note_priority_high", member.note_priority_high),
+      ),
+      is_self: member.id === viewer.id,
+      can_edit_attendance: canEditAttendance(viewer, member),
+      can_edit_note: canEditNote(viewer, member),
+      attendance: {
+        sunday_service: statusOf(recordMap.get(`${member.id}:sunday_service`)?.status),
+        small_group_fellowship: statusOf(recordMap.get(`${member.id}:small_group_fellowship`)?.status),
+      },
+    })),
+  };
+}
+
+async function handleSaveAttendance(
+  db: ReturnType<typeof createAdminClient>,
+  viewer: MemberRow,
+  request: Request,
+) {
+  const body = await request.json().catch(() => null);
+  const entries = Array.isArray(body?.entries) ? body.entries : [];
+  if (!entries.length) {
+    return json({ error: "entries is required." }, 400);
+  }
+
+  const week = await ensureWeek(db, getMondayIso(body?.week_start || new Date()));
+  const visibleMembers = new Map(
+    (await loadVisibleMembers(db, viewer)).map((member) => [member.id, member]),
+  );
+  const nowIso = new Date().toISOString();
+  const rows = [];
+  const noteUpdates = [];
+
+  for (const entry of entries) {
+    const memberId = toPositiveInt(entry?.member_id);
+    const target = visibleMembers.get(memberId);
+    if (!target) {
+      return json({ error: `No permission to access member ${memberId}.` }, 403);
+    }
+
+    const note = String(entry?.note || "").trim();
+    const notePriorityHigh = Boolean(note && entry?.note_priority_high);
+    if (canEditNote(viewer, target)) {
+      noteUpdates.push({
+        member_id: memberId,
+        note: entry?.note_carry_forward === false ? "" : note,
+        note_carry_forward: entry?.note_carry_forward !== false,
+        note_priority_high: entry?.note_carry_forward === false ? false : notePriorityHigh,
+      });
+    }
+
+    if (canEditAttendance(viewer, target)) {
+      rows.push(
+        {
+          member_id: memberId,
+          attendance_week_id: week.id,
+          event_type: "sunday_service",
+          status: statusOf(entry?.sunday_service),
+          note,
+          note_priority_high: notePriorityHigh,
+          recorded_by_member_id: viewer.id,
+          recorded_at: nowIso,
+        },
+        {
+          member_id: memberId,
+          attendance_week_id: week.id,
+          event_type: "small_group_fellowship",
+          status: statusOf(entry?.small_group_fellowship),
+          note,
+          note_priority_high: notePriorityHigh,
+          recorded_by_member_id: viewer.id,
+          recorded_at: nowIso,
+        },
+      );
+    }
+  }
+
+  if (rows.length) {
+    const { error } = await db
+      .from("attendance_records")
+      .upsert(rows, { onConflict: "member_id,attendance_week_id,event_type" });
+    if (error) {
+      return json({ error: error.message }, 500);
+    }
+  }
+
+  for (const update of noteUpdates) {
+    const { error } = await db
+      .from("members")
+      .update({
+        note: update.note,
+        note_carry_forward: update.note_carry_forward,
+        note_priority_high: update.note_priority_high,
+      })
+      .eq("id", update.member_id);
+    if (error) {
+      return json({ error: error.message }, 500);
+    }
+  }
+
+  return json({ status: "ok", message: "本週點名已儲存。" });
+}
+
+async function loadVisibleMembers(db: ReturnType<typeof createAdminClient>, viewer: MemberRow) {
+  let query = db.from("member_directory").select("*").eq("is_active", true).order("full_name");
+  if (viewer.is_admin || viewer.role === "preacher") {
+    const { data, error } = await query;
+    if (error) {
+      throw new Error(error.message);
+    }
+    return (data || []) as MemberRow[];
+  }
+
+  if (viewer.role === "district_leader") {
+    query = query
+      .eq("district_id", viewer.district_id || -1)
+      .in("role", ["district_leader", "big_family_leader", "small_group_leader", "trainee_small_group_leader", "member", "best"]);
+  } else if (viewer.role === "big_family_leader") {
+    query = query
+      .eq("big_family_id", viewer.big_family_id || -1)
+      .in("role", ["big_family_leader", "small_group_leader", "trainee_small_group_leader", "member", "best"]);
+  } else if (SMALL_GROUP_LEADER_ROLES.has(viewer.role)) {
+    query = query
+      .eq("small_group_id", viewer.small_group_id || -1)
+      .in("role", ["small_group_leader", "trainee_small_group_leader", "member", "best"]);
+  } else {
+    return [];
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(error.message);
+  }
+  return (data || []) as MemberRow[];
+}
+
+function canEditAttendance(viewer: MemberRow, target: MemberRow) {
+  if (!target.is_active) {
+    return false;
+  }
+  if (target.id === viewer.id) {
+    return isLoginEnabled(viewer);
+  }
+  if (viewer.is_admin || viewer.role === "preacher") {
+    return true;
+  }
+  if (viewer.role === "district_leader") {
+    return Boolean(viewer.district_id) && viewer.district_id === target.district_id;
+  }
+  if (viewer.role === "big_family_leader") {
+    return Boolean(viewer.big_family_id) && viewer.big_family_id === target.big_family_id;
+  }
+  if (SMALL_GROUP_LEADER_ROLES.has(viewer.role)) {
+    return Boolean(viewer.small_group_id) && viewer.small_group_id === target.small_group_id;
+  }
+  return false;
+}
+
+function canEditNote(viewer: MemberRow, target: MemberRow) {
+  return canEditAttendance(viewer, target);
+}
+
+function getFirstRecordValue(
+  recordMap: Map<string, any>,
+  memberId: number,
+  key: string,
+  fallback: unknown,
+) {
+  const sunday = recordMap.get(`${memberId}:sunday_service`);
+  const fellowship = recordMap.get(`${memberId}:small_group_fellowship`);
+  return sunday?.[key] ?? fellowship?.[key] ?? fallback;
+}
+
+function createEmptyAnalytics(anchorWeekStart: string) {
+  const empty = { present_count: 0, absent_count: 0, unknown_count: 0, confirmed_count: 0 };
+  return {
+    recent_three_months: {
+      label: "近三個月",
+      start_date: anchorWeekStart,
+      end_date: anchorWeekStart,
+      sunday_service: empty,
+      small_group_fellowship: empty,
+    },
+    year_to_date: {
+      label: "今年",
+      start_date: `${parseIsoDate(anchorWeekStart).getFullYear()}-01-01`,
+      end_date: anchorWeekStart,
+      sunday_service: empty,
+      small_group_fellowship: empty,
+    },
+  };
 }
 
 async function handleAttendanceOverview(
@@ -607,6 +834,10 @@ function detail(members: MemberRow[], recordMap: Map<string, any>, eventType: st
 function normalizeStatus(value: unknown) {
   const status = String(value || "unknown");
   return VALID_STATUS.has(status) ? status : "unknown";
+}
+
+function statusOf(value: unknown) {
+  return normalizeStatus(value);
 }
 
 function uniqueIds(values: Array<number | null>) {

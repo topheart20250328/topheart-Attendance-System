@@ -72,7 +72,9 @@ const OVERVIEW_ROLES = ["preacher", "district_leader", "big_family_leader"];
 const DEFAULT_PROJECT_URL = "https://aiifotwroawqxkcsfjzi.supabase.co";
 const V2_API_ACTIONS = new Set([
   "attendance-overview",
+  "dashboard",
   "create-member",
+  "save-attendance",
   "update-member",
 ]);
 
@@ -1244,7 +1246,7 @@ function getAttendanceGroupLabel(member) {
   }
 
   if (state.currentMember?.is_admin || state.currentMember?.role === "preacher") {
-    return member.district_name || "未設定區";
+    return member.district_name || (member.role === "preacher" ? "傳道人" : "其他");
   }
 
   if (state.currentMember?.role === "district_leader") {
@@ -1756,9 +1758,41 @@ function normalizeOverviewData(data) {
   return {
     scopeLabel: data?.scope_label || "可檢視範圍",
     selectedWeekStart,
-    weeks: data?.weeks || [],
+    weeks: buildOverviewWeekOptions(data?.weeks || [], selectedWeekStart),
     units: data?.units || [],
   };
+}
+
+function buildOverviewWeekOptions(serverWeeks, selectedWeekStart) {
+  const currentWeekStart = getMondayIso(new Date());
+  const weekMap = new Map();
+
+  for (let index = 0; index < 26; index += 1) {
+    const weekDate = parseIsoDate(currentWeekStart);
+    weekDate.setDate(weekDate.getDate() - index * 7);
+    const weekStart = formatDate(weekDate);
+    weekMap.set(weekStart, {
+      week_start_date: weekStart,
+      label: buildWeekLabel(weekStart),
+    });
+  }
+
+  for (const week of serverWeeks) {
+    if (week?.week_start_date) {
+      weekMap.set(week.week_start_date, week);
+    }
+  }
+
+  if (selectedWeekStart && !weekMap.has(selectedWeekStart)) {
+    weekMap.set(selectedWeekStart, {
+      week_start_date: selectedWeekStart,
+      label: buildWeekLabel(selectedWeekStart),
+    });
+  }
+
+  return Array.from(weekMap.values()).sort((left, right) =>
+    String(right.week_start_date).localeCompare(String(left.week_start_date)),
+  );
 }
 
 function switchOverviewEvent(eventType) {
@@ -1833,20 +1867,35 @@ function renderOverviewWeeks() {
     return;
   }
 
-  els.overviewWeekScroller.innerHTML = state.overviewData.weeks
+  const currentWeekStart = getMondayIso(new Date());
+  const weekChips = state.overviewData.weeks
     .map((week) => {
       const isActive = week.week_start_date === state.overviewData.selectedWeekStart;
+      const isCurrent = week.week_start_date === currentWeekStart;
       return `
         <button
           type="button"
           class="overview-week-chip${isActive ? " is-active" : ""}"
           data-overview-week="${escapeHtml(week.week_start_date)}"
         >
-          ${escapeHtml(buildShortWeekLabel(week.week_start_date))}
+          <strong>${escapeHtml(buildShortWeekLabel(week.week_start_date))}</strong>
+          ${isCurrent ? '<span>本週</span>' : ""}
         </button>
       `;
     })
     .join("");
+
+  els.overviewWeekScroller.innerHTML = `
+    <button
+      type="button"
+      class="overview-week-chip overview-week-current${state.overviewData.selectedWeekStart === currentWeekStart ? " is-active" : ""}"
+      data-overview-week="${escapeHtml(currentWeekStart)}"
+    >
+      <strong>本週</strong>
+      <span>${escapeHtml(buildShortWeekLabel(currentWeekStart))}</span>
+    </button>
+    ${weekChips}
+  `;
 }
 
 function renderOverviewUnits() {
@@ -1868,6 +1917,11 @@ function renderOverviewUnitCard(unit) {
   const eventType = state.ui.overviewEvent;
   const stats = unit.stats?.[eventType] || createEmptyEventStats();
   const detail = unit.detail?.[eventType] || createEmptyOverviewDetail();
+  const memberCount = Number(unit.member_count || 0);
+  const presentCount = Number(stats.present_count || 0);
+  const absentCount = Number(stats.absent_count || 0);
+  const confirmedCount = Number(stats.confirmed_count || presentCount + absentCount);
+  const unknownCount = Math.max(0, Number(stats.unknown_count ?? (memberCount - confirmedCount)));
   const typeLabel = {
     district: "區",
     big_family: "大家",
@@ -1882,10 +1936,17 @@ function renderOverviewUnitCard(unit) {
           <span class="muted small-text">${escapeHtml(typeLabel)}${unit.parent_name ? ` / ${escapeHtml(unit.parent_name)}` : ""}</span>
         </span>
         <span class="overview-unit-stat">
-          <strong>${escapeHtml(formatOverviewRate(stats))}</strong>
-          <span class="summary-subtext">出席 ${stats.present_count || 0} / 已填 ${stats.confirmed_count || 0}</span>
+          <strong>${escapeHtml(formatOverviewRate(stats, memberCount))}</strong>
+          <span class="summary-subtext">出席 ${presentCount} / 已填 ${confirmedCount}</span>
+          <span class="summary-subtext">未出席 ${absentCount} / 未填 ${unknownCount}</span>
         </span>
       </summary>
+      <div class="overview-mini-stats">
+        <span class="status-chip success">出席 ${presentCount}</span>
+        <span class="status-chip warning">未出席 ${absentCount}</span>
+        <span class="status-chip neutral">未填 ${unknownCount}</span>
+        <span class="status-chip neutral">共 ${memberCount}</span>
+      </div>
       <div class="overview-detail-grid">
         ${renderOverviewStatusGroup("出席", detail.present || [])}
         ${renderOverviewStatusGroup("未出席", detail.absent || [])}
@@ -1939,9 +2000,9 @@ function createEmptyOverviewDetail() {
   };
 }
 
-function formatOverviewRate(stats) {
-  return stats?.confirmed_count
-    ? formatPercent(stats.present_count || 0, stats.confirmed_count)
+function formatOverviewRate(stats, memberCount = 0) {
+  return memberCount
+    ? formatPercent(stats?.present_count || 0, memberCount)
     : "尚無資料";
 }
 
@@ -2063,8 +2124,45 @@ function renderPeopleTable(editableMembers) {
     return;
   }
 
-  els.peopleTableBody.innerHTML = rows
-    .map((member) => {
+  els.peopleTableBody.innerHTML = buildPeopleGroups(rows)
+    .map((group) => `
+      <details class="people-scope-group" open>
+        <summary>
+          <span>${escapeHtml(group.label)}</span>
+          <span class="status-chip neutral">${group.members.length}</span>
+        </summary>
+        <div class="people-scope-members">
+          ${group.members.map(renderPeopleMemberCard).join("")}
+        </div>
+      </details>
+    `)
+    .join("");
+}
+
+function buildPeopleGroups(rows) {
+  const groups = new Map();
+  const useSmallGroup =
+    state.ui.peopleSearch ||
+    state.ui.peopleRole ||
+    state.currentMember?.role === "big_family_leader";
+
+  for (const member of rows) {
+    const label = useSmallGroup
+      ? member.small_group_name || member.big_family_name || member.district_name || "其他"
+      : member.big_family_name || member.district_name || "其他";
+    if (!groups.has(label)) {
+      groups.set(label, []);
+    }
+    groups.get(label).push(member);
+  }
+
+  return Array.from(groups.entries()).map(([label, members]) => ({
+    label,
+    members,
+  }));
+}
+
+function renderPeopleMemberCard(member) {
       const path = formatPeopleScopeSummary(member);
       const lineStatus = member.line_user_id
         ? '<span class="status-chip success">已綁定</span>'
@@ -2111,8 +2209,6 @@ function renderPeopleTable(editableMembers) {
           </div>
         </article>
       `;
-    })
-    .join("");
 }
 
 function handlePeopleFilters() {
@@ -2450,7 +2546,7 @@ function syncMemberFormScope() {
     MEMBER_ROLES.includes(role) ||
     (SMALL_GROUP_LEADER_ROLES.includes(role) && !isCreateMode);
   const showDistrictField =
-    !((role === "district_leader" || role === "preacher") && isCreateMode) &&
+    !(role === "district_leader" && isCreateMode) &&
     (!MEMBER_ROLES.includes(role) || isEditMode);
   const districtRequired =
     isCreateMode && (role === "big_family_leader" || SMALL_GROUP_LEADER_ROLES.includes(role));
@@ -2472,8 +2568,8 @@ function syncMemberFormScope() {
 
   const hints = {
     preacher: isCreateMode
-      ? "新增傳道人不會自動建立組織；此職分可登入並檢視、點名全體，但不等同管理員。"
-      : "傳道人可檢視與點名全體；是否可管理人員仍取決於管理員身分。",
+      ? "傳道人可選擇所屬區作為個人歸屬；仍可檢視、點名全體，但不等同管理員。"
+      : "傳道人可檢視與點名全體；所屬區僅作為個人歸屬，是否可管理人員仍取決於管理員身分。",
     district_leader: isCreateMode
       ? "新增區長時，系統會自動建立「姓名區」。"
       : "編輯區長時，可調整基本資料；所屬區也可留空。",
