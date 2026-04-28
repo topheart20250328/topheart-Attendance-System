@@ -54,6 +54,15 @@ const LOGIN_ROLES = new Set([
   "small_group_leader",
   "trainee_small_group_leader",
 ]);
+const ROLE_ORDER: Record<string, number> = {
+  preacher: 1,
+  district_leader: 2,
+  big_family_leader: 3,
+  small_group_leader: 4,
+  trainee_small_group_leader: 4,
+  member: 6,
+  best: 7,
+};
 const VALID_STATUS = new Set(["unknown", "present", "absent"]);
 
 Deno.serve(async (request) => {
@@ -609,19 +618,37 @@ function canEditAttendance(viewer: MemberRow, target: MemberRow) {
     return true;
   }
   if (viewer.role === "district_leader") {
-    return Boolean(viewer.district_id) && viewer.district_id === target.district_id;
+    return (
+      Boolean(viewer.district_id) &&
+      viewer.district_id === target.district_id &&
+      canManageAttendanceTarget(viewer.role, target.role)
+    );
   }
   if (viewer.role === "big_family_leader") {
-    return Boolean(viewer.big_family_id) && viewer.big_family_id === target.big_family_id;
+    return (
+      Boolean(viewer.big_family_id) &&
+      viewer.big_family_id === target.big_family_id &&
+      canManageAttendanceTarget(viewer.role, target.role)
+    );
   }
   if (SMALL_GROUP_LEADER_ROLES.has(viewer.role)) {
-    return Boolean(viewer.small_group_id) && viewer.small_group_id === target.small_group_id;
+    return (
+      Boolean(viewer.small_group_id) &&
+      viewer.small_group_id === target.small_group_id &&
+      canManageAttendanceTarget(viewer.role, target.role)
+    );
   }
   return false;
 }
 
 function canEditNote(viewer: MemberRow, target: MemberRow) {
   return canEditAttendance(viewer, target);
+}
+
+function canManageAttendanceTarget(viewerRole: string, targetRole: string) {
+  const viewerOrder = ROLE_ORDER[viewerRole] || 99;
+  const targetOrder = ROLE_ORDER[targetRole] || 99;
+  return targetOrder >= viewerOrder && targetOrder < 99;
 }
 
 function getFirstRecordValue(

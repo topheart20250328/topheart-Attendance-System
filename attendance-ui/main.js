@@ -19,7 +19,7 @@ const ROLE_ORDER = {
   district_leader: 2,
   big_family_leader: 3,
   small_group_leader: 4,
-  trainee_small_group_leader: 5,
+  trainee_small_group_leader: 4,
   member: 6,
   best: 7,
 };
@@ -1241,10 +1241,6 @@ function getAttendanceGroupLabel(member) {
     return "";
   }
 
-  if (member.is_self) {
-    return "自己";
-  }
-
   if (state.currentMember?.is_admin || state.currentMember?.role === "preacher") {
     return member.district_name || (member.role === "preacher" ? "傳道人" : "其他");
   }
@@ -1937,14 +1933,13 @@ function renderOverviewUnitCard(unit) {
         </span>
         <span class="overview-unit-stat">
           <strong>${escapeHtml(formatOverviewRate(stats, memberCount))}</strong>
-          <span class="summary-subtext">出席 ${presentCount} / 已填 ${confirmedCount}</span>
-          <span class="summary-subtext">未出席 ${absentCount} / 未填 ${unknownCount}</span>
+          <span class="summary-subtext">出 ${presentCount} / 未 ${absentCount} / 待 ${unknownCount}</span>
         </span>
       </summary>
       <div class="overview-mini-stats">
-        <span class="status-chip success">出席 ${presentCount}</span>
-        <span class="status-chip warning">未出席 ${absentCount}</span>
-        <span class="status-chip neutral">未填 ${unknownCount}</span>
+        <span class="status-chip success">出 ${presentCount}</span>
+        <span class="status-chip warning">未 ${absentCount}</span>
+        <span class="status-chip neutral">待 ${unknownCount}</span>
         <span class="status-chip neutral">共 ${memberCount}</span>
       </div>
       <div class="overview-detail-grid">
@@ -2168,10 +2163,15 @@ function renderPeopleMemberCard(member) {
         ? '<span class="status-chip success">已綁定</span>'
         : LOGIN_ROLES.includes(member.role)
           ? '<span class="status-chip warning">待綁定</span>'
-          : '<span class="status-chip neutral">不需登入</span>';
+          : "";
       const activeStatus = member.is_active
-        ? '<span class="status-chip success">啟用中</span>'
-        : '<span class="status-chip warning">已停用</span>';
+        ? '<span class="status-chip success">啟用</span>'
+        : '<span class="status-chip warning">停用</span>';
+      const lineBindingText = member.line_user_id
+        ? "已完成綁定"
+        : LOGIN_ROLES.includes(member.role)
+          ? "尚待綁定"
+          : "";
       const canDelete = canDeleteMember(member);
 
       return `
@@ -2187,7 +2187,7 @@ function renderPeopleMemberCard(member) {
                 ${lineStatus}
                 ${activeStatus}
               </div>
-              <div class="member-card-path muted small-text">${escapeHtml(path || "未設定")}</div>
+              ${path ? `<div class="member-card-path muted small-text">${escapeHtml(path)}</div>` : ""}
             </div>
             <div class="row-actions">
               <button type="button" class="secondary people-edit-btn" data-member-id="${member.id}">編輯</button>
@@ -2197,16 +2197,22 @@ function renderPeopleMemberCard(member) {
             </div>
           </div>
 
-          <div class="member-card-grid">
-            <div class="info-item">
-              <span class="info-label">歸屬</span>
-              <span>${escapeHtml(path || "未設定")}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">LINE 綁定</span>
-              <span>${member.line_user_id ? "已完成綁定" : LOGIN_ROLES.includes(member.role) ? "尚待綁定" : "此職分不需登入"}</span>
-            </div>
-          </div>
+          ${path || lineBindingText
+            ? `<div class="member-card-grid">
+                ${path
+                  ? `<div class="info-item">
+                      <span class="info-label">歸屬</span>
+                      <span>${escapeHtml(path)}</span>
+                    </div>`
+                  : ""}
+                ${lineBindingText
+                  ? `<div class="info-item">
+                      <span class="info-label">LINE 綁定</span>
+                      <span>${escapeHtml(lineBindingText)}</span>
+                    </div>`
+                  : ""}
+              </div>`
+            : ""}
         </article>
       `;
 }
@@ -2713,7 +2719,7 @@ function renderOrganizationTools() {
       label: district.name,
     })),
     {
-      placeholder: activeDistricts.length ? "請選擇區" : "目前沒有可用的啟用中區",
+      placeholder: activeDistricts.length ? "請選擇區" : "目前沒有可用的啟用區",
     },
   );
 
@@ -2724,7 +2730,7 @@ function renderOrganizationTools() {
       label: district.name,
     })),
     {
-      placeholder: activeDistricts.length ? "請選擇區" : "目前沒有可用的啟用中區",
+      placeholder: activeDistricts.length ? "請選擇區" : "目前沒有可用的啟用區",
     },
   );
 
@@ -3097,7 +3103,7 @@ function renderOrganizationCard(orgType, organization) {
           <div class="org-card-chips">
             <span class="role-pill">${escapeHtml(getOrganizationTypeLabel(orgType))}</span>
             <span class="status-chip ${organization.is_active ? "success" : "archived"}">
-              ${organization.is_active ? "啟用中" : "已封存"}
+              ${organization.is_active ? "啟用" : "已封存"}
             </span>
           </div>
         </div>
@@ -3307,8 +3313,8 @@ function openOrgEditor(type, id) {
   const summary = getOrganizationDependencySummary(type, id);
   els.orgEditorHint.textContent = entity.is_active
     ? summary.canDelete
-      ? "這個組織目前是啟用中，且已符合空組織條件。"
-      : `這個組織目前是啟用中；若要刪除，還需先處理 ${summary.blockerText}。`
+      ? "這個組織目前是啟用，且已符合空組織條件。"
+      : `這個組織目前是啟用；若要刪除，還需先處理 ${summary.blockerText}。`
     : summary.canDelete
       ? "這個組織目前已封存，若確認不再需要可直接刪除。"
       : `這個組織目前已封存；若要刪除，還需先處理 ${summary.blockerText}。`;
@@ -3884,10 +3890,6 @@ function formatDate(date) {
 
 function sortMembers(members) {
   return [...members].sort((left, right) => {
-    if (left.is_self !== right.is_self) {
-      return left.is_self ? -1 : 1;
-    }
-
     const leftRole = ROLE_ORDER[left.role] || 99;
     const rightRole = ROLE_ORDER[right.role] || 99;
     if (leftRole !== rightRole) {

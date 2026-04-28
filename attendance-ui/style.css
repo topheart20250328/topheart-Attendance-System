@@ -211,7 +211,7 @@ code {
   font-size: 0.82rem;
   font-weight: 700;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .card {
@@ -1709,14 +1709,34 @@ tbody tr:last-child td {
 
 .compact-tabs {
   width: fit-content;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
+}
+
+#overviewView.card {
+  padding: clamp(10px, 2vw, 16px);
+}
+
+#overviewView .card-header {
+  margin-bottom: 6px;
+}
+
+#overviewView #overviewScopeSummary {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+#overviewView .compact-tabs .tab-btn {
+  min-height: 34px;
+  padding: 0.42rem 0.76rem;
+  font-size: 0.86rem;
 }
 
 .overview-week-scroller {
   display: flex;
-  gap: 8px;
-  margin: 10px 0 14px;
-  padding-bottom: 4px;
+  gap: 6px;
+  margin: 6px 0 8px;
+  padding-bottom: 2px;
   overflow-x: auto;
 }
 
@@ -1724,10 +1744,11 @@ tbody tr:last-child td {
   display: grid;
   gap: 1px;
   flex: 0 0 auto;
-  min-height: 38px;
-  padding: 0.45rem 0.75rem;
+  min-height: 34px;
+  padding: 0.34rem 0.6rem;
   background: #edf3ff;
   color: var(--text);
+  font-size: 0.84rem;
 }
 
 .overview-week-chip span {
@@ -1748,22 +1769,22 @@ tbody tr:last-child td {
 
 .overview-unit-list {
   display: grid;
-  gap: 12px;
+  gap: 7px;
 }
 
 .overview-unit-details {
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 12px;
   background: #fff;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+  box-shadow: none;
 }
 
 .overview-unit-details summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 14px;
+  gap: 8px;
+  padding: 8px 10px;
   cursor: pointer;
   list-style: none;
 }
@@ -1783,30 +1804,30 @@ tbody tr:last-child td {
 }
 
 .overview-unit-stat {
-  min-width: 132px;
+  min-width: 112px;
   text-align: right;
 }
 
 .overview-mini-stats {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  padding: 0 14px 12px;
+  gap: 4px;
+  padding: 0 10px 8px;
 }
 
 .overview-detail-grid {
   display: grid;
-  gap: 12px;
-  padding: 0 14px 14px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 7px;
+  padding: 0 10px 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .overview-status-group {
   display: grid;
-  gap: 8px;
+  gap: 5px;
   min-width: 0;
-  padding: 12px;
-  border-radius: 14px;
+  padding: 7px;
+  border-radius: 10px;
   background: var(--surface-alt);
 }
 
@@ -1815,12 +1836,12 @@ tbody tr:last-child td {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 5px;
 }
 
 .overview-member-list {
   display: grid;
-  gap: 8px;
+  gap: 5px;
 }
 
 .overview-note {
@@ -2574,6 +2595,104 @@ tbody tr:last-child td {
   #peopleView > .muted,
   #peopleView .member-card-grid {
     display: none;
+  }
+
+  #overviewView.card {
+    padding: 8px;
+  }
+
+  #overviewView .card-header {
+    align-items: center;
+  }
+
+  #overviewView .card-header h2 {
+    font-size: 1rem;
+  }
+
+  #overviewView #overviewScopeSummary {
+    margin-bottom: 6px;
+    font-size: 0.78rem;
+  }
+
+  #overviewView .compact-tabs {
+    margin-bottom: 6px;
+  }
+
+  #overviewView .overview-week-scroller {
+    gap: 4px;
+    margin: 4px 0 6px;
+  }
+
+  #overviewView .overview-week-chip {
+    min-height: 30px;
+    padding: 0.24rem 0.46rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+  }
+
+  #overviewView .overview-week-chip span {
+    display: none;
+  }
+
+  #overviewView .overview-unit-list {
+    gap: 5px;
+  }
+
+  #overviewView .overview-unit-details {
+    border-radius: 10px;
+  }
+
+  #overviewView .overview-unit-details summary {
+    gap: 6px;
+    padding: 6px 7px;
+  }
+
+  #overviewView .overview-unit-title {
+    font-size: 0.92rem;
+  }
+
+  #overviewView .overview-unit-main .small-text,
+  #overviewView .summary-subtext {
+    font-size: 0.72rem;
+    line-height: 1.25;
+  }
+
+  #overviewView .overview-unit-stat {
+    min-width: 92px;
+  }
+
+  #overviewView .overview-unit-stat strong {
+    font-size: 0.92rem;
+  }
+
+  #overviewView .overview-mini-stats {
+    display: none;
+  }
+
+  #overviewView .overview-detail-grid {
+    grid-template-columns: 1fr;
+    gap: 5px;
+    padding: 0 7px 7px;
+  }
+
+  #overviewView .overview-status-group {
+    gap: 4px;
+    padding: 6px;
+  }
+
+  #overviewView .overview-status-head {
+    justify-content: space-between;
+  }
+
+  #overviewView .overview-member-list {
+    gap: 4px;
+  }
+
+  #overviewView .role-pill,
+  #overviewView .status-chip,
+  #overviewView .name-card {
+    padding: 0.12rem 0.34rem;
+    font-size: 0.7rem;
   }
 
   #peopleView.card {

@@ -2022,7 +2022,7 @@ function canEditAttendance(viewer: MemberDirectoryRow, target: MemberDirectoryRo
     return (
       Boolean(viewer.district_id) &&
       viewer.district_id === target.district_id &&
-      ["big_family_leader", "small_group_leader", "trainee_small_group_leader", "member", "best"].includes(target.role)
+      canManageAttendanceTarget(viewer.role, target.role)
     );
   }
 
@@ -2030,7 +2030,7 @@ function canEditAttendance(viewer: MemberDirectoryRow, target: MemberDirectoryRo
     return (
       Boolean(viewer.big_family_id) &&
       viewer.big_family_id === target.big_family_id &&
-      ["small_group_leader", "trainee_small_group_leader", "member", "best"].includes(target.role)
+      canManageAttendanceTarget(viewer.role, target.role)
     );
   }
 
@@ -2038,7 +2038,7 @@ function canEditAttendance(viewer: MemberDirectoryRow, target: MemberDirectoryRo
     return (
       Boolean(viewer.small_group_id) &&
       viewer.small_group_id === target.small_group_id &&
-      MEMBER_ROLES.has(target.role)
+      canManageAttendanceTarget(viewer.role, target.role)
     );
   }
 
@@ -2075,6 +2075,12 @@ function canEditNote(viewer: MemberDirectoryRow, target: MemberDirectoryRow) {
   }
 
   return false;
+}
+
+function canManageAttendanceTarget(viewerRole: string, targetRole: string) {
+  const viewerOrder = getRoleOrder(viewerRole);
+  const targetOrder = getRoleOrder(targetRole);
+  return targetOrder >= viewerOrder && targetOrder < 99;
 }
 
 function canUseAdminPanel(viewer: MemberDirectoryRow) {
@@ -2636,7 +2642,7 @@ function getRoleOrder(role: string) {
     district_leader: 2,
     big_family_leader: 3,
     small_group_leader: 4,
-    trainee_small_group_leader: 5,
+    trainee_small_group_leader: 4,
     member: 6,
     best: 7,
   }[role] || 99;
