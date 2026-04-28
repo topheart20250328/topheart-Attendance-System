@@ -1,4 +1,4 @@
--- Topheart admin operations
+-- topheart admin operations
 -- Usage:
 -- 1. Open Supabase SQL Editor
 -- 2. Copy one section at a time

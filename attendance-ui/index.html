@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta http-equiv="refresh" content="0; url=../index.html" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Topheart 教會點名系統</title>
+    <title>topheart 教會點名系統</title>
     <script>
       window.location.replace("../index.html");
     </script>
@@ -19,7 +19,7 @@
     <meta charset="utf-8" />
     <meta http-equiv="refresh" content="0; url=../index.html" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Topheart 教會點名系統</title>
+    <title>topheart 教會點名系統</title>
     <script>
       window.location.replace("../index.html");
     </script>
@@ -36,14 +36,14 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <title>Topheart 教會點名系統</title>
+    <title>topheart 教會點名系統</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
     <div class="page-shell">
       <header class="app-header">
         <div>
-          <p class="eyebrow">Topheart Attendance</p>
+          <p class="eyebrow">topheart Attendance</p>
           <h1>教會牧區點名系統</h1>
           <p id="pageDescription" class="page-description">
             登入後直接進入本週點名；只有需要的職分才會看到人員管理與邀請碼功能。
@@ -169,6 +169,9 @@
           <button id="tabAttendanceBtn" type="button" class="tab-btn is-active">
             本週點名
           </button>
+          <button id="tabOverviewBtn" type="button" class="tab-btn hidden">
+            出席總覽
+          </button>
           <button id="tabPeopleBtn" type="button" class="tab-btn hidden">
             人員管理
           </button>
@@ -212,6 +215,27 @@
 
         <div id="weekSummary" class="summary-grid"></div>
 
+        <div class="section-toolbar attendance-filter-row">
+          <label class="search-field">
+            <span>搜尋</span>
+            <input id="attendanceSearchInput" type="search" placeholder="搜尋姓名或小家" />
+          </label>
+          <label class="search-field">
+            <span>職分</span>
+            <select id="attendanceRoleFilter">
+              <option value="">全部職分</option>
+            </select>
+          </label>
+          <label class="search-field">
+            <span>狀態</span>
+            <select id="attendanceStatusFilter">
+              <option value="">全部狀態</option>
+              <option value="pending">只看待確認</option>
+              <option value="priority">只看高優先備註</option>
+            </select>
+          </label>
+        </div>
+
         <div class="attendance-guide-row">
           <span class="legend-chip neutral">未選擇代表待確認</span>
           <span class="legend-chip success">綠色代表出席</span>
@@ -219,7 +243,7 @@
         </div>
 
         <div id="rosterTableBody" class="roster-list">
-          <div class="empty-state-card">登入後即可載入名單。</div>
+          <div class="empty-state-card">載入中...</div>
         </div>
 
         <div id="attendanceSaveBar" class="attendance-save-bar">
@@ -231,6 +255,38 @@
             </span>
           </div>
           <button id="saveAttendanceBtnBottom" type="button">儲存本週點名</button>
+        </div>
+      </section>
+
+      <section id="overviewView" class="card hidden">
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">Overview</p>
+            <h2>出席總覽</h2>
+          </div>
+        </div>
+        <p id="overviewScopeSummary" class="muted">
+          正在載入出席總覽...
+        </p>
+        <div id="overviewEventTabs" class="tab-row compact-tabs">
+          <button
+            type="button"
+            class="tab-btn is-active"
+            data-overview-event="sunday_service"
+          >
+            主日
+          </button>
+          <button
+            type="button"
+            class="tab-btn"
+            data-overview-event="small_group_fellowship"
+          >
+            小家
+          </button>
+        </div>
+        <div id="overviewWeekScroller" class="overview-week-scroller"></div>
+        <div id="overviewUnitList" class="overview-unit-list">
+          <div class="empty-state-card">載入中...</div>
         </div>
       </section>
 

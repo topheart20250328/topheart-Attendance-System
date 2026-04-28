@@ -9,9 +9,11 @@ export const corsHeaders = {
 };
 
 export const LOGIN_ENABLED_ROLES = new Set([
+  "preacher",
   "district_leader",
   "big_family_leader",
   "small_group_leader",
+  "trainee_small_group_leader",
 ]);
 
 export type MemberDirectoryRow = {
@@ -23,9 +25,11 @@ export type MemberDirectoryRow = {
   note_carry_forward: boolean;
   note_priority_high: boolean;
   role:
+    | "preacher"
     | "district_leader"
     | "big_family_leader"
     | "small_group_leader"
+    | "trainee_small_group_leader"
     | "member"
     | "best";
   is_admin: boolean;

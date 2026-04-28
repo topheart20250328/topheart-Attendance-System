@@ -558,6 +558,20 @@ code {
   text-align: center;
 }
 
+.attendance-group-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  width: fit-content;
+  padding: 0.28rem 0.72rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
 .attendance-card {
   display: grid;
   gap: 12px;
@@ -990,13 +1004,13 @@ body.is-authenticated #invitesView {
 }
 
 #attendanceView .attendance-note-details summary {
-  overflow: hidden;
-  max-width: 100%;
+  overflow: visible;
+  max-width: none;
   color: var(--muted);
   font-size: 0.75rem;
   line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 #attendanceView .attendance-note-details.is-filled summary {
@@ -1548,12 +1562,18 @@ tbody tr:last-child td {
   color: #224c97;
 }
 
+.role-pill.role-preacher {
+  background: #fde68a;
+  color: #7c2d12;
+}
+
 .role-pill.role-big_family_leader {
   background: #ede6ff;
   color: #5e3ea5;
 }
 
-.role-pill.role-small_group_leader {
+.role-pill.role-small_group_leader,
+.role-pill.role-trainee_small_group_leader {
   background: #e6f7ff;
   color: #17607c;
 }
@@ -1611,10 +1631,34 @@ tbody tr:last-child td {
   color: #a23c68;
 }
 
+.name-card {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.16rem 0.5rem;
+  border-radius: 10px;
+}
+
+.name-card.gender-brother {
+  background: #eef5ff;
+  color: #1f4f96;
+}
+
+.name-card.gender-sister {
+  background: #fff0f6;
+  color: #934264;
+}
+
+.name-card.gender-unknown {
+  background: #f4f7fb;
+}
+
 .row-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
+  align-items: center;
 }
 
 .note-input {
@@ -1629,6 +1673,111 @@ tbody tr:last-child td {
 
 .management-layout.single-column {
   grid-template-columns: 1fr;
+}
+
+.attendance-filter-row {
+  align-items: end;
+  padding: 10px 0;
+}
+
+.compact-tabs {
+  width: fit-content;
+  margin-bottom: 12px;
+}
+
+.overview-week-scroller {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 14px;
+  padding-bottom: 4px;
+  overflow-x: auto;
+}
+
+.overview-week-chip {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0.45rem 0.75rem;
+  background: #edf3ff;
+  color: var(--text);
+}
+
+.overview-week-chip.is-active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.overview-unit-list {
+  display: grid;
+  gap: 12px;
+}
+
+.overview-unit-details {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+.overview-unit-details summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.overview-unit-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.overview-unit-main,
+.overview-unit-stat {
+  display: grid;
+  gap: 2px;
+}
+
+.overview-unit-title {
+  font-weight: 800;
+}
+
+.overview-unit-stat {
+  min-width: 86px;
+  text-align: right;
+}
+
+.overview-detail-grid {
+  display: grid;
+  gap: 12px;
+  padding: 0 14px 14px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.overview-status-group {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--surface-alt);
+}
+
+.overview-status-head,
+.overview-member-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.overview-member-list {
+  display: grid;
+  gap: 8px;
+}
+
+.overview-note {
+  flex-basis: 100%;
 }
 
 .management-list,
@@ -2424,14 +2573,20 @@ tbody tr:last-child td {
     line-height: 1.2;
   }
 
-  #peopleView .row-actions,
+  #peopleView .row-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(64px, 1fr));
+    gap: 8px;
+    width: min(160px, 42vw);
+  }
+
   #peopleView .row-actions > * {
-    width: auto;
+    width: 100%;
   }
 
   #peopleView .row-actions button {
-    min-height: 32px;
-    padding: 0.28rem 0.42rem;
+    min-height: 38px;
+    padding: 0.34rem 0.48rem;
     font-size: 0.78rem;
   }
 

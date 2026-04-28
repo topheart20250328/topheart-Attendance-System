@@ -5,19 +5,23 @@ const STORAGE_KEYS = {
 };
 
 const ROLE_LABELS = {
+  preacher: "傳道人",
   district_leader: "區長",
   big_family_leader: "大家長",
   small_group_leader: "小家長",
+  trainee_small_group_leader: "實習小家長",
   member: "小家人",
   best: "新朋友",
 };
 
 const ROLE_ORDER = {
-  district_leader: 1,
-  big_family_leader: 2,
-  small_group_leader: 3,
-  member: 4,
-  best: 5,
+  preacher: 1,
+  district_leader: 2,
+  big_family_leader: 3,
+  small_group_leader: 4,
+  trainee_small_group_leader: 5,
+  member: 6,
+  best: 7,
 };
 
 const ORG_SUFFIXES = {
@@ -38,15 +42,38 @@ const STATUS_LABELS = {
 };
 
 const LOGIN_ROLES = [
+  "preacher",
   "district_leader",
   "big_family_leader",
   "small_group_leader",
+  "trainee_small_group_leader",
 ];
+
+const SMALL_GROUP_LEADER_ROLES = [
+  "small_group_leader",
+  "trainee_small_group_leader",
+];
+
+const MEMBER_ROLES = ["member", "best"];
+
+const MANAGEMENT_CREATE_ROLES = [
+  "district_leader",
+  "big_family_leader",
+  "small_group_leader",
+  "trainee_small_group_leader",
+  "member",
+  "best",
+];
+
+const ADMIN_CREATE_ROLES = ["preacher", ...MANAGEMENT_CREATE_ROLES];
+
+const OVERVIEW_ROLES = ["preacher", "district_leader", "big_family_leader"];
 
 const DEFAULT_PROJECT_URL = "https://aiifotwroawqxkcsfjzi.supabase.co";
 
 const TABS = {
   attendance: "attendance",
+  overview: "overview",
   people: "people",
   invites: "invites",
 };
@@ -80,6 +107,7 @@ const els = {
   pendingLineUserId: document.querySelector("#pendingLineUserId"),
   navCard: document.querySelector("#navCard"),
   tabAttendanceBtn: document.querySelector("#tabAttendanceBtn"),
+  tabOverviewBtn: document.querySelector("#tabOverviewBtn"),
   tabPeopleBtn: document.querySelector("#tabPeopleBtn"),
   tabInvitesBtn: document.querySelector("#tabInvitesBtn"),
   attendanceView: document.querySelector("#attendanceView"),
@@ -95,8 +123,17 @@ const els = {
   attendanceSaveBar: document.querySelector("#attendanceSaveBar"),
   attendanceSaveWeek: document.querySelector("#attendanceSaveWeek"),
   attendanceSaveStatus: document.querySelector("#attendanceSaveStatus"),
+  attendanceSearchInput: document.querySelector("#attendanceSearchInput"),
+  attendanceRoleFilter: document.querySelector("#attendanceRoleFilter"),
+  attendanceStatusFilter: document.querySelector("#attendanceStatusFilter"),
   weekSummary: document.querySelector("#weekSummary"),
   rosterTableBody: document.querySelector("#rosterTableBody"),
+  overviewView: document.querySelector("#overviewView"),
+  overviewEventTabs: document.querySelector("#overviewEventTabs"),
+  overviewEventButtons: document.querySelectorAll("[data-overview-event]"),
+  overviewWeekScroller: document.querySelector("#overviewWeekScroller"),
+  overviewScopeSummary: document.querySelector("#overviewScopeSummary"),
+  overviewUnitList: document.querySelector("#overviewUnitList"),
   peopleView: document.querySelector("#peopleView"),
   peopleSearchInput: document.querySelector("#peopleSearchInput"),
   peopleRoleFilter: document.querySelector("#peopleRoleFilter"),
@@ -187,9 +224,16 @@ const state = {
   currentWeek: null,
   attendanceAnalytics: emptyAttendanceAnalytics(),
   roster: [],
+  attendanceBaseline: new Map(),
+  overviewData: null,
   adminData: emptyAdminData(),
   ui: {
     activeTab: TABS.attendance,
+    attendanceSearch: "",
+    attendanceRole: "",
+    attendanceStatus: "",
+    overviewEvent: "sunday_service",
+    overviewWeekStart: "",
     settingsOpen: false,
     editorMode: null,
     editingMemberId: null,
@@ -237,6 +281,7 @@ function bindEvents() {
   els.bindForm.addEventListener("submit", handleBindInvite);
 
   els.tabAttendanceBtn.addEventListener("click", () => switchTab(TABS.attendance));
+  els.tabOverviewBtn?.addEventListener("click", () => switchTab(TABS.overview));
   els.tabPeopleBtn.addEventListener("click", () => switchTab(TABS.people));
   els.tabInvitesBtn.addEventListener("click", () => switchTab(TABS.invites));
 
@@ -249,6 +294,14 @@ function bindEvents() {
   els.rosterTableBody.addEventListener("change", handleAttendanceFieldChange);
   els.rosterTableBody.addEventListener("input", handleAttendanceFieldChange);
   els.rosterTableBody.addEventListener("click", handleRosterActions);
+  els.attendanceSearchInput?.addEventListener("input", handleAttendanceFilters);
+  els.attendanceRoleFilter?.addEventListener("change", handleAttendanceFilters);
+  els.attendanceStatusFilter?.addEventListener("change", handleAttendanceFilters);
+  els.overviewEventButtons?.forEach((button) => {
+    button.addEventListener("click", () => switchOverviewEvent(button.dataset.overviewEvent));
+  });
+  els.overviewWeekScroller?.addEventListener("click", handleOverviewWeekClick);
+  els.overviewUnitList?.addEventListener("toggle", handleOverviewUnitToggle, true);
 
   els.peopleSearchInput.addEventListener("input", handlePeopleFilters);
   els.peopleRoleFilter.addEventListener("change", handlePeopleFilters);
@@ -672,12 +725,15 @@ function renderTopBar() {
 }
 
 function renderTabs() {
+  const canViewOverview = canUseOverview();
   const canManagePeople = canUseManagement();
   const canManageInvites = canUseInvites();
+  setHidden(els.tabOverviewBtn, !canViewOverview);
   setHidden(els.tabPeopleBtn, !canManagePeople);
   setHidden(els.tabInvitesBtn, !canManageInvites);
 
   if (
+    (state.ui.activeTab === TABS.overview && !canViewOverview) ||
     (state.ui.activeTab === TABS.people && !canManagePeople) ||
     (state.ui.activeTab === TABS.invites && !canManageInvites)
   ) {
@@ -685,12 +741,14 @@ function renderTabs() {
   }
 
   setTabActive(els.tabAttendanceBtn, state.ui.activeTab === TABS.attendance);
+  setTabActive(els.tabOverviewBtn, state.ui.activeTab === TABS.overview);
   setTabActive(els.tabPeopleBtn, state.ui.activeTab === TABS.people);
   setTabActive(els.tabInvitesBtn, state.ui.activeTab === TABS.invites);
 }
 
 function renderActiveView() {
   setHidden(els.attendanceView, state.ui.activeTab !== TABS.attendance);
+  setHidden(els.overviewView, state.ui.activeTab !== TABS.overview || !canUseOverview());
   setHidden(els.peopleView, state.ui.activeTab !== TABS.people || !canUseManagement());
   setHidden(els.invitesView, state.ui.activeTab !== TABS.invites || !canUseInvites());
 }
@@ -717,6 +775,10 @@ function renderPendingProfile() {
 }
 
 function setTabActive(button, isActive) {
+  if (!button) {
+    return;
+  }
+
   button.classList.toggle("is-active", isActive);
 }
 
@@ -724,6 +786,9 @@ function switchTab(tabId) {
   state.ui.activeTab = tabId;
   renderTabs();
   renderActiveView();
+  if (tabId === TABS.overview) {
+    loadAttendanceOverview();
+  }
 }
 
 async function loadDashboard(options = {}) {
@@ -768,6 +833,8 @@ function applyDashboardData(data, weekStart) {
   state.currentWeek = normalizeWeek(data.week, weekStart);
   state.attendanceAnalytics = normalizeAttendanceAnalytics(data.analytics);
   state.roster = sortMembers((data.roster || []).map(enrichRosterMember));
+  captureAttendanceBaseline();
+  populateAttendanceRoleFilter();
   renderAttendanceHeader();
   renderWeekSummary();
   renderAttendanceRows();
@@ -797,6 +864,7 @@ function prefetchAdjacentWeeks(weekStart) {
 function enrichRosterMember(member) {
   return {
     ...member,
+    is_self: Boolean(state.currentMember && member.id === state.currentMember.id),
     note: member.note || "",
     note_carry_forward: member.note_carry_forward !== false,
     note_priority_high: Boolean(member.note && member.note_priority_high),
@@ -810,6 +878,40 @@ function enrichRosterMember(member) {
     ),
     can_edit_profile: canEditProfile(member),
   };
+}
+
+function captureAttendanceBaseline() {
+  state.attendanceBaseline = new Map(
+    state.roster.map((member) => [member.id, serializeAttendanceMember(member)]),
+  );
+}
+
+function serializeAttendanceMember(member) {
+  return JSON.stringify({
+    sunday_service: getAttendanceStatus(member, "sunday_service"),
+    small_group_fellowship: getAttendanceStatus(member, "small_group_fellowship"),
+    note: String(member.note || "").trim(),
+    note_carry_forward: member.note_carry_forward !== false,
+    note_priority_high: Boolean(String(member.note || "").trim() && member.note_priority_high),
+  });
+}
+
+function hasAttendanceChanges() {
+  if (!state.roster.length) {
+    return false;
+  }
+
+  return state.roster.some((member) => {
+    if (!member.can_edit_attendance && !member.can_edit_note) {
+      return false;
+    }
+
+    return state.attendanceBaseline.get(member.id) !== serializeAttendanceMember(member);
+  });
+}
+
+function syncDirtyFromAttendanceChanges() {
+  setDirty(hasAttendanceChanges());
 }
 
 function normalizeWeek(week, fallbackWeekStart) {
@@ -951,7 +1053,6 @@ function renderWeekSummary() {
     <div class="summary-item">
       <span class="info-label">完成/待確認</span>
       <strong>${completedCount} / ${pendingCount}</strong>
-      <span class="summary-subtext">${formatPercent(completedCount, visibleCount)} 已完成</span>
     </div>
     <div class="summary-item">
       <span class="info-label">主日</span>
@@ -1020,15 +1121,29 @@ function formatAnalyticsBreakdown(stats) {
 }
 
 function renderAttendanceRows() {
+  const rows = getFilteredRosterMembers();
   if (!state.roster.length) {
     els.rosterTableBody.innerHTML =
       '<div class="empty-state-card">目前沒有可顯示的人員資料。</div>';
     return;
   }
 
-  els.rosterTableBody.innerHTML = state.roster
+  if (!rows.length) {
+    els.rosterTableBody.innerHTML =
+      '<div class="empty-state-card">目前沒有符合條件的人員資料。</div>';
+    return;
+  }
+
+  let lastGroupLabel = "";
+  const shouldGroupRows = shouldGroupAttendanceRows();
+  els.rosterTableBody.innerHTML = rows
     .map((member) => {
       const meta = formatMemberScopeSummary(member);
+      const groupLabel = getAttendanceGroupLabel(member);
+      const groupHeader = shouldGroupRows && groupLabel !== lastGroupLabel
+        ? `<div class="attendance-group-header">${escapeHtml(groupLabel)}</div>`
+        : "";
+      lastGroupLabel = groupLabel;
       const noteValue = escapeHtml(member.note || "");
       const noteCarryChecked = member.note_carry_forward !== false ? "checked" : "";
       const notePriorityChecked = member.note_priority_high ? "checked" : "";
@@ -1038,11 +1153,13 @@ function renderAttendanceRows() {
         : '<span class="status-chip neutral">僅檢視</span>';
 
       return `
-        <article class="attendance-card${member.can_edit_attendance ? "" : " is-readonly"}${member.note_priority_high ? " has-priority-note" : ""}">
+        ${groupHeader}
+        <article class="attendance-card${member.can_edit_attendance ? "" : " is-readonly"}${member.note_priority_high ? " has-priority-note" : ""}${member.is_self ? " is-self" : ""}">
           <div class="attendance-card-head">
             <div class="row-meta">
               <div class="attendance-name-line">
-                <strong class="attendance-member-name">${escapeHtml(member.full_name)}</strong>
+                <strong class="attendance-member-name name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</strong>
+                ${member.is_self ? '<span class="status-chip neutral">自己</span>' : ""}
                 ${renderGenderBadge(member.gender)}
               </div>
               <div class="attendance-meta-line">
@@ -1100,6 +1217,103 @@ function renderAttendanceRows() {
       `;
     })
     .join("");
+}
+
+function shouldGroupAttendanceRows() {
+  return Boolean(
+    state.currentMember &&
+      (state.currentMember.is_admin ||
+        ["preacher", "district_leader", "big_family_leader"].includes(
+          state.currentMember.role,
+        )),
+  );
+}
+
+function getAttendanceGroupLabel(member) {
+  if (!shouldGroupAttendanceRows()) {
+    return "";
+  }
+
+  if (member.is_self) {
+    return "自己";
+  }
+
+  if (state.currentMember?.is_admin || state.currentMember?.role === "preacher") {
+    return member.district_name || "未設定區";
+  }
+
+  if (state.currentMember?.role === "district_leader") {
+    return member.big_family_name || "未設定大家";
+  }
+
+  if (state.currentMember?.role === "big_family_leader") {
+    return member.small_group_name || "未設定小家";
+  }
+
+  return "";
+}
+
+function getFilteredRosterMembers() {
+  const search = state.ui.attendanceSearch.trim().toLowerCase();
+  const roleFilter = state.ui.attendanceRole;
+  const statusFilter = state.ui.attendanceStatus;
+
+  return state.roster.filter((member) => {
+    if (roleFilter && member.role !== roleFilter) {
+      return false;
+    }
+
+    if (statusFilter === "pending" && !hasPendingAttendance(member)) {
+      return false;
+    }
+
+    if (statusFilter === "priority" && !member.note_priority_high) {
+      return false;
+    }
+
+    if (!search) {
+      return true;
+    }
+
+    const haystack = [
+      member.full_name,
+      member.district_name,
+      member.big_family_name,
+      member.small_group_name,
+      getRoleLabel(member.role),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return haystack.includes(search);
+  });
+}
+
+function populateAttendanceRoleFilter() {
+  if (!els.attendanceRoleFilter) {
+    return;
+  }
+
+  const roles = Array.from(new Set(state.roster.map((member) => member.role)))
+    .sort((a, b) => (ROLE_ORDER[a] || 99) - (ROLE_ORDER[b] || 99));
+  const currentValue = els.attendanceRoleFilter.value;
+  els.attendanceRoleFilter.innerHTML = '<option value="">全部職分</option>';
+  for (const role of roles) {
+    const option = document.createElement("option");
+    option.value = role;
+    option.textContent = getRoleLabel(role);
+    els.attendanceRoleFilter.appendChild(option);
+  }
+  els.attendanceRoleFilter.value = roles.includes(currentValue) ? currentValue : "";
+  state.ui.attendanceRole = els.attendanceRoleFilter.value;
+}
+
+function handleAttendanceFilters() {
+  state.ui.attendanceSearch = els.attendanceSearchInput?.value || "";
+  state.ui.attendanceRole = els.attendanceRoleFilter?.value || "";
+  state.ui.attendanceStatus = els.attendanceStatusFilter?.value || "";
+  renderAttendanceRows();
 }
 
 function renderAttendanceEventCard(member, eventType, label) {
@@ -1342,7 +1556,7 @@ function handleAttendanceFieldChange(event) {
     const member = updateMemberNotePriority(memberId, event.target.checked);
     syncNoteSummary(event.target.closest(".attendance-note-details"), member);
   }
-  setDirty(true);
+  syncDirtyFromAttendanceChanges();
 }
 
 function handleRosterActions(event) {
@@ -1365,7 +1579,7 @@ function handleRosterActions(event) {
       attendanceOption.closest(".attendance-toggle"),
       updated.status,
     );
-    setDirty(true);
+    syncDirtyFromAttendanceChanges();
     renderWeekSummary();
     return;
   }
@@ -1409,8 +1623,8 @@ async function handleSaveAttendance() {
     return;
   }
 
-  setButtonLoading(els.saveAttendanceBtn, true);
-  setButtonLoading(els.saveAttendanceBtnBottom, true);
+  setButtonLoading(els.saveAttendanceBtn, true, "儲存中...");
+  setButtonLoading(els.saveAttendanceBtnBottom, true, "儲存中...");
   try {
     const data = await apiRequest("save-attendance", {
       method: "POST",
@@ -1507,6 +1721,225 @@ async function loadAdminPanel() {
   }
 }
 
+async function loadAttendanceOverview(weekStart = "") {
+  if (!canUseOverview()) {
+    state.overviewData = null;
+    renderAttendanceOverview();
+    return;
+  }
+
+  try {
+    const targetWeek = weekStart || state.ui.overviewWeekStart || els.weekInput.value || getMondayIso(new Date());
+    const data = await apiRequest(
+      `attendance-overview&week_start=${encodeURIComponent(targetWeek)}`,
+      {
+        method: "GET",
+        authMode: "app",
+      },
+    );
+    state.overviewData = normalizeOverviewData(data);
+    state.ui.overviewWeekStart = state.overviewData.selectedWeekStart;
+    renderAttendanceOverview();
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "載入出席總覽失敗。");
+  }
+}
+
+function normalizeOverviewData(data) {
+  const selectedWeekStart = data?.selected_week_start || getMondayIso(new Date());
+  return {
+    scopeLabel: data?.scope_label || "可檢視範圍",
+    selectedWeekStart,
+    weeks: data?.weeks || [],
+    units: data?.units || [],
+  };
+}
+
+function switchOverviewEvent(eventType) {
+  if (!eventType || state.ui.overviewEvent === eventType) {
+    return;
+  }
+
+  state.ui.overviewEvent = eventType;
+  renderAttendanceOverview();
+}
+
+function handleOverviewWeekClick(event) {
+  const button = event.target.closest("[data-overview-week]");
+  if (!button) {
+    return;
+  }
+
+  loadAttendanceOverview(button.dataset.overviewWeek);
+}
+
+function handleOverviewUnitToggle(event) {
+  const details = event.target;
+  if (!details.matches?.(".overview-unit-details") || !details.open) {
+    return;
+  }
+
+  els.overviewUnitList
+    ?.querySelectorAll(".overview-unit-details[open]")
+    .forEach((item) => {
+      if (item !== details) {
+        item.open = false;
+      }
+    });
+}
+
+function renderAttendanceOverview() {
+  if (!els.overviewView) {
+    return;
+  }
+
+  setTabActive(
+    document.querySelector(`[data-overview-event="${state.ui.overviewEvent}"]`),
+    true,
+  );
+  els.overviewEventButtons?.forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.overviewEvent === state.ui.overviewEvent);
+  });
+
+  if (!state.overviewData) {
+    if (els.overviewScopeSummary) {
+      els.overviewScopeSummary.textContent = canUseOverview()
+        ? "正在載入出席總覽..."
+        : "此職分無法使用出席總覽。";
+    }
+    if (els.overviewUnitList) {
+      els.overviewUnitList.innerHTML = "";
+    }
+    return;
+  }
+
+  if (els.overviewScopeSummary) {
+    els.overviewScopeSummary.textContent =
+      `${state.overviewData.scopeLabel}，目前週次 ${buildWeekLabel(state.overviewData.selectedWeekStart)}`;
+  }
+
+  renderOverviewWeeks();
+  renderOverviewUnits();
+}
+
+function renderOverviewWeeks() {
+  if (!els.overviewWeekScroller) {
+    return;
+  }
+
+  els.overviewWeekScroller.innerHTML = state.overviewData.weeks
+    .map((week) => {
+      const isActive = week.week_start_date === state.overviewData.selectedWeekStart;
+      return `
+        <button
+          type="button"
+          class="overview-week-chip${isActive ? " is-active" : ""}"
+          data-overview-week="${escapeHtml(week.week_start_date)}"
+        >
+          ${escapeHtml(buildShortWeekLabel(week.week_start_date))}
+        </button>
+      `;
+    })
+    .join("");
+}
+
+function renderOverviewUnits() {
+  if (!els.overviewUnitList) {
+    return;
+  }
+
+  const units = state.overviewData.units || [];
+  if (!units.length) {
+    els.overviewUnitList.innerHTML =
+      '<div class="empty-state-card">目前沒有可檢視的出席單位。</div>';
+    return;
+  }
+
+  els.overviewUnitList.innerHTML = units.map(renderOverviewUnitCard).join("");
+}
+
+function renderOverviewUnitCard(unit) {
+  const eventType = state.ui.overviewEvent;
+  const stats = unit.stats?.[eventType] || createEmptyEventStats();
+  const detail = unit.detail?.[eventType] || createEmptyOverviewDetail();
+  const typeLabel = {
+    district: "區",
+    big_family: "大家",
+    small_group: "小家",
+  }[unit.type] || "單位";
+
+  return `
+    <details class="overview-unit-details overview-level-${escapeHtml(unit.level || unit.type)}">
+      <summary>
+        <span class="overview-unit-main">
+          <span class="overview-unit-title">${escapeHtml(unit.name)}</span>
+          <span class="muted small-text">${escapeHtml(typeLabel)}${unit.parent_name ? ` / ${escapeHtml(unit.parent_name)}` : ""}</span>
+        </span>
+        <span class="overview-unit-stat">
+          <strong>${escapeHtml(formatOverviewRate(stats))}</strong>
+          <span class="summary-subtext">出席 ${stats.present_count || 0} / 已填 ${stats.confirmed_count || 0}</span>
+        </span>
+      </summary>
+      <div class="overview-detail-grid">
+        ${renderOverviewStatusGroup("出席", detail.present || [])}
+        ${renderOverviewStatusGroup("未出席", detail.absent || [])}
+        ${renderOverviewStatusGroup("待確認", detail.unknown || [])}
+      </div>
+    </details>
+  `;
+}
+
+function renderOverviewStatusGroup(label, members) {
+  return `
+    <section class="overview-status-group">
+      <div class="overview-status-head">
+        <strong>${escapeHtml(label)}</strong>
+        <span class="status-chip neutral">${members.length}</span>
+      </div>
+      <div class="overview-member-list">
+        ${members.length
+          ? members.map(renderOverviewMember).join("")
+          : '<span class="muted small-text">無人員</span>'}
+      </div>
+    </section>
+  `;
+}
+
+function renderOverviewMember(member) {
+  const noteText = member.note ? ` · ${member.note_priority_high ? "高優先度：" : "備註："}${member.note}` : "";
+  return `
+    <div class="overview-member-row">
+      <span class="name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</span>
+      <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
+      ${noteText ? `<span class="overview-note muted small-text">${escapeHtml(noteText)}</span>` : ""}
+    </div>
+  `;
+}
+
+function createEmptyEventStats() {
+  return {
+    present_count: 0,
+    absent_count: 0,
+    unknown_count: 0,
+    confirmed_count: 0,
+  };
+}
+
+function createEmptyOverviewDetail() {
+  return {
+    present: [],
+    absent: [],
+    unknown: [],
+  };
+}
+
+function formatOverviewRate(stats) {
+  return stats?.confirmed_count
+    ? formatPercent(stats.present_count || 0, stats.confirmed_count)
+    : "尚無資料";
+}
+
 function renderManagement() {
   if (!canUseManagement()) {
     setHidden(els.peopleView, true);
@@ -1579,7 +2012,7 @@ function getEditableManagementMembers() {
   return state.adminData.members.filter(
     (member) =>
       member.district_id === state.currentMember.district_id &&
-      ["member", "best"].includes(member.role),
+      MEMBER_ROLES.includes(member.role),
   );
 }
 
@@ -1809,24 +2242,10 @@ function formatPeopleScopeSummary(member) {
 function populateRoleOptions(mode, member) {
   let roles;
   if (mode === "create") {
-    roles = state.currentMember?.is_admin
-      ? [
-          "district_leader",
-          "big_family_leader",
-          "small_group_leader",
-          "member",
-          "best",
-        ]
-      : ["big_family_leader", "small_group_leader", "member", "best"];
+    roles = state.currentMember?.is_admin ? ADMIN_CREATE_ROLES : MANAGEMENT_CREATE_ROLES;
   } else {
     if (state.currentMember?.is_admin) {
-      roles = [
-        "district_leader",
-        "big_family_leader",
-        "small_group_leader",
-        "member",
-        "best",
-      ];
+      roles = ADMIN_CREATE_ROLES;
     } else {
       roles = [member.role];
     }
@@ -1877,12 +2296,12 @@ function getSelectableSmallGroups({
   includeSmallGroupId = 0,
 }) {
   return state.adminData.smallGroups.filter((smallGroup) => {
-    if (!districtId && !bigFamilyId) {
+    if (!districtId && !bigFamilyId && !MEMBER_ROLES.includes(role)) {
       return smallGroup.id === includeSmallGroupId;
     }
 
     const matchesScope =
-      role === "member" || role === "best"
+      MEMBER_ROLES.includes(role)
         ? bigFamilyId
           ? smallGroup.big_family_id === bigFamilyId
           : districtId
@@ -1960,7 +2379,7 @@ function syncEditorSmallGroupOptions(member = null) {
     available.map((smallGroup) => ({
       value: String(smallGroup.id),
       label:
-        role === "member" || role === "best"
+        MEMBER_ROLES.includes(role)
           ? [
               getOrganizationDisplayName(smallGroup.name, smallGroup.is_active),
               smallGroup.big_family_name,
@@ -1984,8 +2403,8 @@ function fillMemberForm(mode, member) {
   if (mode === "create") {
     els.memberEditorTitle.textContent = "新增人員";
     els.memberEditorHint.textContent = state.currentMember?.is_admin
-      ? "管理員可建立所有職分；新增區長/大家長/小家長時，系統會自動建立對應組織。"
-      : "區長可建立自己轄區內的大/小家長、小家人與新朋友。";
+      ? "管理員可建立所有職分；新增區長、大家長、小家長或實習小家長時，系統會自動建立對應組織。"
+      : "區長可建立自己轄區內的大/小家長、小家人與新朋友；新增管理職時會自動建立同名組織。";
     els.memberNameInput.value = "";
     els.memberGenderSelect.value = "";
     els.memberNoteInput.value = "";
@@ -2015,22 +2434,21 @@ function syncMemberFormScope() {
   const isCreateMode = state.ui.editorMode === "create";
   const isEditMode = state.ui.editorMode === "edit";
   const needsBigFamily =
-    role === "member" || role === "best"
+    MEMBER_ROLES.includes(role)
       ? isEditMode
       : role === "big_family_leader"
         ? !isCreateMode
-        : role === "small_group_leader"
+        : SMALL_GROUP_LEADER_ROLES.includes(role)
           ? true
           : false;
   const showSmallGroupField =
-    role === "member" ||
-    role === "best" ||
-    (role === "small_group_leader" && !isCreateMode);
+    MEMBER_ROLES.includes(role) ||
+    (SMALL_GROUP_LEADER_ROLES.includes(role) && !isCreateMode);
   const showDistrictField =
-    (role !== "district_leader" || !isCreateMode) &&
-    (!["member", "best"].includes(role) || isEditMode);
+    !((role === "district_leader" || role === "preacher") && isCreateMode) &&
+    (!MEMBER_ROLES.includes(role) || isEditMode);
   const districtRequired =
-    isCreateMode && ["big_family_leader", "small_group_leader"].includes(role);
+    isCreateMode && (role === "big_family_leader" || SMALL_GROUP_LEADER_ROLES.includes(role));
 
   setHidden(els.memberDistrictLabel, !showDistrictField);
   setHidden(els.memberBigFamilyLabel, !needsBigFamily);
@@ -2040,7 +2458,7 @@ function syncMemberFormScope() {
   els.memberDistrictSelect.required = districtRequired;
   els.memberBigFamilySelect.required = false;
   els.memberSmallGroupSelect.required =
-    isCreateMode && (role === "member" || role === "best");
+    isCreateMode && MEMBER_ROLES.includes(role);
   els.memberIsAdminInput.disabled = !state.currentMember?.is_admin;
 
   if (!state.currentMember?.is_admin) {
@@ -2048,6 +2466,9 @@ function syncMemberFormScope() {
   }
 
   const hints = {
+    preacher: isCreateMode
+      ? "新增傳道人不會自動建立組織；此職分可登入並檢視、點名全體，但不等同管理員。"
+      : "傳道人可檢視與點名全體；是否可管理人員仍取決於管理員身分。",
     district_leader: isCreateMode
       ? "新增區長時，系統會自動建立「姓名區」。"
       : "編輯區長時，可調整基本資料；所屬區也可留空。",
@@ -2057,6 +2478,9 @@ function syncMemberFormScope() {
     small_group_leader: isCreateMode
       ? "新增小家長時，只需選區，大家可留空；系統會自動建立「姓名小家」。"
       : "編輯小家長時，可調整基本資料；區、大家與小家都可暫時留空。",
+    trainee_small_group_leader: isCreateMode
+      ? "新增實習小家長時，只需選區，大家可留空；系統會自動建立「姓名小家」。"
+      : "實習小家長與小家長同權限；可調整基本資料與小家歸屬。",
     member: isCreateMode
       ? "新增小家人時，只要選小家，系統會自動帶出上層歸屬。"
       : "編輯小家人時，可改派小家；若要暫時不歸屬任何小家，也可留空。",
@@ -2092,7 +2516,7 @@ async function handleSaveMember(event) {
   }
 
   if (
-    ["big_family_leader", "small_group_leader"].includes(body.role) &&
+    (body.role === "big_family_leader" || SMALL_GROUP_LEADER_ROLES.includes(body.role)) &&
     !body.district_id &&
     state.ui.editorMode === "create"
   ) {
@@ -2100,7 +2524,7 @@ async function handleSaveMember(event) {
     return;
   }
 
-  if (["member", "best"].includes(body.role) && !body.small_group_id && mode === "create") {
+  if (MEMBER_ROLES.includes(body.role) && !body.small_group_id && mode === "create") {
     showToast("新增小家人或新朋友時，請先選擇所屬小家。");
     return;
   }
@@ -3051,6 +3475,13 @@ function canUseManagement() {
   );
 }
 
+function canUseOverview() {
+  return Boolean(
+    state.currentMember &&
+      (state.currentMember.is_admin || OVERVIEW_ROLES.includes(state.currentMember.role)),
+  );
+}
+
 function canUseInvites() {
   return Boolean(state.currentMember?.is_admin);
 }
@@ -3067,7 +3498,7 @@ function canEditProfile(member) {
   return (
     state.currentMember.role === "district_leader" &&
     member.district_id === state.currentMember.district_id &&
-    ["member", "best"].includes(member.role)
+    MEMBER_ROLES.includes(member.role)
   );
 }
 
@@ -3084,7 +3515,7 @@ function canDeleteMember(member) {
     state.currentMember.role === "district_leader" &&
     Boolean(state.currentMember.district_id) &&
     member.district_id === state.currentMember.district_id &&
-    ["member", "best"].includes(member.role)
+    MEMBER_ROLES.includes(member.role)
   );
 }
 
@@ -3129,12 +3560,19 @@ async function copyTextToClipboard(text) {
   }
 }
 
-function setButtonLoading(button, isLoading) {
+function setButtonLoading(button, isLoading, loadingText = "") {
   if (!button) {
     return;
   }
 
+  if (!button.dataset.originalText) {
+    button.dataset.originalText = button.textContent.trim();
+  }
+
   button.disabled = isLoading;
+  button.textContent = isLoading && loadingText
+    ? loadingText
+    : button.dataset.originalText;
 }
 
 function emptyAdminData() {
@@ -3322,6 +3760,11 @@ function buildWeekLabel(weekStartIso) {
   return formatDate(start);
 }
 
+function buildShortWeekLabel(weekStartIso) {
+  const start = parseIsoDate(weekStartIso);
+  return `${start.getMonth() + 1}/${start.getDate()}`;
+}
+
 function parseIsoDate(isoDate) {
   const [year, month, day] = String(isoDate)
     .split("-")
@@ -3338,6 +3781,10 @@ function formatDate(date) {
 
 function sortMembers(members) {
   return [...members].sort((left, right) => {
+    if (left.is_self !== right.is_self) {
+      return left.is_self ? -1 : 1;
+    }
+
     const leftRole = ROLE_ORDER[left.role] || 99;
     const rightRole = ROLE_ORDER[right.role] || 99;
     if (leftRole !== rightRole) {

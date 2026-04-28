@@ -1,8 +1,8 @@
--- Topheart church attendance system
+-- topheart church attendance system
 -- Paste this file into the Supabase SQL Editor and run it once.
 --
 -- This version uses:
--- 1. A church hierarchy: 區長 > 大家長 > 小家長 > 小家人 > 新朋友(best)
+-- 1. A church hierarchy: 傳道人 > 區長 > 大家長 > 小家長/實習小家長 > 小家人 > 新朋友(best)
 -- 2. Custom LINE login via Edge Functions
 -- 3. App-owned session tokens instead of Supabase Auth social login
 
@@ -42,9 +42,11 @@ create type public.member_gender as enum (
 );
 
 create type public.member_role as enum (
+  'preacher',
   'district_leader',
   'big_family_leader',
   'small_group_leader',
+  'trainee_small_group_leader',
   'member',
   'best'
 );
@@ -118,7 +120,7 @@ create table public.members (
   ),
   constraint members_scope_matches_role check (
     (
-      role = 'district_leader'
+      role in ('preacher', 'district_leader')
       and big_family_id is null
       and small_group_id is null
     )
@@ -127,7 +129,7 @@ create table public.members (
       and small_group_id is null
     )
     or (
-      role in ('small_group_leader', 'member', 'best')
+      role in ('small_group_leader', 'trainee_small_group_leader', 'member', 'best')
     )
   )
 );

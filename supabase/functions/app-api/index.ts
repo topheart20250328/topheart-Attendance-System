@@ -137,10 +137,18 @@ type DashboardAttendanceAnalytics = {
 
 const VALID_ATTENDANCE_STATUS = new Set(["unknown", "present", "absent"]);
 const LOGIN_CAPABLE_ROLES = new Set([
+  "preacher",
   "district_leader",
   "big_family_leader",
   "small_group_leader",
+  "trainee_small_group_leader",
 ]);
+const SMALL_GROUP_LEADER_ROLES = new Set([
+  "small_group_leader",
+  "trainee_small_group_leader",
+]);
+const MEMBER_ROLES = new Set(["member", "best"]);
+const OVERVIEW_ROLES = new Set(["preacher", "district_leader", "big_family_leader"]);
 const ORG_LABELS: Record<OrganizationType, string> = {
   district: "區",
   big_family: "大家",
@@ -169,6 +177,10 @@ Deno.serve(async (request) => {
 
     if (request.method === "GET" && action === "admin-overview") {
       return await handleGetAdminOverview(adminClient, request.headers);
+    }
+
+    if (request.method === "GET" && action === "attendance-overview") {
+      return await handleGetAttendanceOverview(adminClient, request.headers, url);
     }
 
     if (request.method === "POST" && action === "bind") {
@@ -368,6 +380,32 @@ async function handleGetAdminOverview(
   }
 
   const overview = await buildAdminOverview(adminClient, sessionContext.member);
+  return jsonResponse(overview);
+}
+
+async function handleGetAttendanceOverview(
+  adminClient: ReturnType<typeof createAdminClient>,
+  headers: Headers,
+  url: URL,
+) {
+  const sessionContext = await getSessionContext(adminClient, headers);
+  if (!sessionContext) {
+    return jsonResponse({ error: "Unauthorized." }, 401);
+  }
+
+  if (!canUseAttendanceOverview(sessionContext.member)) {
+    return jsonResponse({ error: "Forbidden." }, 403);
+  }
+
+  const requestedWeek = url.searchParams.get("week_start");
+  const weekStart = requestedWeek
+    ? getMondayIso(requestedWeek)
+    : getMondayIso(new Date());
+  const overview = await buildAttendanceOverview(
+    adminClient,
+    sessionContext.member,
+    weekStart,
+  );
   return jsonResponse(overview);
 }
 
@@ -1376,7 +1414,7 @@ async function handleUpdateMember(
     return jsonResponse({ error: updateError.message }, 500);
   }
 
-  if (targetRole === "small_group_leader" && scope.small_group_id && scope.district_id) {
+  if (SMALL_GROUP_LEADER_ROLES.has(targetRole) && scope.small_group_id && scope.district_id) {
     const { error: smallGroupUpdateError } = await adminClient
       .from("small_groups")
       .update({
@@ -1686,7 +1724,16 @@ async function loadVisibleMembers(
       throw new Error(error.message);
     }
 
-    return ((data || []) as MemberDirectoryRow[]).filter((member) => member.id !== viewer.id);
+    return (data || []) as MemberDirectoryRow[];
+  }
+
+  if (viewer.role === "preacher") {
+    const { data, error } = await query;
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return (data || []) as MemberDirectoryRow[];
   }
 
   if (viewer.role === "district_leader") {
@@ -1696,7 +1743,14 @@ async function loadVisibleMembers(
 
     query = query
       .eq("district_id", viewer.district_id)
-      .in("role", ["big_family_leader", "small_group_leader", "member", "best"]);
+      .in("role", [
+        "district_leader",
+        "big_family_leader",
+        "small_group_leader",
+        "trainee_small_group_leader",
+        "member",
+        "best",
+      ]);
   } else if (viewer.role === "big_family_leader") {
     if (!viewer.big_family_id) {
       return [];
@@ -1704,15 +1758,21 @@ async function loadVisibleMembers(
 
     query = query
       .eq("big_family_id", viewer.big_family_id)
-      .in("role", ["small_group_leader", "member", "best"]);
-  } else if (viewer.role === "small_group_leader") {
+      .in("role", [
+        "big_family_leader",
+        "small_group_leader",
+        "trainee_small_group_leader",
+        "member",
+        "best",
+      ]);
+  } else if (SMALL_GROUP_LEADER_ROLES.has(viewer.role)) {
     if (!viewer.small_group_id) {
       return [];
     }
 
     query = query
       .eq("small_group_id", viewer.small_group_id)
-      .in("role", ["member", "best"]);
+      .in("role", ["small_group_leader", "trainee_small_group_leader", "member", "best"]);
   } else {
     return [];
   }
@@ -1722,7 +1782,7 @@ async function loadVisibleMembers(
     throw new Error(error.message);
   }
 
-  return ((data || []) as MemberDirectoryRow[]).filter((member) => member.id !== viewer.id);
+  return (data || []) as MemberDirectoryRow[];
 }
 
 async function loadAttendanceMap(
@@ -1942,11 +2002,19 @@ async function loadAttendanceAnalytics(
 }
 
 function canEditAttendance(viewer: MemberDirectoryRow, target: MemberDirectoryRow) {
-  if (!target.is_active || target.id === viewer.id) {
+  if (!target.is_active) {
     return false;
   }
 
+  if (target.id === viewer.id) {
+    return isLoginEnabledMember(viewer);
+  }
+
   if (viewer.is_admin) {
+    return true;
+  }
+
+  if (viewer.role === "preacher") {
     return true;
   }
 
@@ -1954,9 +2022,7 @@ function canEditAttendance(viewer: MemberDirectoryRow, target: MemberDirectoryRo
     return (
       Boolean(viewer.district_id) &&
       viewer.district_id === target.district_id &&
-      ["big_family_leader", "small_group_leader", "member", "best"].includes(
-        target.role,
-      )
+      ["big_family_leader", "small_group_leader", "trainee_small_group_leader", "member", "best"].includes(target.role)
     );
   }
 
@@ -1964,15 +2030,15 @@ function canEditAttendance(viewer: MemberDirectoryRow, target: MemberDirectoryRo
     return (
       Boolean(viewer.big_family_id) &&
       viewer.big_family_id === target.big_family_id &&
-      ["small_group_leader", "member", "best"].includes(target.role)
+      ["small_group_leader", "trainee_small_group_leader", "member", "best"].includes(target.role)
     );
   }
 
-  if (viewer.role === "small_group_leader") {
+  if (SMALL_GROUP_LEADER_ROLES.has(viewer.role)) {
     return (
       Boolean(viewer.small_group_id) &&
       viewer.small_group_id === target.small_group_id &&
-      ["member", "best"].includes(target.role)
+      MEMBER_ROLES.has(target.role)
     );
   }
 
@@ -1980,11 +2046,19 @@ function canEditAttendance(viewer: MemberDirectoryRow, target: MemberDirectoryRo
 }
 
 function canEditNote(viewer: MemberDirectoryRow, target: MemberDirectoryRow) {
-  if (!target.is_active || target.id === viewer.id) {
+  if (!target.is_active) {
     return false;
   }
 
+  if (target.id === viewer.id) {
+    return isLoginEnabledMember(viewer);
+  }
+
   if (viewer.is_admin) {
+    return true;
+  }
+
+  if (viewer.role === "preacher") {
     return true;
   }
 
@@ -1996,7 +2070,7 @@ function canEditNote(viewer: MemberDirectoryRow, target: MemberDirectoryRow) {
     return Boolean(viewer.big_family_id) && viewer.big_family_id === target.big_family_id;
   }
 
-  if (viewer.role === "small_group_leader") {
+  if (SMALL_GROUP_LEADER_ROLES.has(viewer.role)) {
     return Boolean(viewer.small_group_id) && viewer.small_group_id === target.small_group_id;
   }
 
@@ -2005,6 +2079,10 @@ function canEditNote(viewer: MemberDirectoryRow, target: MemberDirectoryRow) {
 
 function canUseAdminPanel(viewer: MemberDirectoryRow) {
   return viewer.is_admin || viewer.role === "district_leader";
+}
+
+function canUseAttendanceOverview(viewer: MemberDirectoryRow) {
+  return viewer.is_admin || OVERVIEW_ROLES.has(viewer.role);
 }
 
 function canManageDistrict(viewer: MemberDirectoryRow, districtId: number | null) {
@@ -2031,6 +2109,7 @@ function canCreateRole(
   return [
     "big_family_leader",
     "small_group_leader",
+    "trainee_small_group_leader",
     "member",
     "best",
   ].includes(role);
@@ -2049,7 +2128,7 @@ function canEditProfile(viewer: MemberDirectoryRow, target: MemberDirectoryRow) 
     viewer.role === "district_leader" &&
     Boolean(viewer.district_id) &&
     target.district_id === viewer.district_id &&
-    ["member", "best"].includes(target.role)
+    MEMBER_ROLES.has(target.role)
   );
 }
 
@@ -2066,7 +2145,7 @@ function canDeleteMember(viewer: MemberDirectoryRow, target: MemberDirectoryRow)
     viewer.role === "district_leader" &&
     Boolean(viewer.district_id) &&
     target.district_id === viewer.district_id &&
-    ["member", "best"].includes(target.role)
+    MEMBER_ROLES.has(target.role)
   );
 }
 
@@ -2204,6 +2283,363 @@ async function buildAdminOverview(
     members: members || [],
     invites,
   };
+}
+
+async function buildAttendanceOverview(
+  adminClient: ReturnType<typeof createAdminClient>,
+  viewer: MemberDirectoryRow,
+  selectedWeekStart: string,
+) {
+  const selectedWeek = await ensureWeek(adminClient, selectedWeekStart);
+  const weekStarts = buildRecentWeekStarts(selectedWeekStart, 26);
+  const members = await loadOverviewMembers(adminClient, viewer);
+  const memberIds = members.map((member) => member.id);
+  const orgs = await loadOverviewOrganizations(adminClient, members);
+  const records = await loadOverviewRecords(
+    adminClient,
+    selectedWeek.id,
+    memberIds,
+  );
+  const recordMap = new Map(
+    records.map((record) => [
+      `${record.member_id}:${record.event_type}`,
+      record,
+    ]),
+  );
+
+  const units = buildOverviewUnits({
+    viewer,
+    members,
+    orgs,
+    recordMap,
+  });
+
+  return {
+    scope_label: getOverviewScopeLabel(viewer),
+    selected_week_start: selectedWeekStart,
+    weeks: weekStarts.map((weekStart) => ({
+      week_start_date: weekStart,
+      label: buildWeekLabel(weekStart),
+    })),
+    units,
+  };
+}
+
+function buildRecentWeekStarts(anchorWeekStart: string, count: number) {
+  const weeks: string[] = [];
+  const start = parseIsoDate(anchorWeekStart);
+  start.setDate(start.getDate() - (count - 1) * 7);
+  for (let index = 0; index < count; index += 1) {
+    const week = new Date(start);
+    week.setDate(start.getDate() + index * 7);
+    weeks.push(formatDate(week));
+  }
+  return weeks;
+}
+
+async function loadOverviewMembers(
+  adminClient: ReturnType<typeof createAdminClient>,
+  viewer: MemberDirectoryRow,
+) {
+  let query = adminClient
+    .from("member_directory")
+    .select("*")
+    .eq("is_active", true)
+    .order("full_name");
+
+  if (!viewer.is_admin && viewer.role !== "preacher") {
+    if (viewer.role === "district_leader") {
+      if (!viewer.district_id) {
+        return [];
+      }
+      query = query.eq("district_id", viewer.district_id);
+    } else if (viewer.role === "big_family_leader") {
+      if (!viewer.big_family_id) {
+        return [];
+      }
+      query = query.eq("big_family_id", viewer.big_family_id);
+    } else {
+      return [];
+    }
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data || []) as MemberDirectoryRow[];
+}
+
+async function loadOverviewOrganizations(
+  adminClient: ReturnType<typeof createAdminClient>,
+  members: MemberDirectoryRow[],
+) {
+  const districtIds = Array.from(
+    new Set(members.map((member) => member.district_id).filter(Boolean) as number[]),
+  );
+  const bigFamilyIds = Array.from(
+    new Set(members.map((member) => member.big_family_id).filter(Boolean) as number[]),
+  );
+  const smallGroupIds = Array.from(
+    new Set(members.map((member) => member.small_group_id).filter(Boolean) as number[]),
+  );
+
+  const districtQuery = adminClient
+    .from("districts")
+    .select("id, name, description, is_active")
+    .in("id", districtIds.length ? districtIds : [-1])
+    .order("name");
+  const bigFamilyQuery = adminClient
+    .from("big_families")
+    .select("id, district_id, name, description, is_active")
+    .in("id", bigFamilyIds.length ? bigFamilyIds : [-1])
+    .order("name");
+  const smallGroupQuery = adminClient
+    .from("small_groups")
+    .select("id, district_id, big_family_id, name, description, is_active")
+    .in("id", smallGroupIds.length ? smallGroupIds : [-1])
+    .order("name");
+
+  const [
+    { data: districts, error: districtError },
+    { data: bigFamilies, error: bigFamilyError },
+    { data: smallGroups, error: smallGroupError },
+  ] = await Promise.all([districtQuery, bigFamilyQuery, smallGroupQuery]);
+
+  if (districtError) {
+    throw new Error(districtError.message);
+  }
+  if (bigFamilyError) {
+    throw new Error(bigFamilyError.message);
+  }
+  if (smallGroupError) {
+    throw new Error(smallGroupError.message);
+  }
+
+  return {
+    districts: (districts || []) as DistrictRow[],
+    bigFamilies: (bigFamilies || []) as BigFamilyRow[],
+    smallGroups: (smallGroups || []) as SmallGroupRow[],
+  };
+}
+
+async function loadOverviewRecords(
+  adminClient: ReturnType<typeof createAdminClient>,
+  attendanceWeekId: number,
+  memberIds: number[],
+) {
+  if (!memberIds.length) {
+    return [];
+  }
+
+  const { data, error } = await adminClient
+    .from("attendance_records")
+    .select("member_id, event_type, status, note, note_priority_high")
+    .eq("attendance_week_id", attendanceWeekId)
+    .in("member_id", memberIds);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data || [];
+}
+
+function buildOverviewUnits({
+  viewer,
+  members,
+  orgs,
+  recordMap,
+}: {
+  viewer: MemberDirectoryRow;
+  members: MemberDirectoryRow[];
+  orgs: {
+    districts: DistrictRow[];
+    bigFamilies: BigFamilyRow[];
+    smallGroups: SmallGroupRow[];
+  };
+  recordMap: Map<string, any>;
+}) {
+  const units: any[] = [];
+  const includeDistricts = viewer.is_admin || viewer.role === "preacher";
+  const includeBigFamilies = includeDistricts || viewer.role === "district_leader";
+  const districtMap = new Map(orgs.districts.map((district) => [district.id, district]));
+  const bigFamilyMap = new Map(orgs.bigFamilies.map((bigFamily) => [bigFamily.id, bigFamily]));
+
+  if (includeDistricts) {
+    for (const district of orgs.districts) {
+      units.push(createOverviewUnit({
+        type: "district",
+        level: "district",
+        id: district.id,
+        name: district.name,
+        parentName: null,
+        members: members.filter((member) => member.district_id === district.id),
+        recordMap,
+      }));
+    }
+  }
+
+  if (includeBigFamilies) {
+    for (const bigFamily of orgs.bigFamilies) {
+      units.push(createOverviewUnit({
+        type: "big_family",
+        level: "big_family",
+        id: bigFamily.id,
+        name: bigFamily.name,
+        parentName: bigFamily.district_id
+          ? districtMap.get(bigFamily.district_id)?.name || null
+          : null,
+        members: members.filter((member) => member.big_family_id === bigFamily.id),
+        recordMap,
+      }));
+    }
+  }
+
+  for (const smallGroup of orgs.smallGroups) {
+    units.push(createOverviewUnit({
+      type: "small_group",
+      level: "small_group",
+      id: smallGroup.id,
+      name: smallGroup.name,
+      parentName: smallGroup.big_family_id
+        ? bigFamilyMap.get(smallGroup.big_family_id)?.name || null
+        : smallGroup.district_id
+          ? districtMap.get(smallGroup.district_id)?.name || null
+          : null,
+      members: members.filter((member) => member.small_group_id === smallGroup.id),
+      recordMap,
+    }));
+  }
+
+  return units.filter((unit) => unit.member_count > 0);
+}
+
+function createOverviewUnit({
+  type,
+  level,
+  id,
+  name,
+  parentName,
+  members,
+  recordMap,
+}: {
+  type: string;
+  level: string;
+  id: number;
+  name: string;
+  parentName: string | null;
+  members: MemberDirectoryRow[];
+  recordMap: Map<string, any>;
+}) {
+  return {
+    type,
+    level,
+    id,
+    name,
+    parent_name: parentName,
+    member_count: members.length,
+    stats: {
+      sunday_service: summarizeOverviewEvent(members, recordMap, "sunday_service"),
+      small_group_fellowship: summarizeOverviewEvent(
+        members,
+        recordMap,
+        "small_group_fellowship",
+      ),
+    },
+    detail: {
+      sunday_service: buildOverviewEventDetail(members, recordMap, "sunday_service"),
+      small_group_fellowship: buildOverviewEventDetail(
+        members,
+        recordMap,
+        "small_group_fellowship",
+      ),
+    },
+  };
+}
+
+function summarizeOverviewEvent(
+  members: MemberDirectoryRow[],
+  recordMap: Map<string, any>,
+  eventType: string,
+) {
+  const stats = createEmptyAttendanceEventAnalytics();
+  for (const member of members) {
+    const record = recordMap.get(`${member.id}:${eventType}`);
+    accumulateAttendanceAnalytics(stats, String(record?.status || "unknown"));
+  }
+  return stats;
+}
+
+function buildOverviewEventDetail(
+  members: MemberDirectoryRow[],
+  recordMap: Map<string, any>,
+  eventType: string,
+) {
+  const detail: Record<string, any[]> = {
+    present: [],
+    absent: [],
+    unknown: [],
+  };
+
+  for (const member of members) {
+    const record = recordMap.get(`${member.id}:${eventType}`);
+    const status = normalizeAttendanceStatus(record?.status);
+    detail[status].push({
+      id: member.id,
+      full_name: member.full_name,
+      role: member.role,
+      gender: member.gender,
+      note: String(record?.note || "").trim(),
+      note_priority_high: Boolean(record?.note && record?.note_priority_high),
+    });
+  }
+
+  for (const status of Object.keys(detail)) {
+    detail[status] = sortDirectoryRows(detail[status]);
+  }
+
+  return detail;
+}
+
+function getOverviewScopeLabel(viewer: MemberDirectoryRow) {
+  if (viewer.is_admin || viewer.role === "preacher") {
+    return "全部牧區";
+  }
+
+  if (viewer.role === "district_leader") {
+    return viewer.district_name ? `${viewer.district_name} 轄區` : "所屬區";
+  }
+
+  if (viewer.role === "big_family_leader") {
+    return viewer.big_family_name ? `${viewer.big_family_name} 轄區` : "所屬大家";
+  }
+
+  return "可檢視範圍";
+}
+
+function sortDirectoryRows<T extends { role: string; full_name: string }>(rows: T[]) {
+  return [...rows].sort((left, right) => {
+    const leftRole = getRoleOrder(left.role);
+    const rightRole = getRoleOrder(right.role);
+    if (leftRole !== rightRole) {
+      return leftRole - rightRole;
+    }
+    return left.full_name.localeCompare(right.full_name, "zh-Hant");
+  });
+}
+
+function getRoleOrder(role: string) {
+  return {
+    preacher: 1,
+    district_leader: 2,
+    big_family_leader: 3,
+    small_group_leader: 4,
+    trainee_small_group_leader: 5,
+    member: 6,
+    best: 7,
+  }[role] || 99;
 }
 
 async function loadManagedDistricts(
@@ -2535,6 +2971,14 @@ async function resolveMemberScope(
   const explicitBigFamilyId = toPositiveInt(body?.big_family_id);
   const explicitSmallGroupId = toPositiveInt(body?.small_group_id);
 
+  if (role === "preacher") {
+    return {
+      district_id: null,
+      big_family_id: null,
+      small_group_id: null,
+    };
+  }
+
   if (role === "district_leader") {
     if (explicitDistrictId) {
       const district = await fetchDistrict(adminClient, explicitDistrictId);
@@ -2681,7 +3125,7 @@ async function resolveMemberScope(
     };
   }
 
-  if (role === "small_group_leader") {
+  if (SMALL_GROUP_LEADER_ROLES.has(role)) {
     if (explicitSmallGroupId) {
       const smallGroup = await fetchSmallGroup(adminClient, explicitSmallGroupId);
       if (!smallGroup) {
@@ -2840,7 +3284,7 @@ async function resolveMemberScope(
     };
   }
 
-  if (["member", "best"].includes(role)) {
+  if (MEMBER_ROLES.has(role)) {
     if (explicitSmallGroupId) {
       const smallGroup = await fetchSmallGroup(adminClient, explicitSmallGroupId);
       if (!smallGroup || !smallGroup.district_id) {
@@ -2961,9 +3405,11 @@ function normalizeAttendanceStatus(value: unknown) {
 function normalizeRole(value: unknown) {
   const normalized = String(value || "").trim();
   return [
+    "preacher",
     "district_leader",
     "big_family_leader",
     "small_group_leader",
+    "trainee_small_group_leader",
     "member",
     "best",
   ].includes(normalized)
