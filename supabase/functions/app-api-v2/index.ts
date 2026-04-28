@@ -1,0 +1,654 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+type MemberRow = {
+  id: number;
+  full_name: string;
+  role: string;
+  is_admin: boolean;
+  is_active: boolean;
+  line_user_id: string | null;
+  district_id: number | null;
+  district_name: string | null;
+  big_family_id: number | null;
+  big_family_name: string | null;
+  small_group_id: number | null;
+  small_group_name: string | null;
+  gender: string | null;
+};
+
+type Scope = {
+  district_id: number | null;
+  big_family_id: number | null;
+  small_group_id: number | null;
+};
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, content-type, x-client-info, apikey",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Content-Type": "application/json; charset=utf-8",
+};
+
+const ROLES = new Set([
+  "preacher",
+  "district_leader",
+  "big_family_leader",
+  "small_group_leader",
+  "trainee_small_group_leader",
+  "member",
+  "best",
+]);
+const SMALL_GROUP_LEADER_ROLES = new Set([
+  "small_group_leader",
+  "trainee_small_group_leader",
+]);
+const MEMBER_ROLES = new Set(["member", "best"]);
+const LOGIN_ROLES = new Set([
+  "preacher",
+  "district_leader",
+  "big_family_leader",
+  "small_group_leader",
+  "trainee_small_group_leader",
+]);
+const VALID_STATUS = new Set(["unknown", "present", "absent"]);
+
+Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const url = new URL(request.url);
+    const action = url.searchParams.get("action") || "";
+    const db = createAdminClient();
+    const viewer = await getViewer(db, request.headers);
+    if (!viewer) {
+      return json({ error: "Unauthorized." }, 401);
+    }
+
+    if (request.method === "GET" && action === "attendance-overview") {
+      return json(await handleAttendanceOverview(db, viewer, url));
+    }
+
+    if (request.method === "POST" && action === "create-member") {
+      return await handleCreateMember(db, viewer, request);
+    }
+
+    if (request.method === "POST" && action === "update-member") {
+      return await handleUpdateMember(db, viewer, request);
+    }
+
+    return json({ error: "Unknown action." }, 404);
+  } catch (error) {
+    console.error(error);
+    return json({ error: error instanceof Error ? error.message : "Unexpected error." }, 500);
+  }
+});
+
+function createAdminClient() {
+  return createClient(
+    requiredEnv("SUPABASE_URL"),
+    requiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  );
+}
+
+function requiredEnv(name: string) {
+  const value = Deno.env.get(name);
+  if (!value) {
+    throw new Error(`Missing environment variable: ${name}`);
+  }
+  return value;
+}
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: corsHeaders });
+}
+
+async function getViewer(db: ReturnType<typeof createAdminClient>, headers: Headers) {
+  const token = headers.get("Authorization")?.replace(/^Bearer\s+/i, "").trim();
+  if (!token) {
+    return null;
+  }
+
+  const tokenHash = await sha256Hex(token);
+  const nowIso = new Date().toISOString();
+  const { data: session, error: sessionError } = await db
+    .from("app_sessions")
+    .select("id, member_id, expires_at, revoked_at")
+    .eq("token_hash", tokenHash)
+    .is("revoked_at", null)
+    .gt("expires_at", nowIso)
+    .maybeSingle();
+
+  if (sessionError || !session) {
+    return null;
+  }
+
+  const { data: member, error: memberError } = await db
+    .from("member_directory")
+    .select("*")
+    .eq("id", session.member_id)
+    .maybeSingle();
+
+  if (memberError || !member || !isLoginEnabled(member as MemberRow)) {
+    return null;
+  }
+
+  return member as MemberRow;
+}
+
+async function sha256Hex(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((item) => item.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function isLoginEnabled(member: MemberRow) {
+  return member.is_active && (member.is_admin || LOGIN_ROLES.has(member.role));
+}
+
+function canUseManagement(viewer: MemberRow) {
+  return viewer.is_admin || viewer.role === "district_leader";
+}
+
+function canManageDistrict(viewer: MemberRow, districtId: number | null) {
+  return viewer.is_admin || (districtId !== null && viewer.district_id === districtId);
+}
+
+function canEditProfile(viewer: MemberRow, target: MemberRow) {
+  if (viewer.is_admin) {
+    return true;
+  }
+
+  return (
+    viewer.role === "district_leader" &&
+    Boolean(viewer.district_id) &&
+    target.district_id === viewer.district_id &&
+    MEMBER_ROLES.has(target.role)
+  );
+}
+
+function normalizeRole(value: unknown) {
+  const role = String(value || "").trim();
+  return ROLES.has(role) ? role : "";
+}
+
+function normalizeGender(value: unknown) {
+  const gender = String(value || "").trim();
+  return ["brother", "sister"].includes(gender) ? gender : null;
+}
+
+function toPositiveInt(value: unknown) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+}
+
+async function handleCreateMember(
+  db: ReturnType<typeof createAdminClient>,
+  viewer: MemberRow,
+  request: Request,
+) {
+  if (!canUseManagement(viewer)) {
+    return json({ error: "Forbidden." }, 403);
+  }
+
+  const body = await request.json().catch(() => null);
+  const fullName = String(body?.full_name || "").trim();
+  const role = normalizeRole(body?.role);
+  const isAdmin = Boolean(body?.is_admin);
+  if (!fullName || !role) {
+    return json({ error: "請完整填寫姓名與職分。" }, 400);
+  }
+
+  if (!viewer.is_admin) {
+    const allowed = ["big_family_leader", "small_group_leader", "trainee_small_group_leader", "member", "best"];
+    if (isAdmin || !allowed.includes(role)) {
+      return json({ error: "No permission to create this role." }, 403);
+    }
+  }
+
+  const scope = await resolveScope(db, body, role, { autoCreate: true, fullName });
+  if (!scope) {
+    return json({ error: "Invalid hierarchy scope for this role." }, 400);
+  }
+  if (!canManageDistrict(viewer, scope.district_id)) {
+    return json({ error: "No permission to create in this district." }, 403);
+  }
+
+  const { data, error } = await db
+    .from("members")
+    .insert({
+      full_name: fullName,
+      role,
+      gender: normalizeGender(body?.gender),
+      note: String(body?.note || "").trim(),
+      is_admin: viewer.is_admin ? isAdmin : false,
+      is_active: body?.is_active !== false,
+      district_id: scope.district_id,
+      big_family_id: scope.big_family_id,
+      small_group_id: scope.small_group_id,
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    return json({ error: error.message }, 500);
+  }
+
+  return json({ member: data });
+}
+
+async function handleUpdateMember(
+  db: ReturnType<typeof createAdminClient>,
+  viewer: MemberRow,
+  request: Request,
+) {
+  if (!canUseManagement(viewer)) {
+    return json({ error: "Forbidden." }, 403);
+  }
+
+  const body = await request.json().catch(() => null);
+  const memberId = toPositiveInt(body?.member_id);
+  if (!memberId) {
+    return json({ error: "member_id is required." }, 400);
+  }
+
+  const { data: target, error: targetError } = await db
+    .from("member_directory")
+    .select("*")
+    .eq("id", memberId)
+    .maybeSingle();
+  if (targetError) {
+    return json({ error: targetError.message }, 500);
+  }
+  if (!target) {
+    return json({ error: "Member not found." }, 404);
+  }
+  if (!canEditProfile(viewer, target as MemberRow)) {
+    return json({ error: "No permission to edit this member." }, 403);
+  }
+
+  const requestedRole = normalizeRole(body?.role);
+  const targetRole = viewer.is_admin ? requestedRole || target.role : target.role;
+  const scope = await resolveScope(db, body, targetRole, {
+    autoCreate: false,
+    fullName: String(body?.full_name || target.full_name).trim(),
+  });
+  if (!scope) {
+    return json({ error: "Invalid hierarchy scope for this role." }, 400);
+  }
+  if (!canManageDistrict(viewer, scope.district_id)) {
+    return json({ error: "No permission to edit this district." }, 403);
+  }
+
+  const { error } = await db
+    .from("members")
+    .update({
+      full_name: String(body?.full_name || target.full_name).trim(),
+      role: targetRole,
+      gender: normalizeGender(body?.gender),
+      note: String(body?.note || "").trim(),
+      is_admin: viewer.is_admin ? Boolean(body?.is_admin) : target.is_admin,
+      is_active: viewer.is_admin ? body?.is_active !== false : target.is_active,
+      district_id: scope.district_id,
+      big_family_id: scope.big_family_id,
+      small_group_id: scope.small_group_id,
+    })
+    .eq("id", target.id);
+
+  if (error) {
+    return json({ error: error.message }, 500);
+  }
+
+  if (SMALL_GROUP_LEADER_ROLES.has(targetRole) && scope.small_group_id) {
+    await db
+      .from("small_groups")
+      .update({
+        district_id: scope.district_id,
+        big_family_id: scope.big_family_id,
+      })
+      .eq("id", scope.small_group_id);
+  }
+
+  const { data: updated, error: updatedError } = await db
+    .from("member_directory")
+    .select("*")
+    .eq("id", target.id)
+    .single();
+  if (updatedError) {
+    return json({ error: updatedError.message }, 500);
+  }
+
+  return json({ member: updated });
+}
+
+async function resolveScope(
+  db: ReturnType<typeof createAdminClient>,
+  body: any,
+  role: string,
+  options: { autoCreate: boolean; fullName: string },
+): Promise<Scope | null> {
+  const districtId = toPositiveInt(body?.district_id);
+  const bigFamilyId = toPositiveInt(body?.big_family_id);
+  const smallGroupId = toPositiveInt(body?.small_group_id);
+
+  if (role === "preacher") {
+    return { district_id: null, big_family_id: null, small_group_id: null };
+  }
+
+  if (role === "district_leader") {
+    if (districtId) {
+      return { district_id: districtId, big_family_id: null, small_group_id: null };
+    }
+    if (!options.autoCreate) {
+      return { district_id: null, big_family_id: null, small_group_id: null };
+    }
+    const district = await insertOne(db, "districts", {
+      name: `${options.fullName}區`,
+      description: "",
+    });
+    return { district_id: district.id, big_family_id: null, small_group_id: null };
+  }
+
+  if (role === "big_family_leader") {
+    if (bigFamilyId) {
+      const bigFamily = await getOne(db, "big_families", bigFamilyId);
+      return bigFamily?.district_id
+        ? { district_id: bigFamily.district_id, big_family_id: bigFamily.id, small_group_id: null }
+        : null;
+    }
+    if (!districtId) {
+      return options.autoCreate ? null : { district_id: null, big_family_id: null, small_group_id: null };
+    }
+    if (!options.autoCreate) {
+      return { district_id: districtId, big_family_id: null, small_group_id: null };
+    }
+    const bigFamily = await insertOne(db, "big_families", {
+      district_id: districtId,
+      name: `${options.fullName}大家`,
+      description: "",
+    });
+    return { district_id: districtId, big_family_id: bigFamily.id, small_group_id: null };
+  }
+
+  if (SMALL_GROUP_LEADER_ROLES.has(role) || MEMBER_ROLES.has(role)) {
+    if (smallGroupId) {
+      const smallGroup = await getOne(db, "small_groups", smallGroupId);
+      if (!smallGroup?.district_id) {
+        return null;
+      }
+      return {
+        district_id: smallGroup.district_id,
+        big_family_id: smallGroup.big_family_id || null,
+        small_group_id: smallGroup.id,
+      };
+    }
+
+    if (SMALL_GROUP_LEADER_ROLES.has(role)) {
+      if (!districtId) {
+        return options.autoCreate ? null : { district_id: null, big_family_id: null, small_group_id: null };
+      }
+      if (!options.autoCreate) {
+        return { district_id: districtId, big_family_id: bigFamilyId || null, small_group_id: null };
+      }
+      const smallGroup = await insertOne(db, "small_groups", {
+        district_id: districtId,
+        big_family_id: bigFamilyId || null,
+        name: `${options.fullName}小家`,
+        description: "",
+      });
+      return {
+        district_id: districtId,
+        big_family_id: bigFamilyId || null,
+        small_group_id: smallGroup.id,
+      };
+    }
+  }
+
+  return null;
+}
+
+async function getOne(db: ReturnType<typeof createAdminClient>, table: string, id: number) {
+  const { data, error } = await db.from(table).select("*").eq("id", id).maybeSingle();
+  if (error) {
+    throw new Error(error.message);
+  }
+  return data;
+}
+
+async function insertOne(db: ReturnType<typeof createAdminClient>, table: string, payload: any) {
+  const { data, error } = await db.from(table).insert(payload).select("*").single();
+  if (error) {
+    throw new Error(error.message);
+  }
+  return data;
+}
+
+async function handleAttendanceOverview(
+  db: ReturnType<typeof createAdminClient>,
+  viewer: MemberRow,
+  url: URL,
+) {
+  if (!(viewer.is_admin || ["preacher", "district_leader", "big_family_leader"].includes(viewer.role))) {
+    return { scope_label: "無權限", selected_week_start: "", weeks: [], units: [] };
+  }
+
+  const selectedWeekStart = getMondayIso(url.searchParams.get("week_start") || new Date());
+  const week = await ensureWeek(db, selectedWeekStart);
+  const members = await loadOverviewMembers(db, viewer);
+  const memberIds = members.map((member) => member.id);
+  const records = await loadRecords(db, week.id, memberIds);
+  const recordMap = new Map(records.map((record) => [`${record.member_id}:${record.event_type}`, record]));
+  const units = await buildUnits(db, viewer, members, recordMap);
+
+  return {
+    scope_label: getScopeLabel(viewer),
+    selected_week_start: selectedWeekStart,
+    weeks: recentWeeks(selectedWeekStart, 26).map((weekStart) => ({
+      week_start_date: weekStart,
+      label: weekStart,
+    })),
+    units,
+  };
+}
+
+async function ensureWeek(db: ReturnType<typeof createAdminClient>, weekStart: string) {
+  const { data } = await db
+    .from("attendance_weeks")
+    .select("*")
+    .eq("week_start_date", weekStart)
+    .maybeSingle();
+  if (data) {
+    return data;
+  }
+  return await insertOne(db, "attendance_weeks", {
+    week_start_date: weekStart,
+    label: weekStart,
+  });
+}
+
+async function loadOverviewMembers(db: ReturnType<typeof createAdminClient>, viewer: MemberRow) {
+  let query = db.from("member_directory").select("*").eq("is_active", true).order("full_name");
+  if (!viewer.is_admin && viewer.role !== "preacher") {
+    if (viewer.role === "district_leader") {
+      query = query.eq("district_id", viewer.district_id || -1);
+    } else if (viewer.role === "big_family_leader") {
+      query = query.eq("big_family_id", viewer.big_family_id || -1);
+    } else {
+      return [];
+    }
+  }
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(error.message);
+  }
+  return (data || []) as MemberRow[];
+}
+
+async function loadRecords(
+  db: ReturnType<typeof createAdminClient>,
+  weekId: number,
+  memberIds: number[],
+) {
+  if (!memberIds.length) {
+    return [];
+  }
+  const { data, error } = await db
+    .from("attendance_records")
+    .select("member_id, event_type, status, note, note_priority_high")
+    .eq("attendance_week_id", weekId)
+    .in("member_id", memberIds);
+  if (error) {
+    throw new Error(error.message);
+  }
+  return data || [];
+}
+
+async function buildUnits(
+  db: ReturnType<typeof createAdminClient>,
+  viewer: MemberRow,
+  members: MemberRow[],
+  recordMap: Map<string, any>,
+) {
+  const units = [];
+  const includeDistrict = viewer.is_admin || viewer.role === "preacher";
+  const includeBig = includeDistrict || viewer.role === "district_leader";
+
+  if (includeDistrict) {
+    const districtIds = uniqueIds(members.map((member) => member.district_id));
+    for (const district of await loadByIds(db, "districts", districtIds)) {
+      units.push(unit("district", district.id, district.name, null, members.filter((member) => member.district_id === district.id), recordMap));
+    }
+  }
+
+  if (includeBig) {
+    const bigIds = uniqueIds(members.map((member) => member.big_family_id));
+    for (const big of await loadByIds(db, "big_families", bigIds)) {
+      units.push(unit("big_family", big.id, big.name, null, members.filter((member) => member.big_family_id === big.id), recordMap));
+    }
+  }
+
+  const smallIds = uniqueIds(members.map((member) => member.small_group_id));
+  for (const small of await loadByIds(db, "small_groups", smallIds)) {
+    units.push(unit("small_group", small.id, small.name, null, members.filter((member) => member.small_group_id === small.id), recordMap));
+  }
+
+  return units.filter((item) => item.member_count > 0);
+}
+
+async function loadByIds(db: ReturnType<typeof createAdminClient>, table: string, ids: number[]) {
+  if (!ids.length) {
+    return [];
+  }
+  const { data, error } = await db.from(table).select("*").in("id", ids).order("name");
+  if (error) {
+    throw new Error(error.message);
+  }
+  return data || [];
+}
+
+function unit(type: string, id: number, name: string, parentName: string | null, members: MemberRow[], recordMap: Map<string, any>) {
+  return {
+    type,
+    level: type,
+    id,
+    name,
+    parent_name: parentName,
+    member_count: members.length,
+    stats: {
+      sunday_service: stats(members, recordMap, "sunday_service"),
+      small_group_fellowship: stats(members, recordMap, "small_group_fellowship"),
+    },
+    detail: {
+      sunday_service: detail(members, recordMap, "sunday_service"),
+      small_group_fellowship: detail(members, recordMap, "small_group_fellowship"),
+    },
+  };
+}
+
+function stats(members: MemberRow[], recordMap: Map<string, any>, eventType: string) {
+  const result = { present_count: 0, absent_count: 0, unknown_count: 0, confirmed_count: 0 };
+  for (const member of members) {
+    const status = normalizeStatus(recordMap.get(`${member.id}:${eventType}`)?.status);
+    if (status === "present") {
+      result.present_count += 1;
+      result.confirmed_count += 1;
+    } else if (status === "absent") {
+      result.absent_count += 1;
+      result.confirmed_count += 1;
+    } else {
+      result.unknown_count += 1;
+    }
+  }
+  return result;
+}
+
+function detail(members: MemberRow[], recordMap: Map<string, any>, eventType: string) {
+  const result: Record<string, any[]> = { present: [], absent: [], unknown: [] };
+  for (const member of members) {
+    const record = recordMap.get(`${member.id}:${eventType}`);
+    const status = normalizeStatus(record?.status);
+    result[status].push({
+      id: member.id,
+      full_name: member.full_name,
+      role: member.role,
+      gender: member.gender,
+      note: String(record?.note || "").trim(),
+      note_priority_high: Boolean(record?.note && record?.note_priority_high),
+    });
+  }
+  return result;
+}
+
+function normalizeStatus(value: unknown) {
+  const status = String(value || "unknown");
+  return VALID_STATUS.has(status) ? status : "unknown";
+}
+
+function uniqueIds(values: Array<number | null>) {
+  return Array.from(new Set(values.filter(Boolean) as number[]));
+}
+
+function recentWeeks(anchorWeekStart: string, count: number) {
+  const start = parseIsoDate(anchorWeekStart);
+  start.setDate(start.getDate() - (count - 1) * 7);
+  return Array.from({ length: count }, (_, index) => {
+    const week = new Date(start);
+    week.setDate(start.getDate() + index * 7);
+    return formatDate(week);
+  });
+}
+
+function getScopeLabel(viewer: MemberRow) {
+  if (viewer.is_admin || viewer.role === "preacher") {
+    return "全部牧區";
+  }
+  if (viewer.role === "district_leader") {
+    return viewer.district_name ? `${viewer.district_name} 轄區` : "所屬區";
+  }
+  return viewer.big_family_name ? `${viewer.big_family_name} 轄區` : "所屬大家";
+}
+
+function getMondayIso(source: Date | string) {
+  const date = source instanceof Date ? new Date(source) : parseIsoDate(String(source));
+  const day = date.getDay();
+  const diff = -day;
+  date.setDate(date.getDate() + diff);
+  return formatDate(date);
+}
+
+function parseIsoDate(isoDate: string) {
+  const [year, month, day] = String(isoDate).split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function formatDate(date: Date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}

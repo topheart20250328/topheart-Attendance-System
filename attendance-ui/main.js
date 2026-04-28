@@ -70,6 +70,11 @@ const ADMIN_CREATE_ROLES = ["preacher", ...MANAGEMENT_CREATE_ROLES];
 const OVERVIEW_ROLES = ["preacher", "district_leader", "big_family_leader"];
 
 const DEFAULT_PROJECT_URL = "https://aiifotwroawqxkcsfjzi.supabase.co";
+const V2_API_ACTIONS = new Set([
+  "attendance-overview",
+  "create-member",
+  "update-member",
+]);
 
 const TABS = {
   attendance: "attendance",
@@ -3700,7 +3705,9 @@ async function apiRequest(action, options = {}) {
     suppressUnauthorizedToast = false,
   } = options;
 
-  const url = `${state.config.projectUrl}/functions/v1/app-api?action=${action}`;
+  const actionName = String(action).split("&")[0];
+  const functionName = V2_API_ACTIONS.has(actionName) ? "app-api-v2" : "app-api";
+  const url = `${state.config.projectUrl}/functions/v1/${functionName}?action=${action}`;
   const headers = {
     "Content-Type": "application/json",
   };

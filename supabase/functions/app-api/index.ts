@@ -3179,7 +3179,7 @@ async function resolveMemberScope(
 
       return {
         district_id: smallGroup.district_id,
-        big_family_id: explicitBigFamilyId || null,
+        big_family_id: bigFamily?.id || null,
         small_group_id: smallGroup.id,
       };
     }
@@ -3334,7 +3334,7 @@ async function resolveMemberScope(
 
       return {
         district_id: smallGroup.district_id,
-        big_family_id: explicitBigFamilyId || null,
+        big_family_id: bigFamily?.id || null,
         small_group_id: smallGroup.id,
       };
     }
