@@ -682,6 +682,7 @@ async function handleSignOut() {
   state.ui.settingsOpen = false;
   saveStoredValue(STORAGE_KEYS.appToken, "");
   saveStoredValue(STORAGE_KEYS.pendingToken, "");
+  renderLayout();
   await refreshSessionState();
   showToast("已登出。");
 }

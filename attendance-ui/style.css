@@ -322,6 +322,17 @@ code {
   display: none !important;
 }
 
+body:not(.is-authenticated) #navCard,
+body:not(.is-authenticated) #userBar,
+body:not(.is-authenticated) #attendanceView,
+body:not(.is-authenticated) #overviewView,
+body:not(.is-authenticated) #peopleView,
+body:not(.is-authenticated) #orgsView,
+body:not(.is-authenticated) #invitesView,
+body:not(.is-authenticated) #attendanceSaveBar {
+  display: none !important;
+}
+
 .system-only {
   display: none !important;
 }
