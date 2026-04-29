@@ -897,6 +897,19 @@ body.layout-small .app-header h1 {
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
   backdrop-filter: blur(14px);
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.attendance-save-bar.is-save-success {
+  border-color: rgba(22, 101, 52, 0.26);
+  background: rgba(220, 252, 231, 0.96);
+  box-shadow: 0 16px 34px rgba(22, 101, 52, 0.16);
+}
+
+.attendance-save-bar.is-save-success .attendance-save-meta strong,
+.attendance-save-bar.is-save-success .attendance-save-meta .info-label,
+.attendance-save-bar.is-save-success .attendance-save-meta .muted {
+  color: var(--success);
 }
 
 #attendanceView {
@@ -2007,6 +2020,11 @@ tbody tr:last-child td {
   overflow: hidden;
 }
 
+.overview-member-details.has-alerts {
+  border-color: rgba(154, 52, 18, 0.24);
+  background: linear-gradient(180deg, #fff 0%, #fffaf6 100%);
+}
+
 .overview-member-details > summary {
   cursor: pointer;
   list-style: none;
@@ -2015,6 +2033,53 @@ tbody tr:last-child td {
 
 .overview-member-details > summary::-webkit-details-marker {
   display: none;
+}
+
+.overview-alert-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.14rem 0.42rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.overview-alert-badge.warning {
+  background: #ffedd5;
+  color: var(--warning);
+}
+
+.overview-alert-badge.danger {
+  background: #fee2e2;
+  color: var(--danger);
+}
+
+.overview-alert-panel {
+  display: grid;
+  gap: 5px;
+  padding: 0 7px 7px;
+}
+
+.overview-alert-reason {
+  display: block;
+  padding: 6px 8px;
+  border-radius: 9px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.overview-alert-reason.warning {
+  background: #fff7ed;
+  color: #8a4b0f;
+}
+
+.overview-alert-reason.danger {
+  background: #fff1f2;
+  color: var(--danger);
 }
 
 .overview-history-grid {
@@ -2634,6 +2699,10 @@ tbody tr:last-child td {
 
   body.is-authenticated .user-name {
     font-size: 0.88rem;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   body.is-authenticated #userScopeText {
@@ -2721,9 +2790,13 @@ tbody tr:last-child td {
   }
 
   #attendanceView .attendance-card {
-    grid-template-columns: minmax(58px, 0.55fr) minmax(0, 2.4fr) minmax(58px, 0.32fr);
+    grid-template-columns: minmax(78px, 0.8fr) minmax(0, 2.15fr) minmax(46px, 0.32fr);
     gap: 4px;
     padding: 5px;
+  }
+
+  #attendanceView .row-meta {
+    min-width: 0;
   }
 
   #attendanceView .attendance-meta-line,
@@ -2736,11 +2809,16 @@ tbody tr:last-child td {
   }
 
   #attendanceView .attendance-role-line .role-pill {
+    max-width: 100%;
+    overflow: hidden;
     font-size: 0.72rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   #attendanceView .attendance-member-name {
     font-size: 0.95rem;
+    max-width: 100%;
   }
 
   #attendanceView .attendance-event-grid {
@@ -2770,6 +2848,7 @@ tbody tr:last-child td {
     font-size: 0.78rem;
     font-weight: 800;
     text-align: center;
+    white-space: nowrap;
   }
 
   #attendanceView .attendance-card:has(.attendance-note-details[open]) {
@@ -3242,12 +3321,16 @@ tbody tr:last-child td {
   }
 
   #attendanceView .attendance-card {
-    grid-template-columns: minmax(50px, 0.45fr) minmax(0, 2.5fr) minmax(58px, 0.28fr);
+    grid-template-columns: minmax(72px, 0.78fr) minmax(0, 2.15fr) minmax(42px, 0.3fr);
     gap: 3px;
   }
 
   #attendanceView .attendance-member-name {
-    font-size: 0.9rem;
+    font-size: 0.86rem;
+  }
+
+  #attendanceView .attendance-role-line .role-pill {
+    font-size: 0.68rem;
   }
 
   #attendanceView .attendance-event-title,

@@ -87,8 +87,11 @@ const TABS = {
   people: "people",
   invites: "invites",
 };
+const TAB_SWIPE_THRESHOLD_PX = 64;
+const TAB_SWIPE_MAX_VERTICAL_PX = 54;
 
 const els = {
+  pageShell: document.querySelector(".page-shell"),
   pageDescription: document.querySelector("#pageDescription"),
   userBar: document.querySelector("#userBar"),
   userNameText: document.querySelector("#userNameText"),
@@ -262,8 +265,15 @@ const state = {
   },
   dirty: false,
   toastTimer: null,
+  saveFeedbackTimer: null,
   dashboardCache: new Map(),
   prefetchingWeeks: new Set(),
+};
+
+const tabSwipe = {
+  startX: 0,
+  startY: 0,
+  target: null,
 };
 
 boot()
@@ -305,6 +315,8 @@ function bindEvents() {
   els.tabOverviewBtn?.addEventListener("click", () => switchTab(TABS.overview));
   els.tabPeopleBtn.addEventListener("click", () => switchTab(TABS.people));
   els.tabInvitesBtn.addEventListener("click", () => switchTab(TABS.invites));
+  els.pageShell?.addEventListener("touchstart", handleTabSwipeStart, { passive: true });
+  els.pageShell?.addEventListener("touchend", handleTabSwipeEnd, { passive: true });
 
   els.prevWeekBtn.addEventListener("click", () => handleShiftWeek(-7));
   els.nextWeekBtn.addEventListener("click", () => handleShiftWeek(7));
@@ -918,6 +930,80 @@ function switchTab(tabId) {
   if (tabId === TABS.overview) {
     loadAttendanceOverview();
   }
+}
+
+function handleTabSwipeStart(event) {
+  const touch = event.changedTouches?.[0];
+  if (!touch || shouldIgnoreTabSwipe(event.target)) {
+    tabSwipe.target = null;
+    return;
+  }
+
+  tabSwipe.startX = touch.clientX;
+  tabSwipe.startY = touch.clientY;
+  tabSwipe.target = event.target;
+}
+
+function handleTabSwipeEnd(event) {
+  if (!tabSwipe.target || !state.currentMember) {
+    return;
+  }
+
+  const touch = event.changedTouches?.[0];
+  if (!touch) {
+    return;
+  }
+
+  const deltaX = touch.clientX - tabSwipe.startX;
+  const deltaY = touch.clientY - tabSwipe.startY;
+  tabSwipe.target = null;
+
+  if (
+    Math.abs(deltaX) < TAB_SWIPE_THRESHOLD_PX ||
+    Math.abs(deltaY) > TAB_SWIPE_MAX_VERTICAL_PX
+  ) {
+    return;
+  }
+
+  const visibleTabs = getVisibleMainTabs();
+  const currentIndex = visibleTabs.indexOf(state.ui.activeTab);
+  if (currentIndex === -1) {
+    return;
+  }
+
+  const nextIndex = deltaX < 0 ? currentIndex + 1 : currentIndex - 1;
+  const nextTab = visibleTabs[nextIndex];
+  if (nextTab) {
+    switchTab(nextTab);
+  }
+}
+
+function shouldIgnoreTabSwipe(target) {
+  return Boolean(
+    target?.closest?.(
+      [
+        "button",
+        "a",
+        "input",
+        "select",
+        "textarea",
+        "summary",
+        ".tab-row",
+        ".overview-week-scroller",
+        ".overview-history-grid",
+        ".attendance-save-bar",
+      ].join(","),
+    ),
+  );
+}
+
+function getVisibleMainTabs() {
+  return [
+    TABS.attendance,
+    canUseOverview() ? TABS.overview : null,
+    canUseManagement() ? TABS.people : null,
+    canUseInvites() ? TABS.invites : null,
+  ].filter(Boolean);
 }
 
 async function loadDashboard(options = {}) {
@@ -1790,6 +1876,7 @@ async function handleSaveAttendance() {
     showToast(data?.message || "本週點名已儲存。");
     setDirty(false);
     await Promise.all([loadDashboard({ skipDirtyCheck: true }), loadAdminPanel()]);
+    showAttendanceSaveSuccessFeedback();
   } catch (error) {
     console.error(error);
     showToast(error.message || "儲存點名失敗。");
@@ -2122,16 +2209,79 @@ function renderOverviewStatusGroup(label, members) {
 }
 
 function renderOverviewMember(member) {
+  const alerts = getOverviewMemberAlerts(member);
   const noteText = member.note ? ` · ${member.note_priority_high ? "高優先度：" : "備註："}${member.note}` : "";
   return `
-    <details class="overview-member-details">
+    <details class="overview-member-details${alerts.length ? " has-alerts" : ""}">
       <summary class="overview-member-row">
         <span class="name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</span>
         <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
-        ${noteText ? `<span class="overview-note muted small-text">${escapeHtml(noteText)}</span>` : ""}
+        ${alerts.map(renderOverviewAlertBadge).join("")}
+        ${noteText && !member.note_priority_high ? `<span class="overview-note muted small-text">${escapeHtml(noteText)}</span>` : ""}
       </summary>
+      ${alerts.length ? renderOverviewAlertPanel(alerts) : ""}
       ${renderOverviewMemberHistory(member.history)}
     </details>
+  `;
+}
+
+function getOverviewMemberAlerts(member) {
+  const alerts = [];
+  const eventType = state.ui.overviewEvent;
+  const monthStats = member.history?.month?.[eventType] || null;
+  const threeMonthStats = member.history?.three_months?.[eventType] || null;
+
+  if (member.note_priority_high && member.note) {
+    alerts.push({
+      tone: "danger",
+      label: "高優先備註",
+      detail: `高優先備註：${member.note}`,
+    });
+  }
+
+  const monthPresent = Number(monthStats?.present_count || 0);
+  const monthAbsent = Number(monthStats?.absent_count || 0);
+  const monthConfirmed = Number(monthStats?.confirmed_count || monthPresent + monthAbsent);
+  if (monthConfirmed >= 2 && monthAbsent >= 2 && monthPresent === 0) {
+    alerts.push({
+      tone: "danger",
+      label: "近月連缺",
+      detail: `近一個月已填 ${monthConfirmed} 次，皆未出席。`,
+    });
+  } else if (monthAbsent >= 1 && monthPresent === 0 && monthConfirmed >= 1) {
+    alerts.push({
+      tone: "warning",
+      label: "最近未出席",
+      detail: `近一個月已填 ${monthConfirmed} 次，尚無出席紀錄。`,
+    });
+  }
+
+  const threePresent = Number(threeMonthStats?.present_count || 0);
+  const threeAbsent = Number(threeMonthStats?.absent_count || 0);
+  const threeConfirmed = Number(threeMonthStats?.confirmed_count || threePresent + threeAbsent);
+  const threeRate = threeConfirmed ? threePresent / threeConfirmed : null;
+  if (threeConfirmed >= 4 && threeRate !== null && threeRate < 0.5) {
+    alerts.push({
+      tone: "warning",
+      label: "近三月偏低",
+      detail: `近三個月出席率 ${formatPercent(threePresent, threeConfirmed)}（出席 ${threePresent} / 已填 ${threeConfirmed}）。`,
+    });
+  }
+
+  return alerts;
+}
+
+function renderOverviewAlertBadge(alert) {
+  return `<span class="overview-alert-badge ${escapeHtml(alert.tone)}">${escapeHtml(alert.label)}</span>`;
+}
+
+function renderOverviewAlertPanel(alerts) {
+  return `
+    <div class="overview-alert-panel">
+      ${alerts.map((alert) => `
+        <span class="overview-alert-reason ${escapeHtml(alert.tone)}">${escapeHtml(alert.detail)}</span>
+      `).join("")}
+    </div>
   `;
 }
 
@@ -4082,6 +4232,9 @@ function fillSelect(select, items, options = {}) {
 
 function setDirty(isDirty) {
   state.dirty = isDirty;
+  if (isDirty) {
+    clearAttendanceSaveSuccessFeedback();
+  }
   setBadge(
     els.dirtyBadge,
     isDirty ? "尚有未儲存變更" : "已同步",
@@ -4093,6 +4246,30 @@ function setDirty(isDirty) {
       ? "你有尚未儲存的點名變更"
       : "目前已同步，可直接離開";
   }
+}
+
+function showAttendanceSaveSuccessFeedback() {
+  if (!els.attendanceSaveBar || !els.attendanceSaveStatus) {
+    return;
+  }
+
+  clearTimeout(state.saveFeedbackTimer);
+  els.attendanceSaveBar.classList.add("is-save-success");
+  els.attendanceSaveStatus.textContent = "已成功儲存，資料已同步";
+  setBadge(els.dirtyBadge, "已儲存", "success");
+
+  state.saveFeedbackTimer = window.setTimeout(() => {
+    clearAttendanceSaveSuccessFeedback();
+    if (!state.dirty) {
+      setDirty(false);
+    }
+  }, 1200);
+}
+
+function clearAttendanceSaveSuccessFeedback() {
+  clearTimeout(state.saveFeedbackTimer);
+  state.saveFeedbackTimer = null;
+  els.attendanceSaveBar?.classList.remove("is-save-success");
 }
 
 function canDiscardDirtyChanges() {
