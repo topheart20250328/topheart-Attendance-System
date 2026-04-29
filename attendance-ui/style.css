@@ -121,8 +121,8 @@ body.layout-large {
   --control-min-height: 54px;
   --card-padding: clamp(20px, 3.2vw, 26px);
   --subsection-padding: clamp(18px, 3vw, 24px);
-  --compact-button-height: 44px;
-  --compact-button-font-size: 0.95rem;
+  --compact-button-height: 38px;
+  --compact-button-font-size: 0.88rem;
   --attendance-card-padding: 10px 12px;
   --attendance-option-height: 40px;
   --attendance-option-font-size: 0.9rem;
@@ -347,6 +347,20 @@ code {
   gap: 10px;
 }
 
+.compact-buttons > button,
+.compact-buttons > .button-link,
+.topbar-checkbox {
+  min-height: var(--compact-button-height);
+  padding: 0.5rem 0.85rem;
+  font-size: var(--compact-button-font-size);
+  line-height: 1.1;
+}
+
+.compact-buttons > button,
+.compact-buttons > .button-link {
+  flex: 0 0 auto;
+}
+
 .inline-form {
   display: flex;
   flex-wrap: wrap;
@@ -408,8 +422,6 @@ code {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: var(--control-min-height);
-  padding: 0.55rem 0.9rem;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: #f8fbff;
@@ -493,6 +505,12 @@ body.layout-large .gender-badge {
 body.layout-large .topbar-checkbox,
 body.layout-large .layout-size-options label {
   padding-inline: 1.05rem;
+}
+
+body.layout-large .compact-buttons > button,
+body.layout-large .compact-buttons > .button-link,
+body.layout-large .topbar-checkbox {
+  padding-inline: 0.82rem;
 }
 
 body.layout-small .app-header h1 {
@@ -1940,6 +1958,30 @@ tbody tr:last-child td {
   gap: 7px;
 }
 
+#overviewView.is-loading .overview-unit-list {
+  opacity: 0.58;
+  pointer-events: none;
+}
+
+#overviewView.is-loading #overviewScopeSummary::after {
+  content: " ";
+  display: inline-block;
+  width: 0.75em;
+  height: 0.75em;
+  margin-left: 0.45em;
+  border: 2px solid rgba(43, 111, 243, 0.24);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  vertical-align: -0.1em;
+  animation: overview-loading-spin 0.8s linear infinite;
+}
+
+@keyframes overview-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .overview-unit-details {
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -2691,11 +2733,34 @@ tbody tr:last-child td {
     align-items: center;
     padding: 6px 8px;
     border-radius: 12px;
+    gap: 6px;
   }
 
   body.is-authenticated .user-meta {
     flex: 1 1 0;
-    min-width: 104px;
+    min-width: 92px;
+  }
+
+  body.is-authenticated .user-bar .compact-buttons {
+    flex: 0 0 auto;
+    gap: 6px;
+  }
+
+  body.is-authenticated .topbar-checkbox,
+  body.is-authenticated .user-bar .compact-buttons > button,
+  body.is-authenticated .user-bar .compact-buttons > .button-link {
+    min-height: 36px;
+    padding: 0.42rem 0.62rem;
+    font-size: 0.82rem;
+  }
+
+  body.is-authenticated .topbar-checkbox {
+    gap: 5px;
+  }
+
+  body.is-authenticated .topbar-checkbox input {
+    width: 16px;
+    height: 16px;
   }
 
   body.is-authenticated .user-name {

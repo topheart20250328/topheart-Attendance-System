@@ -252,6 +252,7 @@ const state = {
     attendanceStatus: "",
     overviewEvent: "sunday_service",
     overviewWeekStart: "",
+    overviewLoading: false,
     settingsOpen: false,
     manageAll: false,
     layoutSize: "medium",
@@ -1964,9 +1965,13 @@ async function loadAdminPanel() {
 async function loadAttendanceOverview(weekStart = "") {
   if (!canUseOverview()) {
     state.overviewData = null;
+    state.ui.overviewLoading = false;
     renderAttendanceOverview();
     return;
   }
+
+  state.ui.overviewLoading = true;
+  renderAttendanceOverview();
 
   try {
     const targetWeek = weekStart || state.ui.overviewWeekStart || els.weekInput.value || getMondayIso(new Date());
@@ -1979,10 +1984,12 @@ async function loadAttendanceOverview(weekStart = "") {
     );
     state.overviewData = normalizeOverviewData(data);
     state.ui.overviewWeekStart = state.overviewData.selectedWeekStart;
-    renderAttendanceOverview();
   } catch (error) {
     console.error(error);
     showToast(error.message || "載入出席總覽失敗。");
+  } finally {
+    state.ui.overviewLoading = false;
+    renderAttendanceOverview();
   }
 }
 
@@ -2088,8 +2095,12 @@ function renderAttendanceOverview() {
 
   if (els.overviewScopeSummary) {
     els.overviewScopeSummary.textContent =
-      `${state.overviewData.scopeLabel}，目前週次 ${buildWeekLabel(state.overviewData.selectedWeekStart)}`;
+      state.ui.overviewLoading
+        ? `正在更新出席總覽...目前顯示 ${buildWeekLabel(state.overviewData.selectedWeekStart)}`
+        : `${state.overviewData.scopeLabel}，目前週次 ${buildWeekLabel(state.overviewData.selectedWeekStart)}`;
   }
+
+  els.overviewView?.classList.toggle("is-loading", state.ui.overviewLoading);
 
   renderOverviewWeeks();
   renderOverviewUnits();
@@ -2189,15 +2200,16 @@ function renderOverviewUnitCard(unit) {
 }
 
 function renderOverviewStatusGroup(label, members) {
+  const sortedMembers = sortMembers([...(members || [])]);
   return `
     <section class="overview-status-group">
       <div class="overview-status-head">
         <strong>${escapeHtml(label)}</strong>
-        <span class="status-chip neutral">${members.length}</span>
+        <span class="status-chip neutral">${sortedMembers.length}</span>
       </div>
       <div class="overview-member-list">
-        ${members.length
-          ? members.map(renderOverviewMember).join("")
+        ${sortedMembers.length
+          ? sortedMembers.map(renderOverviewMember).join("")
           : '<span class="muted small-text">無人員</span>'}
       </div>
     </section>
