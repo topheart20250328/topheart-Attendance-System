@@ -28,6 +28,7 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  font-size: var(--app-font-size);
 }
 
 * {
@@ -77,12 +78,14 @@ button,
   text-decoration: none;
   touch-action: manipulation;
   transition: background 0.15s ease;
+  white-space: nowrap;
 }
 
 body.is-authenticated {
   background: var(--bg);
 }
 
+html.layout-small,
 body.layout-small {
   --app-font-size: 15px;
   --control-min-height: 42px;
@@ -97,6 +100,7 @@ body.layout-small {
   --small-text-size: 0.72rem;
 }
 
+html.layout-medium,
 body.layout-medium {
   --app-font-size: 16px;
   --control-min-height: 48px;
@@ -111,6 +115,7 @@ body.layout-medium {
   --small-text-size: 0.76rem;
 }
 
+html.layout-large,
 body.layout-large {
   --app-font-size: 18px;
   --control-min-height: 54px;
@@ -2013,32 +2018,64 @@ tbody tr:last-child td {
 }
 
 .overview-history-grid {
-  display: grid;
-  gap: 7px;
-  padding: 0 7px 7px;
+  display: flex;
+  gap: 10px;
+  padding: 0 10px 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.overview-history-grid::-webkit-scrollbar {
+  display: none;
 }
 
 .overview-history-card {
   display: grid;
   gap: 5px;
-  padding: 8px;
-  border-radius: 10px;
+  padding: 10px;
+  border-radius: 14px;
   background: var(--surface-alt);
+  min-width: 220px;
+  flex: 0 0 auto;
+  scroll-snap-align: start;
 }
 
 .overview-history-events {
   display: grid;
   gap: 6px;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: 1fr;
 }
 
 .overview-history-event {
-  display: grid;
-  gap: 2px;
-  padding: 7px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: #fff;
+}
+
+.overview-history-event .info-label {
+  flex: 0 0 32px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.overview-history-event strong {
+  flex: 0 0 auto;
+  font-size: 0.95rem;
+}
+
+.overview-history-event .summary-subtext {
+  flex: 1 1 auto;
+  text-align: right;
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 .overview-member-list {
@@ -2342,14 +2379,16 @@ tbody tr:last-child td {
 
   .button-row > button,
   .button-row > .button-link {
-    width: 100%;
-    flex: 1 1 100%;
+    width: auto;
+    flex: 1 1 auto;
+    min-width: min-content;
   }
 
   .compact-buttons > button,
   .compact-buttons > .button-link {
     width: auto;
-    flex: 1 1 calc(50% - 6px);
+    flex: 1 1 auto;
+    min-width: min-content;
   }
 
   .inline-form {

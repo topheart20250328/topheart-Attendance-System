@@ -422,6 +422,7 @@ function saveUiPreferences() {
 
 function applyLayoutSize() {
   for (const size of LAYOUT_SIZES) {
+    document.documentElement.classList.toggle(`layout-${size}`, state.ui.layoutSize === size);
     document.body.classList.toggle(`layout-${size}`, state.ui.layoutSize === size);
   }
   els.layoutSizeInputs?.forEach((input) => {
@@ -2143,7 +2144,7 @@ function renderOverviewMemberHistory(history) {
     history?.year,
   ].filter(Boolean);
   if (!ranges.length) {
-    return '<div class="overview-history-grid"><span class="muted small-text">尚無歷史出席資料</span></div>';
+    return '<div class="overview-history-grid"><span class="muted small-text" style="padding: 10px;">尚無歷史出席資料</span></div>';
   }
 
   return `
@@ -2156,9 +2157,11 @@ function renderOverviewMemberHistory(history) {
 function renderOverviewHistoryRange(range) {
   return `
     <section class="overview-history-card">
-      <strong>${escapeHtml(range.label || "出席率")}</strong>
-      <span class="muted small-text">${escapeHtml(range.start_date || "")} 至 ${escapeHtml(range.end_date || "")}</span>
-      <div class="overview-history-events">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
+        <strong style="font-size: 1.05rem;">${escapeHtml(range.label || "出席率")}</strong>
+        <span class="muted" style="font-size: 0.72rem; opacity: 0.8;">${escapeHtml(range.start_date || "")} ~ ${escapeHtml(range.end_date || "")}</span>
+      </div>
+      <div class="overview-history-events" style="display: grid; gap: 8px;">
         ${renderOverviewHistoryEvent("主日", range.sunday_service)}
         ${renderOverviewHistoryEvent("小家", range.small_group_fellowship)}
       </div>
@@ -2180,7 +2183,7 @@ function formatDetailedAnalyticsBreakdown(stats) {
   if (!stats) {
     return "尚無資料";
   }
-  return `出席 ${stats.present_count || 0} 次 / 已填 ${stats.confirmed_count || 0} 次 / 待確認 ${stats.unknown_count || 0} 次`;
+  return `出席 <strong>${stats.present_count || 0}</strong> / 缺席 <strong>${stats.absent_count || 0}</strong> / 待 <strong>${stats.unknown_count || 0}</strong>`;
 }
 
 function createEmptyEventStats() {
