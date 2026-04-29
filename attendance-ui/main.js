@@ -3625,17 +3625,17 @@ function getOrganizationDependencySummary(orgType, orgId) {
 function buildOrganizationDependencyChips(summary) {
   const chips = [];
   if (summary.bigFamilies) {
-    chips.push(`<span class="status-chip neutral">${summary.bigFamilies} 個大家</span>`);
+    chips.push(`<span class="status-chip neutral">${summary.bigFamilies} 大家</span>`);
   }
   if (summary.smallGroups) {
-    chips.push(`<span class="status-chip neutral">${summary.smallGroups} 個小家</span>`);
+    chips.push(`<span class="status-chip neutral">${summary.smallGroups} 小家</span>`);
   }
   if (summary.members) {
-    chips.push(`<span class="status-chip neutral">${summary.members} 位成員</span>`);
+    chips.push(`<span class="status-chip neutral">${summary.members} 人</span>`);
   }
 
   if (!chips.length) {
-    chips.push('<span class="status-chip success">空組織，可刪除</span>');
+    chips.push('<span class="status-chip success">空</span>');
   }
 
   return chips.join("");
@@ -3695,7 +3695,7 @@ function renderOrganizationCard(orgType, organization) {
     actionButtons.push(`
       <button
         type="button"
-        class="secondary"
+        class="secondary org-action-btn"
         data-org-action="edit"
         data-org-type="${orgType}"
         data-org-id="${organization.id}"
@@ -3710,7 +3710,7 @@ function renderOrganizationCard(orgType, organization) {
     actionButtons.push(`
       <button
         type="button"
-        class="secondary"
+        class="secondary org-action-btn"
         data-org-action="${organization.is_active ? "archive" : "restore"}"
         data-org-type="${orgType}"
         data-org-id="${organization.id}"
@@ -3722,7 +3722,7 @@ function renderOrganizationCard(orgType, organization) {
     actionButtons.push(`
       <button
         type="button"
-        class="secondary danger-button ${summary.canDelete ? "" : "is-blocked"}"
+        class="secondary danger-button org-action-btn ${summary.canDelete ? "" : "is-blocked"}"
         data-org-action="delete"
         data-org-type="${orgType}"
         data-org-id="${organization.id}"
@@ -3748,36 +3748,25 @@ function renderOrganizationCard(orgType, organization) {
         <div class="row-meta">
           <div class="org-card-title">
             <strong>${escapeHtml(organization.name)}</strong>
-          </div>
-          <div class="org-card-chips">
             <span class="role-pill">${escapeHtml(getOrganizationTypeLabel(orgType))}</span>
             <span class="status-chip ${organization.is_active ? "success" : "archived"}">
               ${organization.is_active ? "啟用" : "已封存"}
             </span>
           </div>
+          <div class="org-card-subline">
+            ${escapeHtml(getOrganizationParentLabel(orgType, organization) || "未設定歸屬")}
+          </div>
         </div>
         ${actionButtons.length ? `<div class="row-actions">${actionButtons.join("")}</div>` : ""}
       </div>
 
-      <div class="org-card-grid">
-        <div class="info-item">
-          <span class="info-label">歸屬</span>
-          <span>${escapeHtml(getOrganizationParentLabel(orgType, organization) || "-")}</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">說明</span>
-          <span>${escapeHtml(organization.description || "未填寫")}</span>
-        </div>
-      </div>
-
-      <div class="org-card-chips">
-        ${buildOrganizationDependencyChips(summary)}
-      </div>
+      <div class="org-card-chips">${buildOrganizationDependencyChips(summary)}</div>
+      ${organization.description ? `<p class="org-card-description">${escapeHtml(organization.description)}</p>` : ""}
 
       <p class="org-card-hint ${summary.canDelete ? "" : "warning"}">
         ${escapeHtml(
           summary.canDelete
-            ? "目前沒有子組織與成員，若確認不再使用可直接刪除。"
+            ? "可刪除"
             : `尚不可刪除：${summary.blockerText}`,
         )}
       </p>

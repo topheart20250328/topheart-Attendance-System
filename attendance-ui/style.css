@@ -2399,23 +2399,25 @@ tbody tr:last-child td {
 
 .org-scope-body {
   display: grid;
-  gap: 8px;
-  padding: 8px;
+  gap: 6px;
+  padding: 6px;
   background: #fbfdff;
 }
 
 .compact-org-list {
-  gap: 7px;
+  gap: 5px;
 }
 
 .org-card {
   display: grid;
-  gap: 12px;
-  padding: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 8px;
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 12px;
   background: #fff;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+  box-shadow: none;
 }
 
 .org-card.is-archived {
@@ -2426,15 +2428,34 @@ tbody tr:last-child td {
 .org-card-head {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .org-card-title {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 5px;
   align-items: center;
+}
+
+.org-card-title strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.94rem;
+  line-height: 1.25;
+}
+
+.org-card-subline,
+.org-card-description {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+
+.org-card-subline {
+  margin-top: 2px;
 }
 
 .org-card-grid {
@@ -2446,19 +2467,36 @@ tbody tr:last-child td {
 .org-card-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px;
   align-items: center;
 }
 
+.org-card > .org-card-chips {
+  grid-column: 1 / -1;
+}
+
 .org-card-hint {
+  grid-column: 1 / -1;
   margin: 0;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.74rem;
+  line-height: 1.25;
 }
 
 .org-card-hint.warning {
   color: #8a5616;
   font-weight: 700;
+}
+
+.org-action-btn {
+  min-height: 30px;
+  padding: 0.3rem 0.52rem;
+  font-size: 0.76rem;
+}
+
+.org-card .row-actions {
+  flex-wrap: nowrap;
+  gap: 5px;
 }
 
 .danger-button {
@@ -3524,6 +3562,7 @@ body.is-authenticated .toast {
   }
 
   #peopleView .org-card {
+    grid-template-columns: 1fr;
     padding: 6px;
     border-radius: 10px;
   }
@@ -3536,6 +3575,75 @@ body.is-authenticated .toast {
 
   #peopleView .org-card-title strong {
     font-size: 0.88rem;
+  }
+
+  #orgsView.card {
+    padding: 8px;
+  }
+
+  #orgsView > .muted {
+    display: none;
+  }
+
+  #orgsView .org-management-panel,
+  #orgsView .org-section-card {
+    padding: 7px;
+    border-radius: 12px;
+  }
+
+  #orgsView .org-grid,
+  #orgsView .org-management-grid,
+  #orgsView .org-card-list {
+    gap: 6px;
+  }
+
+  #orgsView .org-card {
+    grid-template-columns: 1fr;
+    gap: 5px;
+    padding: 6px;
+    border-radius: 10px;
+  }
+
+  #orgsView .org-card-head {
+    align-items: center;
+    gap: 6px;
+  }
+
+  #orgsView .org-card .row-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  #orgsView .org-action-btn {
+    width: 100%;
+    min-height: 28px;
+    padding: 0.26rem 0.34rem;
+    font-size: 0.72rem;
+  }
+
+  #orgsView .org-card-title {
+    gap: 4px;
+  }
+
+  #orgsView .org-card-title strong {
+    font-size: 0.88rem;
+  }
+
+  #orgsView .role-pill,
+  #orgsView .status-chip {
+    padding: 0.12rem 0.34rem;
+    font-size: 0.68rem;
+  }
+
+  #orgsView .org-card-subline,
+  #orgsView .org-card-description,
+  #orgsView .org-card-hint {
+    font-size: 0.7rem;
+  }
+
+  #orgsView .org-card-grid {
+    display: none;
   }
 
   #invitesView > .muted,
