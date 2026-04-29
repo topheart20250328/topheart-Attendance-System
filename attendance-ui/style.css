@@ -1920,10 +1920,17 @@ tbody tr:last-child td {
 
 .overview-week-scroller {
   display: flex;
+  align-items: center;
   gap: 6px;
   margin: 6px 0 8px;
   padding-bottom: 2px;
   overflow-x: auto;
+}
+
+.overview-week-quick {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 6px;
 }
 
 .overview-week-chip {
@@ -1951,6 +1958,29 @@ tbody tr:last-child td {
 .overview-week-chip.is-active {
   background: var(--primary);
   color: #fff;
+}
+
+.overview-date-picker {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0.22rem 0.42rem 0.22rem 0.62rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.overview-date-picker input {
+  width: 118px;
+  min-height: 28px;
+  padding: 0.18rem 0.3rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
 }
 
 .overview-unit-list {
@@ -2450,13 +2480,36 @@ tbody tr:last-child td {
 .compact-panel > summary {
   cursor: pointer;
   display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
   gap: 2px;
   list-style: none;
   padding: 14px 0 0;
 }
 
+.compact-panel > summary::after {
+  content: "⌄";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #36528b;
+  font-size: 1rem;
+  font-weight: 900;
+  transition: transform 0.16s ease, background 0.16s ease;
+}
+
 .compact-panel[open] > summary {
   padding-bottom: 14px;
+}
+
+.compact-panel[open] > summary::after {
+  transform: rotate(180deg);
+  background: var(--primary);
+  color: #fff;
 }
 
 .compact-panel > summary::-webkit-details-marker {

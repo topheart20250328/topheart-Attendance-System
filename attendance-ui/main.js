@@ -336,6 +336,7 @@ function bindEvents() {
     button.addEventListener("click", () => switchOverviewEvent(button.dataset.overviewEvent));
   });
   els.overviewWeekScroller?.addEventListener("click", handleOverviewWeekClick);
+  els.overviewWeekScroller?.addEventListener("change", handleOverviewDateChange);
   els.overviewUnitList?.addEventListener("toggle", handleOverviewUnitToggle, true);
 
   els.peopleSearchInput.addEventListener("input", handlePeopleFilters);
@@ -1874,7 +1875,6 @@ async function handleSaveAttendance() {
       },
     });
 
-    showToast(data?.message || "本週點名已儲存。");
     setDirty(false);
     await Promise.all([loadDashboard({ skipDirtyCheck: true }), loadAdminPanel()]);
     showAttendanceSaveSuccessFeedback();
@@ -2057,6 +2057,15 @@ function handleOverviewWeekClick(event) {
   loadAttendanceOverview(button.dataset.overviewWeek);
 }
 
+function handleOverviewDateChange(event) {
+  const input = event.target.closest("#overviewDateInput");
+  if (!input?.value) {
+    return;
+  }
+
+  loadAttendanceOverview(getMondayIso(input.value));
+}
+
 function handleOverviewUnitToggle(event) {
   const details = event.target;
   if (!details.matches?.(".overview-unit-details") || !details.open) {
@@ -2116,10 +2125,17 @@ function renderOverviewWeeks() {
   }
 
   const currentWeekStart = getMondayIso(new Date());
+  const quickWeeks = [
+    { label: "本週", week_start_date: currentWeekStart },
+    { label: "上週", week_start_date: addDaysIso(currentWeekStart, -7) },
+    { label: "前週", week_start_date: addDaysIso(currentWeekStart, -14) },
+  ];
+  const quickWeekSet = new Set(quickWeeks.map((week) => week.week_start_date));
   const weekChips = state.overviewData.weeks
+    .filter((week) => !quickWeekSet.has(week.week_start_date))
+    .slice(0, 10)
     .map((week) => {
       const isActive = week.week_start_date === state.overviewData.selectedWeekStart;
-      const isCurrent = week.week_start_date === currentWeekStart;
       return `
         <button
           type="button"
@@ -2127,21 +2143,28 @@ function renderOverviewWeeks() {
           data-overview-week="${escapeHtml(week.week_start_date)}"
         >
           <strong>${escapeHtml(buildShortWeekLabel(week.week_start_date))}</strong>
-          ${isCurrent ? '<span>本週</span>' : ""}
         </button>
       `;
     })
     .join("");
 
   els.overviewWeekScroller.innerHTML = `
-    <button
-      type="button"
-      class="overview-week-chip overview-week-current${state.overviewData.selectedWeekStart === currentWeekStart ? " is-active" : ""}"
-      data-overview-week="${escapeHtml(currentWeekStart)}"
-    >
-      <strong>本週</strong>
-      <span>${escapeHtml(buildShortWeekLabel(currentWeekStart))}</span>
-    </button>
+    <div class="overview-week-quick">
+      ${quickWeeks.map((week) => `
+        <button
+          type="button"
+          class="overview-week-chip overview-week-current${state.overviewData.selectedWeekStart === week.week_start_date ? " is-active" : ""}"
+          data-overview-week="${escapeHtml(week.week_start_date)}"
+        >
+          <strong>${escapeHtml(week.label)}</strong>
+          <span>${escapeHtml(buildShortWeekLabel(week.week_start_date))}</span>
+        </button>
+      `).join("")}
+    </div>
+    <label class="overview-date-picker">
+      <span>選日期</span>
+      <input id="overviewDateInput" type="date" value="${escapeHtml(state.overviewData.selectedWeekStart)}" />
+    </label>
     ${weekChips}
   `;
 }
@@ -2488,8 +2511,9 @@ function renderPeopleTable(editableMembers) {
     return;
   }
 
+  const shouldOpenGroups = Boolean(state.ui.peopleSearch || state.ui.peopleRole);
   els.peopleTableBody.innerHTML = buildPeopleHierarchy(rows)
-    .map(renderPeopleDistrictGroup)
+    .map((district) => renderPeopleDistrictGroup(district, shouldOpenGroups))
     .join("");
 }
 
@@ -2569,38 +2593,38 @@ function buildPeopleHierarchy(rows) {
     }));
 }
 
-function renderPeopleDistrictGroup(district) {
+function renderPeopleDistrictGroup(district, shouldOpen = false) {
   return `
-    <details class="people-scope-group people-level-district">
+    <details class="people-scope-group people-level-district" ${shouldOpen ? "open" : ""}>
       <summary>
         <span class="people-scope-title">${escapeHtml(district.label)}</span>
         <span class="status-chip neutral">${district.count}</span>
       </summary>
       <div class="people-scope-children">
-        ${district.bigFamilies.map(renderPeopleBigFamilyGroup).join("")}
-        ${district.smallGroups.map(renderPeopleSmallGroup).join("")}
+        ${district.bigFamilies.map((bigFamily) => renderPeopleBigFamilyGroup(bigFamily, shouldOpen)).join("")}
+        ${district.smallGroups.map((smallGroup) => renderPeopleSmallGroup(smallGroup, shouldOpen)).join("")}
       </div>
     </details>
   `;
 }
 
-function renderPeopleBigFamilyGroup(bigFamily) {
+function renderPeopleBigFamilyGroup(bigFamily, shouldOpen = false) {
   return `
-    <details class="people-scope-group people-level-big-family">
+    <details class="people-scope-group people-level-big-family" ${shouldOpen ? "open" : ""}>
       <summary>
         <span class="people-scope-title">${escapeHtml(bigFamily.label)}</span>
         <span class="status-chip neutral">${bigFamily.count}</span>
       </summary>
       <div class="people-scope-children">
-        ${bigFamily.smallGroups.map(renderPeopleSmallGroup).join("")}
+        ${bigFamily.smallGroups.map((smallGroup) => renderPeopleSmallGroup(smallGroup, shouldOpen)).join("")}
       </div>
     </details>
   `;
 }
 
-function renderPeopleSmallGroup(smallGroup) {
+function renderPeopleSmallGroup(smallGroup, shouldOpen = false) {
   return `
-    <details class="people-scope-group people-level-small-group">
+    <details class="people-scope-group people-level-small-group" ${shouldOpen ? "open" : ""}>
       <summary>
         <span class="people-scope-title">${escapeHtml(smallGroup.label)}</span>
         <span class="status-chip neutral">${smallGroup.members.length}</span>
@@ -2827,7 +2851,7 @@ function openMemberEditor(mode, memberId = null) {
   syncEditorBigFamilyOptions(editableMember);
   syncEditorSmallGroupOptions(editableMember);
   syncMemberFormScope();
-  setHidden(els.memberNoteLabel, mode === "create");
+  setHidden(els.memberNoteLabel, true);
   setHidden(els.memberEditorCard, false);
   requestAnimationFrame(() => {
     els.memberEditorCard.scrollIntoView({
@@ -2842,7 +2866,7 @@ function closeMemberEditor() {
   state.ui.editorMode = null;
   state.ui.editingMemberId = null;
   els.memberForm.reset();
-  setHidden(els.memberNoteLabel, false);
+  setHidden(els.memberNoteLabel, true);
   setHidden(els.memberEditorCard, true);
 }
 
@@ -4542,6 +4566,12 @@ function getMondayIso(source) {
   const day = date.getDay();
   const diff = -day;
   date.setDate(date.getDate() + diff);
+  return formatDate(date);
+}
+
+function addDaysIso(source, days) {
+  const date = parseIsoDate(source);
+  date.setDate(date.getDate() + days);
   return formatDate(date);
 }
 
