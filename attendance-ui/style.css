@@ -2206,6 +2206,11 @@ tbody tr:last-child td {
   overflow: hidden;
 }
 
+.people-scope-group + .people-scope-group,
+.org-scope-group + .org-scope-group {
+  margin-top: 7px;
+}
+
 .people-scope-group summary {
   display: flex;
   align-items: center;
@@ -2218,8 +2223,52 @@ tbody tr:last-child td {
   font-weight: 800;
 }
 
-.people-scope-group summary::-webkit-details-marker {
+.people-scope-group summary::-webkit-details-marker,
+.org-scope-group summary::-webkit-details-marker {
   display: none;
+}
+
+.people-scope-title,
+.org-scope-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.people-level-big-family,
+.people-level-small-group,
+.org-level-big-family {
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.people-level-big-family,
+.org-level-big-family {
+  border-color: rgba(217, 226, 240, 0.74);
+}
+
+.people-level-small-group {
+  border-color: rgba(217, 226, 240, 0.62);
+  background: #fbfdff;
+}
+
+.people-level-big-family > summary,
+.org-level-big-family > summary {
+  padding: 8px 9px;
+  background: #fbfdff;
+}
+
+.people-level-small-group > summary {
+  padding: 7px 9px;
+  background: #fff;
+}
+
+.people-scope-children,
+.org-scope-children {
+  display: grid;
+  gap: 7px;
+  padding: 7px;
 }
 
 .people-scope-members {
@@ -2237,6 +2286,28 @@ tbody tr:last-child td {
   gap: 14px;
 }
 
+#peopleView .org-grid {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+#peopleView .org-grid .editor-details {
+  padding: 0;
+  overflow: hidden;
+}
+
+#peopleView .org-grid .editor-details > summary {
+  padding: 10px 12px;
+  background: #f8fbff;
+}
+
+#peopleView .org-grid .editor-details[open] > summary {
+  border-bottom: 1px solid var(--border);
+}
+
+#peopleView .org-grid .editor-details > form {
+  padding: 10px;
+}
+
 .org-management-grid {
   display: grid;
   gap: 16px;
@@ -2252,6 +2323,44 @@ tbody tr:last-child td {
 .org-card-list {
   display: grid;
   gap: 12px;
+}
+
+.org-scope-group {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.org-scope-group > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  cursor: pointer;
+  list-style: none;
+  background: #f8fbff;
+  font-weight: 800;
+}
+
+.org-scope-counts {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.org-scope-body {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  background: #fbfdff;
+}
+
+.compact-org-list {
+  gap: 7px;
 }
 
 .org-card {

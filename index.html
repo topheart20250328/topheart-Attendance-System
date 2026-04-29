@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <title>topheart 教會點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260429-ui-v10" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260429-ui-v11" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -407,12 +407,12 @@
         <details class="card-subsection compact-panel">
           <summary>
             <span class="summary-title">組織管理</span>
-            <span class="summary-description">新增、編輯、封存或刪除區 / 大家 / 小家</span>
+            <span class="summary-description">集中新增組織，並用階層總覽管理區 / 大家 / 小家</span>
           </summary>
 
           <div class="org-grid">
             <details id="districtDetails" class="editor-details hidden">
-              <summary>新增區</summary>
+              <summary>建立區</summary>
               <form id="districtForm" class="form-grid">
                 <label>
                   <span>區名稱</span>
@@ -429,7 +429,7 @@
             </details>
 
             <details class="editor-details">
-              <summary>新增大家</summary>
+              <summary>建立大家</summary>
               <form id="bigFamilyForm" class="form-grid">
                 <label>
                   <span>所屬區</span>
@@ -450,7 +450,7 @@
             </details>
 
             <details class="editor-details">
-              <summary>新增小家</summary>
+              <summary>建立小家</summary>
               <form id="smallGroupForm" class="form-grid">
                 <label>
                   <span>所屬區</span>
@@ -479,8 +479,8 @@
             <section id="districtSection" class="card-subsection org-section-card">
               <div class="section-toolbar">
                 <div>
-                  <h4>目前區</h4>
-                  <p class="muted">封存區仍會保留，且封存時會同步封存底下大家與小家。</p>
+                  <h4>組織總覽</h4>
+                  <p class="muted">依區、大家、小家階層收合；新增、編輯、封存與刪除都集中在這裡。</p>
                 </div>
               </div>
               <div id="districtSummary" class="list-count-chip">目前尚未載入區摘要</div>
@@ -626,6 +626,6 @@
       <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
     </div>
 
-    <script type="module" src="./attendance-ui/main.js?v=20260429-ui-v10"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260429-ui-v11"></script>
   </body>
 </html>

@@ -2484,42 +2484,109 @@ function renderPeopleTable(editableMembers) {
     return;
   }
 
-  els.peopleTableBody.innerHTML = buildPeopleGroups(rows)
-    .map((group) => `
-      <details class="people-scope-group" open>
-        <summary>
-          <span>${escapeHtml(group.label)}</span>
-          <span class="status-chip neutral">${group.members.length}</span>
-        </summary>
-        <div class="people-scope-members">
-          ${group.members.map(renderPeopleMemberCard).join("")}
-        </div>
-      </details>
-    `)
+  els.peopleTableBody.innerHTML = buildPeopleHierarchy(rows)
+    .map(renderPeopleDistrictGroup)
     .join("");
 }
 
-function buildPeopleGroups(rows) {
-  const groups = new Map();
-  const useSmallGroup =
-    state.ui.peopleSearch ||
-    state.ui.peopleRole ||
-    state.currentMember?.role === "big_family_leader";
+function buildPeopleHierarchy(rows) {
+  const districts = new Map();
 
   for (const member of rows) {
-    const label = useSmallGroup
-      ? member.small_group_name || member.big_family_name || member.district_name || "其他"
-      : member.big_family_name || member.district_name || "其他";
-    if (!groups.has(label)) {
-      groups.set(label, []);
+    const districtKey = member.district_id || `name:${member.district_name || "其他"}`;
+    const districtLabel = member.district_name || "未設定區";
+    const bigFamilyKey = member.big_family_id || `name:${member.big_family_name || "直屬區"}`;
+    const bigFamilyLabel = member.big_family_name || "直屬區";
+    const smallGroupKey = member.small_group_id || `name:${member.small_group_name || "未設定小家"}`;
+    const smallGroupLabel = member.small_group_name || "未設定小家";
+
+    if (!districts.has(districtKey)) {
+      districts.set(districtKey, {
+        label: districtLabel,
+        count: 0,
+        bigFamilies: new Map(),
+      });
     }
-    groups.get(label).push(member);
+    const district = districts.get(districtKey);
+    district.count += 1;
+
+    if (!district.bigFamilies.has(bigFamilyKey)) {
+      district.bigFamilies.set(bigFamilyKey, {
+        label: bigFamilyLabel,
+        count: 0,
+        smallGroups: new Map(),
+      });
+    }
+    const bigFamily = district.bigFamilies.get(bigFamilyKey);
+    bigFamily.count += 1;
+
+    if (!bigFamily.smallGroups.has(smallGroupKey)) {
+      bigFamily.smallGroups.set(smallGroupKey, {
+        label: smallGroupLabel,
+        members: [],
+      });
+    }
+    bigFamily.smallGroups.get(smallGroupKey).members.push(member);
   }
 
-  return Array.from(groups.entries()).map(([label, members]) => ({
-    label,
-    members,
-  }));
+  return Array.from(districts.values())
+    .sort((left, right) => left.label.localeCompare(right.label, "zh-Hant"))
+    .map((district) => ({
+      ...district,
+      bigFamilies: Array.from(district.bigFamilies.values())
+        .sort((left, right) => left.label.localeCompare(right.label, "zh-Hant"))
+        .map((bigFamily) => ({
+          ...bigFamily,
+          smallGroups: Array.from(bigFamily.smallGroups.values())
+            .sort((left, right) => left.label.localeCompare(right.label, "zh-Hant"))
+            .map((smallGroup) => ({
+              ...smallGroup,
+              members: sortMembers(smallGroup.members),
+            })),
+        })),
+    }));
+}
+
+function renderPeopleDistrictGroup(district) {
+  return `
+    <details class="people-scope-group people-level-district" open>
+      <summary>
+        <span class="people-scope-title">${escapeHtml(district.label)}</span>
+        <span class="status-chip neutral">${district.count}</span>
+      </summary>
+      <div class="people-scope-children">
+        ${district.bigFamilies.map(renderPeopleBigFamilyGroup).join("")}
+      </div>
+    </details>
+  `;
+}
+
+function renderPeopleBigFamilyGroup(bigFamily) {
+  return `
+    <details class="people-scope-group people-level-big-family" open>
+      <summary>
+        <span class="people-scope-title">${escapeHtml(bigFamily.label)}</span>
+        <span class="status-chip neutral">${bigFamily.count}</span>
+      </summary>
+      <div class="people-scope-children">
+        ${bigFamily.smallGroups.map(renderPeopleSmallGroup).join("")}
+      </div>
+    </details>
+  `;
+}
+
+function renderPeopleSmallGroup(smallGroup) {
+  return `
+    <details class="people-scope-group people-level-small-group" ${smallGroup.members.length <= 8 ? "open" : ""}>
+      <summary>
+        <span class="people-scope-title">${escapeHtml(smallGroup.label)}</span>
+        <span class="status-chip neutral">${smallGroup.members.length}</span>
+      </summary>
+      <div class="people-scope-members">
+        ${smallGroup.members.map(renderPeopleMemberCard).join("")}
+      </div>
+    </details>
+  `;
 }
 
 function renderPeopleMemberCard(member) {
@@ -3339,10 +3406,100 @@ async function handleCreateSmallGroup(event) {
 }
 
 function renderOrganizationTables() {
-  renderDistrictTable();
-  renderBigFamilyTable();
-  renderSmallGroupTable();
+  renderOrganizationDirectory();
   restoreOrganizationFocus();
+}
+
+function renderOrganizationDirectory() {
+  renderOrganizationSummary(els.districtSummary, "組織", [
+    ...state.adminData.districts,
+    ...state.adminData.bigFamilies,
+    ...state.adminData.smallGroups,
+  ]);
+  renderOrganizationSummary(els.bigFamilySummary, "大家", state.adminData.bigFamilies);
+  renderOrganizationSummary(els.smallGroupSummary, "小家", state.adminData.smallGroups);
+  setHidden(els.bigFamilySection, true);
+  setHidden(els.smallGroupSection, true);
+
+  if (!state.adminData.districts.length) {
+    els.districtTableBody.innerHTML = '<div class="empty-state-card">尚未載入組織資料。</div>';
+    return;
+  }
+
+  const activeFirstDistricts = [...state.adminData.districts].sort((left, right) => {
+    if (left.is_active !== right.is_active) {
+      return left.is_active ? -1 : 1;
+    }
+    return String(left.name || "").localeCompare(String(right.name || ""), "zh-Hant");
+  });
+
+  els.districtTableBody.innerHTML = activeFirstDistricts
+    .map(renderOrganizationDistrictGroup)
+    .join("");
+}
+
+function renderOrganizationDistrictGroup(district) {
+  const bigFamilies = state.adminData.bigFamilies
+    .filter((bigFamily) => bigFamily.district_id === district.id)
+    .sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""), "zh-Hant"));
+  const directSmallGroups = state.adminData.smallGroups
+    .filter((smallGroup) => smallGroup.district_id === district.id && !smallGroup.big_family_id)
+    .sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""), "zh-Hant"));
+  const memberCount = state.adminData.members.filter((member) => member.district_id === district.id).length;
+  const childCount = bigFamilies.length + directSmallGroups.length;
+
+  return `
+    <details class="org-scope-group org-level-district" ${district.is_active ? "open" : ""}>
+      <summary>
+        <span class="org-scope-title">${escapeHtml(district.name)}</span>
+        <span class="org-scope-counts">
+          <span class="status-chip neutral">${bigFamilies.length} 大家</span>
+          <span class="status-chip neutral">${directSmallGroups.length} 直屬小家</span>
+          <span class="status-chip neutral">${memberCount} 人</span>
+        </span>
+      </summary>
+      <div class="org-scope-body">
+        ${renderOrganizationCard("district", district)}
+        ${childCount
+          ? `<div class="org-scope-children">
+              ${bigFamilies.map(renderOrganizationBigFamilyGroup).join("")}
+              ${directSmallGroups.map((smallGroup) => renderOrganizationSmallGroupItem(smallGroup)).join("")}
+            </div>`
+          : '<div class="empty-state-card">此區目前沒有大家或小家。</div>'}
+      </div>
+    </details>
+  `;
+}
+
+function renderOrganizationBigFamilyGroup(bigFamily) {
+  const smallGroups = state.adminData.smallGroups
+    .filter((smallGroup) => smallGroup.big_family_id === bigFamily.id)
+    .sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""), "zh-Hant"));
+  const memberCount = state.adminData.members.filter((member) => member.big_family_id === bigFamily.id).length;
+
+  return `
+    <details class="org-scope-group org-level-big-family">
+      <summary>
+        <span class="org-scope-title">${escapeHtml(bigFamily.name)}</span>
+        <span class="org-scope-counts">
+          <span class="status-chip neutral">${smallGroups.length} 小家</span>
+          <span class="status-chip neutral">${memberCount} 人</span>
+        </span>
+      </summary>
+      <div class="org-scope-body">
+        ${renderOrganizationCard("big_family", bigFamily)}
+        ${smallGroups.length
+          ? `<div class="org-card-list compact-org-list">
+              ${smallGroups.map((smallGroup) => renderOrganizationSmallGroupItem(smallGroup)).join("")}
+            </div>`
+          : '<div class="empty-state-card">此大家目前沒有小家。</div>'}
+      </div>
+    </details>
+  `;
+}
+
+function renderOrganizationSmallGroupItem(smallGroup) {
+  return renderOrganizationCard("small_group", smallGroup);
 }
 
 function renderOrganizationSummary(element, label, items) {
