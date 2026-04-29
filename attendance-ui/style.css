@@ -2694,15 +2694,18 @@ tbody tr:last-child td {
   }
 
   body.is-authenticated .user-meta {
-    flex: 1 1 auto;
+    flex: 1 1 0;
+    min-width: 104px;
   }
 
   body.is-authenticated .user-name {
     font-size: 0.88rem;
     line-height: 1.25;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
   }
 
   body.is-authenticated #userScopeText {
@@ -2797,6 +2800,14 @@ tbody tr:last-child td {
 
   #attendanceView .row-meta {
     min-width: 0;
+    justify-items: start;
+    text-align: left;
+  }
+
+  #attendanceView .attendance-name-line,
+  #attendanceView .attendance-role-line {
+    justify-content: flex-start;
+    text-align: left;
   }
 
   #attendanceView .attendance-meta-line,
@@ -2809,6 +2820,7 @@ tbody tr:last-child td {
   }
 
   #attendanceView .attendance-role-line .role-pill {
+    align-self: flex-start;
     max-width: 100%;
     overflow: hidden;
     font-size: 0.72rem;
@@ -2843,12 +2855,35 @@ tbody tr:last-child td {
   }
 
   #attendanceView .attendance-note-details summary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 100%;
+    min-height: 34px;
     padding-inline: 0.32rem;
-    font-size: 0.78rem;
+    border-radius: 8px;
+    font-size: 0.72rem;
     font-weight: 800;
+    line-height: 1.05;
     text-align: center;
     white-space: nowrap;
+  }
+
+  #attendanceView .attendance-note-details.is-filled summary {
+    color: var(--primary);
+    background: #edf4ff;
+    padding: 0.18rem 0.24rem;
+  }
+
+  #attendanceView .attendance-card.has-priority-note .attendance-note-details summary {
+    color: #fff;
+    background: #b42318;
+  }
+
+  #attendanceView .note-priority-summary {
+    display: grid;
+    gap: 1px;
+    line-height: 1.05;
   }
 
   #attendanceView .attendance-card:has(.attendance-note-details[open]) {

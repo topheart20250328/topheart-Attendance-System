@@ -1564,14 +1564,10 @@ function renderAttendanceEventCard(member, eventType, label) {
 
 function buildNoteSummary(member) {
   if (member.note_priority_high) {
-    return "高優先度";
+    return '<span class="note-priority-summary"><span>高度</span><span>優先</span></span>';
   }
 
-  if (member.note.trim()) {
-    return "已備註";
-  }
-
-  return member.can_edit_note ? "備註" : "無備註";
+  return member.can_edit_note || member.note.trim() ? "備註" : "無備註";
 }
 
 function hasPendingAttendance(member) {
@@ -1671,7 +1667,7 @@ function syncNoteSummary(details, member) {
   );
   const summary = details.querySelector("summary");
   if (summary) {
-    summary.textContent = buildNoteSummary(member);
+    summary.innerHTML = buildNoteSummary(member);
   }
 
   const priorityInput = details.querySelector(".note-priority-input");
