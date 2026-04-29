@@ -1304,7 +1304,6 @@ function renderAttendanceRows() {
             <div class="row-meta">
               <div class="attendance-name-line">
                 <strong class="attendance-member-name name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</strong>
-                ${member.is_self ? '<span class="status-chip neutral">自己</span>' : ""}
                 ${renderGenderBadge(member.gender)}
               </div>
               <div class="attendance-meta-line">
@@ -2183,7 +2182,7 @@ function formatDetailedAnalyticsBreakdown(stats) {
   if (!stats) {
     return "尚無資料";
   }
-  return `出席 <strong>${stats.present_count || 0}</strong> / 缺席 <strong>${stats.absent_count || 0}</strong> / 待 <strong>${stats.unknown_count || 0}</strong>`;
+  return `出席 ${stats.present_count || 0} / 缺席 ${stats.absent_count || 0} / 待確認 ${stats.unknown_count || 0}`;
 }
 
 function createEmptyEventStats() {
@@ -3871,12 +3870,19 @@ function canUseManageAllToggle() {
 }
 
 function canUseAttendanceFilters() {
+  if (!state.currentMember) {
+    return false;
+  }
+
+  if (canUseManageAllToggle() && !state.ui.manageAll) {
+    return false;
+  }
+
   return Boolean(
-    state.currentMember &&
-      (state.currentMember.is_admin ||
-        ["preacher", "district_leader", "big_family_leader"].includes(
-          state.currentMember.role,
-        )),
+    state.currentMember.is_admin ||
+      ["preacher", "district_leader", "big_family_leader"].includes(
+        state.currentMember.role,
+      ),
   );
 }
 
