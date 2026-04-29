@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <title>topheart 教會點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260429-ui-v14" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260429-ui-v15" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -165,13 +165,16 @@
       <section id="navCard" class="card hidden">
         <div class="tab-row">
           <button id="tabAttendanceBtn" type="button" class="tab-btn is-active">
-            本週點名
+            點名
           </button>
           <button id="tabOverviewBtn" type="button" class="tab-btn hidden">
             出席總覽
           </button>
           <button id="tabPeopleBtn" type="button" class="tab-btn hidden">
             人員管理
+          </button>
+          <button id="tabOrgsBtn" type="button" class="tab-btn hidden">
+            組織管理
           </button>
           <button id="tabInvitesBtn" type="button" class="tab-btn hidden">
             邀請碼
@@ -404,11 +407,20 @@
           </section>
         </div>
 
-        <details class="card-subsection compact-panel">
-          <summary>
-            <span class="summary-title">組織管理</span>
-            <span class="summary-description">集中新增組織，並用階層總覽管理區 / 大家 / 小家</span>
-          </summary>
+      </section>
+
+      <section id="orgsView" class="card hidden">
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">Organizations</p>
+            <h2>組織管理</h2>
+          </div>
+        </div>
+        <p class="muted">
+          集中新增組織，並用階層總覽管理區 / 大家 / 小家。
+        </p>
+
+        <section class="card-subsection org-management-panel">
 
           <div class="org-grid">
             <details id="districtDetails" class="editor-details hidden">
@@ -553,7 +565,7 @@
               </div>
             </form>
           </section>
-        </details>
+        </section>
       </section>
 
       <section id="invitesView" class="card hidden">
@@ -626,6 +638,6 @@
       <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
     </div>
 
-    <script type="module" src="./attendance-ui/main.js?v=20260429-ui-v14"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260429-ui-v15"></script>
   </body>
 </html>

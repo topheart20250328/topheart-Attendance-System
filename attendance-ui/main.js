@@ -85,6 +85,7 @@ const TABS = {
   attendance: "attendance",
   overview: "overview",
   people: "people",
+  orgs: "orgs",
   invites: "invites",
 };
 const TAB_SWIPE_THRESHOLD_PX = 64;
@@ -126,6 +127,7 @@ const els = {
   tabAttendanceBtn: document.querySelector("#tabAttendanceBtn"),
   tabOverviewBtn: document.querySelector("#tabOverviewBtn"),
   tabPeopleBtn: document.querySelector("#tabPeopleBtn"),
+  tabOrgsBtn: document.querySelector("#tabOrgsBtn"),
   tabInvitesBtn: document.querySelector("#tabInvitesBtn"),
   attendanceView: document.querySelector("#attendanceView"),
   attendanceHeaderPanel: document.querySelector("#attendanceHeaderPanel"),
@@ -153,6 +155,7 @@ const els = {
   overviewScopeSummary: document.querySelector("#overviewScopeSummary"),
   overviewUnitList: document.querySelector("#overviewUnitList"),
   peopleView: document.querySelector("#peopleView"),
+  orgsView: document.querySelector("#orgsView"),
   peopleSearchInput: document.querySelector("#peopleSearchInput"),
   peopleRoleFilter: document.querySelector("#peopleRoleFilter"),
   peopleSummary: document.querySelector("#peopleSummary"),
@@ -316,6 +319,7 @@ function bindEvents() {
   els.tabAttendanceBtn.addEventListener("click", () => switchTab(TABS.attendance));
   els.tabOverviewBtn?.addEventListener("click", () => switchTab(TABS.overview));
   els.tabPeopleBtn.addEventListener("click", () => switchTab(TABS.people));
+  els.tabOrgsBtn?.addEventListener("click", () => switchTab(TABS.orgs));
   els.tabInvitesBtn.addEventListener("click", () => switchTab(TABS.invites));
   els.pageShell?.addEventListener("touchstart", handleTabSwipeStart, { passive: true });
   els.pageShell?.addEventListener("touchend", handleTabSwipeEnd, { passive: true });
@@ -545,6 +549,9 @@ function setBadge(element, text, tone) {
 }
 
 function setHidden(element, shouldHide) {
+  if (!element) {
+    return;
+  }
   element.classList.toggle("hidden", shouldHide);
 }
 
@@ -871,14 +878,17 @@ function syncAttendanceFilterVisibility() {
 function renderTabs() {
   const canViewOverview = canUseOverview();
   const canManagePeople = canUseManagement();
+  const canManageOrgs = canUseOrganizationManagement();
   const canManageInvites = canUseInvites();
   setHidden(els.tabOverviewBtn, !canViewOverview);
   setHidden(els.tabPeopleBtn, !canManagePeople);
+  setHidden(els.tabOrgsBtn, !canManageOrgs);
   setHidden(els.tabInvitesBtn, !canManageInvites);
 
   if (
     (state.ui.activeTab === TABS.overview && !canViewOverview) ||
     (state.ui.activeTab === TABS.people && !canManagePeople) ||
+    (state.ui.activeTab === TABS.orgs && !canManageOrgs) ||
     (state.ui.activeTab === TABS.invites && !canManageInvites)
   ) {
     state.ui.activeTab = TABS.attendance;
@@ -887,6 +897,7 @@ function renderTabs() {
   setTabActive(els.tabAttendanceBtn, state.ui.activeTab === TABS.attendance);
   setTabActive(els.tabOverviewBtn, state.ui.activeTab === TABS.overview);
   setTabActive(els.tabPeopleBtn, state.ui.activeTab === TABS.people);
+  setTabActive(els.tabOrgsBtn, state.ui.activeTab === TABS.orgs);
   setTabActive(els.tabInvitesBtn, state.ui.activeTab === TABS.invites);
 }
 
@@ -894,6 +905,7 @@ function renderActiveView() {
   setHidden(els.attendanceView, state.ui.activeTab !== TABS.attendance);
   setHidden(els.overviewView, state.ui.activeTab !== TABS.overview || !canUseOverview());
   setHidden(els.peopleView, state.ui.activeTab !== TABS.people || !canUseManagement());
+  setHidden(els.orgsView, state.ui.activeTab !== TABS.orgs || !canUseOrganizationManagement());
   setHidden(els.invitesView, state.ui.activeTab !== TABS.invites || !canUseInvites());
 }
 
@@ -1005,6 +1017,7 @@ function getVisibleMainTabs() {
     TABS.attendance,
     canUseOverview() ? TABS.overview : null,
     canUseManagement() ? TABS.people : null,
+    canUseOrganizationManagement() ? TABS.orgs : null,
     canUseInvites() ? TABS.invites : null,
   ].filter(Boolean);
 }
@@ -1864,6 +1877,7 @@ async function handleSaveAttendance() {
 
   setButtonLoading(els.saveAttendanceBtn, true, "儲存中...");
   setButtonLoading(els.saveAttendanceBtnBottom, true, "儲存中...");
+  let saveSucceeded = false;
   try {
     const data = await apiRequest("save-attendance", {
       method: "POST",
@@ -1877,13 +1891,16 @@ async function handleSaveAttendance() {
 
     setDirty(false);
     await Promise.all([loadDashboard({ skipDirtyCheck: true }), loadAdminPanel()]);
-    showAttendanceSaveSuccessFeedback();
+    saveSucceeded = true;
   } catch (error) {
     console.error(error);
     showToast(error.message || "儲存點名失敗。");
   } finally {
     setButtonLoading(els.saveAttendanceBtn, false);
     setButtonLoading(els.saveAttendanceBtnBottom, false);
+    if (saveSucceeded) {
+      showAttendanceSaveSuccessFeedback();
+    }
   }
 }
 
@@ -4214,6 +4231,10 @@ function canUseManagement() {
   );
 }
 
+function canUseOrganizationManagement() {
+  return Boolean(state.currentMember?.is_admin);
+}
+
 function canUseOverview() {
   return Boolean(
     state.currentMember &&
@@ -4467,6 +4488,7 @@ function showAttendanceSaveSuccessFeedback() {
   els.attendanceSaveBar.classList.add("is-save-success");
   els.attendanceSaveStatus.textContent = "已成功儲存，資料已同步";
   setBadge(els.dirtyBadge, "已儲存", "success");
+  setAttendanceSaveButtonText("儲存成功");
 
   state.saveFeedbackTimer = window.setTimeout(() => {
     clearAttendanceSaveSuccessFeedback();
@@ -4480,6 +4502,19 @@ function clearAttendanceSaveSuccessFeedback() {
   clearTimeout(state.saveFeedbackTimer);
   state.saveFeedbackTimer = null;
   els.attendanceSaveBar?.classList.remove("is-save-success");
+  setAttendanceSaveButtonText("");
+}
+
+function setAttendanceSaveButtonText(text) {
+  [els.saveAttendanceBtn, els.saveAttendanceBtnBottom].forEach((button) => {
+    if (!button) {
+      return;
+    }
+    if (!button.dataset.originalText) {
+      button.dataset.originalText = button.textContent.trim();
+    }
+    button.textContent = text || button.dataset.originalText;
+  });
 }
 
 function canDiscardDirtyChanges() {

@@ -1610,6 +1610,16 @@ body.is-authenticated #invitesView {
   padding: clamp(10px, 2vw, 16px);
 }
 
+#orgsView.card {
+  padding: clamp(10px, 2vw, 16px);
+}
+
+#orgsView > .muted {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
 #invitesView .card-header {
   margin-bottom: 8px;
 }
@@ -2316,25 +2326,30 @@ tbody tr:last-child td {
   gap: 14px;
 }
 
-#peopleView .org-grid {
+#peopleView .org-grid,
+#orgsView .org-grid {
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
 }
 
-#peopleView .org-grid .editor-details {
+#peopleView .org-grid .editor-details,
+#orgsView .org-grid .editor-details {
   padding: 0;
   overflow: hidden;
 }
 
-#peopleView .org-grid .editor-details > summary {
+#peopleView .org-grid .editor-details > summary,
+#orgsView .org-grid .editor-details > summary {
   padding: 10px 12px;
   background: #f8fbff;
 }
 
-#peopleView .org-grid .editor-details[open] > summary {
+#peopleView .org-grid .editor-details[open] > summary,
+#orgsView .org-grid .editor-details[open] > summary {
   border-bottom: 1px solid var(--border);
 }
 
-#peopleView .org-grid .editor-details > form {
+#peopleView .org-grid .editor-details > form,
+#orgsView .org-grid .editor-details > form {
   padding: 10px;
 }
 
@@ -2557,6 +2572,10 @@ tbody tr:last-child td {
   color: #fff;
   box-shadow: var(--shadow);
   line-height: 1.55;
+}
+
+body.is-authenticated .toast {
+  bottom: calc(86px + env(safe-area-inset-bottom));
 }
 
 @media (max-width: 960px) {
