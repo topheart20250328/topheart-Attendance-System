@@ -176,6 +176,7 @@ const els = {
   memberActiveSelect: document.querySelector("#memberActiveSelect"),
   memberIsAdminWrap: document.querySelector("#memberIsAdminWrap"),
   memberIsAdminInput: document.querySelector("#memberIsAdminInput"),
+  memberNoteLabel: document.querySelector("#memberNoteLabel"),
   memberNoteInput: document.querySelector("#memberNoteInput"),
   memberScopeHint: document.querySelector("#memberScopeHint"),
   memberSubmitBtn: document.querySelector("#memberSubmitBtn"),
@@ -1452,12 +1453,15 @@ function renderAttendanceRows() {
 }
 
 function shouldGroupAttendanceRows() {
+  if (!state.currentMember || (canUseManageAllToggle() && !state.ui.manageAll)) {
+    return false;
+  }
+
   return Boolean(
-    state.currentMember &&
-      (state.currentMember.is_admin ||
-        ["preacher", "district_leader", "big_family_leader"].includes(
-          state.currentMember.role,
-        )),
+    state.currentMember.is_admin ||
+      ["preacher", "district_leader", "big_family_leader"].includes(
+        state.currentMember.role,
+      ),
   );
 }
 
@@ -1471,7 +1475,7 @@ function getAttendanceGroupLabel(member) {
   }
 
   if (state.currentMember?.role === "district_leader") {
-    return member.big_family_name || "未設定大家";
+    return member.big_family_name || member.small_group_name || "未設定大家 / 小家";
   }
 
   if (state.currentMember?.role === "big_family_leader") {
@@ -2495,8 +2499,8 @@ function buildPeopleHierarchy(rows) {
   for (const member of rows) {
     const districtKey = member.district_id || `name:${member.district_name || "其他"}`;
     const districtLabel = member.district_name || "未設定區";
-    const bigFamilyKey = member.big_family_id || `name:${member.big_family_name || "直屬區"}`;
-    const bigFamilyLabel = member.big_family_name || "直屬區";
+    const bigFamilyKey = member.big_family_id || `name:${member.big_family_name || "未設定大家"}`;
+    const bigFamilyLabel = member.big_family_name || "未設定大家";
     const smallGroupKey = member.small_group_id || `name:${member.small_group_name || "未設定小家"}`;
     const smallGroupLabel = member.small_group_name || "未設定小家";
 
@@ -2505,10 +2509,22 @@ function buildPeopleHierarchy(rows) {
         label: districtLabel,
         count: 0,
         bigFamilies: new Map(),
+        smallGroups: new Map(),
       });
     }
     const district = districts.get(districtKey);
     district.count += 1;
+
+    if (!member.big_family_id && !member.big_family_name) {
+      if (!district.smallGroups.has(smallGroupKey)) {
+        district.smallGroups.set(smallGroupKey, {
+          label: smallGroupLabel,
+          members: [],
+        });
+      }
+      district.smallGroups.get(smallGroupKey).members.push(member);
+      continue;
+    }
 
     if (!district.bigFamilies.has(bigFamilyKey)) {
       district.bigFamilies.set(bigFamilyKey, {
@@ -2544,18 +2560,25 @@ function buildPeopleHierarchy(rows) {
               members: sortMembers(smallGroup.members),
             })),
         })),
+      smallGroups: Array.from(district.smallGroups.values())
+        .sort((left, right) => left.label.localeCompare(right.label, "zh-Hant"))
+        .map((smallGroup) => ({
+          ...smallGroup,
+          members: sortMembers(smallGroup.members),
+        })),
     }));
 }
 
 function renderPeopleDistrictGroup(district) {
   return `
-    <details class="people-scope-group people-level-district" open>
+    <details class="people-scope-group people-level-district">
       <summary>
         <span class="people-scope-title">${escapeHtml(district.label)}</span>
         <span class="status-chip neutral">${district.count}</span>
       </summary>
       <div class="people-scope-children">
         ${district.bigFamilies.map(renderPeopleBigFamilyGroup).join("")}
+        ${district.smallGroups.map(renderPeopleSmallGroup).join("")}
       </div>
     </details>
   `;
@@ -2563,7 +2586,7 @@ function renderPeopleDistrictGroup(district) {
 
 function renderPeopleBigFamilyGroup(bigFamily) {
   return `
-    <details class="people-scope-group people-level-big-family" open>
+    <details class="people-scope-group people-level-big-family">
       <summary>
         <span class="people-scope-title">${escapeHtml(bigFamily.label)}</span>
         <span class="status-chip neutral">${bigFamily.count}</span>
@@ -2577,7 +2600,7 @@ function renderPeopleBigFamilyGroup(bigFamily) {
 
 function renderPeopleSmallGroup(smallGroup) {
   return `
-    <details class="people-scope-group people-level-small-group" ${smallGroup.members.length <= 8 ? "open" : ""}>
+    <details class="people-scope-group people-level-small-group">
       <summary>
         <span class="people-scope-title">${escapeHtml(smallGroup.label)}</span>
         <span class="status-chip neutral">${smallGroup.members.length}</span>
@@ -2596,9 +2619,6 @@ function renderPeopleMemberCard(member) {
         : LOGIN_ROLES.includes(member.role)
           ? '<span class="status-chip warning">待綁定</span>'
           : "";
-      const activeStatus = member.is_active
-        ? '<span class="status-chip success">啟用</span>'
-        : '<span class="status-chip warning">停用</span>';
       const lineBindingText = member.line_user_id
         ? "已完成綁定"
         : LOGIN_ROLES.includes(member.role)
@@ -2618,7 +2638,6 @@ function renderPeopleMemberCard(member) {
               <div class="member-card-chips">
                 <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
                 ${lineStatus}
-                ${activeStatus}
               </div>
               ${path ? `<div class="member-card-path muted small-text">${escapeHtml(path)}</div>` : ""}
             </div>
@@ -2808,6 +2827,7 @@ function openMemberEditor(mode, memberId = null) {
   syncEditorBigFamilyOptions(editableMember);
   syncEditorSmallGroupOptions(editableMember);
   syncMemberFormScope();
+  setHidden(els.memberNoteLabel, mode === "create");
   setHidden(els.memberEditorCard, false);
   requestAnimationFrame(() => {
     els.memberEditorCard.scrollIntoView({
@@ -2822,6 +2842,7 @@ function closeMemberEditor() {
   state.ui.editorMode = null;
   state.ui.editingMemberId = null;
   els.memberForm.reset();
+  setHidden(els.memberNoteLabel, false);
   setHidden(els.memberEditorCard, true);
 }
 
@@ -2854,7 +2875,7 @@ function populateRoleOptions(mode, member) {
   fillSelect(
     els.memberRoleSelect,
     roles.map((role) => ({ value: role, label: getRoleLabel(role) })),
-    { placeholder: "請選擇職分" },
+    { placeholder: "請選擇身分" },
   );
 
   els.memberRoleSelect.disabled = mode === "edit" && !state.currentMember?.is_admin;
@@ -3115,7 +3136,7 @@ async function handleSaveMember(event) {
   };
 
   if (!body.full_name || !body.role) {
-    showToast("請完整填寫姓名與職分。");
+    showToast("請完整填寫姓名與身分。");
     return;
   }
 
@@ -3124,7 +3145,7 @@ async function handleSaveMember(event) {
     !body.district_id &&
     state.ui.editorMode === "create"
   ) {
-    showToast("此職分至少需要指定所屬區。");
+    showToast("此身分至少需要指定所屬區。");
     return;
   }
 
@@ -3449,7 +3470,7 @@ function renderOrganizationDistrictGroup(district) {
   const childCount = bigFamilies.length + directSmallGroups.length;
 
   return `
-    <details class="org-scope-group org-level-district" ${district.is_active ? "open" : ""}>
+    <details class="org-scope-group org-level-district">
       <summary>
         <span class="org-scope-title">${escapeHtml(district.name)}</span>
         <span class="org-scope-counts">
@@ -3596,7 +3617,7 @@ function getOrganizationParentLabel(orgType, organization) {
     return organization.district_name || "-";
   }
 
-  return [organization.big_family_name || "直屬區", organization.district_name]
+  return [organization.big_family_name, organization.district_name]
     .filter(Boolean)
     .join(" / ");
 }
