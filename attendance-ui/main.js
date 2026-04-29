@@ -677,6 +677,7 @@ async function handleSignOut() {
 
   state.appToken = null;
   state.pendingToken = null;
+  state.ui.activeTab = TABS.attendance;
   state.ui.manageAll = false;
   state.ui.settingsOpen = false;
   saveStoredValue(STORAGE_KEYS.appToken, "");
@@ -809,6 +810,7 @@ function renderLayout() {
     setHidden(els.attendanceView, true);
     setHidden(els.overviewView, true);
     setHidden(els.peopleView, true);
+    setHidden(els.orgsView, true);
     setHidden(els.invitesView, true);
     setBadge(els.sessionBadge, isPending ? "待綁定" : "尚未登入", isPending ? "warning" : "neutral");
     els.authSummary.textContent =
