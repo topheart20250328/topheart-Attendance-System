@@ -1,5 +1,8 @@
 :root {
   color-scheme: light;
+  --app-font-size: 16px;
+  --control-min-height: 48px;
+  --card-padding: clamp(18px, 3vw, 24px);
   --bg: #f3f6fb;
   --surface: #ffffff;
   --surface-alt: #f8fbff;
@@ -26,6 +29,7 @@ html {
 body {
   margin: 0;
   min-height: 100dvh;
+  font-size: var(--app-font-size);
   font-family: "Segoe UI", "Noto Sans TC", sans-serif;
   background: linear-gradient(180deg, #eef4ff 0%, var(--bg) 220px);
   color: var(--text);
@@ -60,7 +64,7 @@ button,
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  min-height: 48px;
+  min-height: var(--control-min-height);
   padding: 0.8rem 1.15rem;
   text-decoration: none;
   touch-action: manipulation;
@@ -69,6 +73,24 @@ button,
 
 body.is-authenticated {
   background: var(--bg);
+}
+
+body.layout-small {
+  --app-font-size: 15px;
+  --control-min-height: 42px;
+  --card-padding: clamp(16px, 2.4vw, 20px);
+}
+
+body.layout-medium {
+  --app-font-size: 16px;
+  --control-min-height: 48px;
+  --card-padding: clamp(18px, 3vw, 24px);
+}
+
+body.layout-large {
+  --app-font-size: 18px;
+  --control-min-height: 54px;
+  --card-padding: clamp(20px, 3.2vw, 26px);
 }
 
 body.is-authenticated .page-shell {
@@ -134,7 +156,7 @@ select {
   border: 1px solid var(--border);
   border-radius: 14px;
   font-size: 16px;
-  min-height: 48px;
+  min-height: var(--control-min-height);
   padding: 0.8rem 0.95rem;
   background: #fff;
   color: var(--text);
@@ -219,7 +241,7 @@ code {
   border: 1px solid rgba(217, 226, 240, 0.92);
   border-radius: 22px;
   box-shadow: var(--shadow);
-  padding: clamp(18px, 3vw, 24px);
+  padding: var(--card-padding);
   margin-bottom: 14px;
 }
 
@@ -343,6 +365,67 @@ code {
   border-radius: 18px;
   box-shadow: var(--shadow);
   padding: 10px 12px;
+}
+
+.topbar-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--control-min-height);
+  padding: 0.55rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #f8fbff;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.topbar-checkbox input {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.settings-card {
+  margin-top: -4px;
+}
+
+.layout-size-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 0;
+  border: 0;
+}
+
+.layout-size-options legend {
+  width: 100%;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.layout-size-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 86px;
+  padding: 0.7rem 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #f8fbff;
+}
+
+.layout-size-options input {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
 }
 
 .user-meta {
@@ -1837,6 +1920,52 @@ tbody tr:last-child td {
   align-items: center;
   flex-wrap: wrap;
   gap: 5px;
+}
+
+.overview-member-details {
+  border: 1px solid rgba(217, 226, 240, 0.8);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.overview-member-details > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 7px;
+}
+
+.overview-member-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.overview-history-grid {
+  display: grid;
+  gap: 7px;
+  padding: 0 7px 7px;
+}
+
+.overview-history-card {
+  display: grid;
+  gap: 5px;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--surface-alt);
+}
+
+.overview-history-events {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.overview-history-event {
+  display: grid;
+  gap: 2px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
 }
 
 .overview-member-list {

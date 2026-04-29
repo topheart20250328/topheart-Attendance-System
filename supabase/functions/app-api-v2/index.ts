@@ -64,6 +64,13 @@ const ROLE_ORDER: Record<string, number> = {
   best: 7,
 };
 const VALID_STATUS = new Set(["unknown", "present", "absent"]);
+const NOTE_MAX_LENGTH = 1000;
+const HISTORY_RANGES = [
+  { key: "month", label: "本月", weeksBack: 0 },
+  { key: "three_months", label: "近三個月", weeksBack: 13 },
+  { key: "half_year", label: "近半年", weeksBack: 26 },
+  { key: "year", label: "近一年", weeksBack: 52 },
+];
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
@@ -220,6 +227,7 @@ async function handleCreateMember(
   const fullName = String(body?.full_name || "").trim();
   const role = normalizeRole(body?.role);
   const isAdmin = Boolean(body?.is_admin);
+  const note = normalizeNote(body?.note);
   if (!fullName || !role) {
     return json({ error: "請完整填寫姓名與職分。" }, 400);
   }
@@ -245,7 +253,7 @@ async function handleCreateMember(
       full_name: fullName,
       role,
       gender: normalizeGender(body?.gender),
-      note: String(body?.note || "").trim(),
+      note,
       is_admin: viewer.is_admin ? isAdmin : false,
       is_active: body?.is_active !== false,
       district_id: scope.district_id,
@@ -258,6 +266,12 @@ async function handleCreateMember(
   if (error) {
     return json({ error: error.message }, 500);
   }
+
+  await writeAuditLog(db, viewer, "create_member", "members", data.id, {
+    full_name: fullName,
+    role,
+    scope,
+  });
 
   return json({ member: data });
 }
@@ -294,6 +308,7 @@ async function handleUpdateMember(
 
   const requestedRole = normalizeRole(body?.role);
   const targetRole = viewer.is_admin ? requestedRole || target.role : target.role;
+  const note = normalizeNote(body?.note);
   const scope = await resolveScope(db, body, targetRole, {
     autoCreate: false,
     fullName: String(body?.full_name || target.full_name).trim(),
@@ -311,7 +326,7 @@ async function handleUpdateMember(
       full_name: String(body?.full_name || target.full_name).trim(),
       role: targetRole,
       gender: normalizeGender(body?.gender),
-      note: String(body?.note || "").trim(),
+      note,
       is_admin: viewer.is_admin ? Boolean(body?.is_admin) : target.is_admin,
       is_active: viewer.is_admin ? body?.is_active !== false : target.is_active,
       district_id: scope.district_id,
@@ -343,6 +358,25 @@ async function handleUpdateMember(
     return json({ error: updatedError.message }, 500);
   }
 
+  await writeAuditLog(db, viewer, "update_member", "members", target.id, {
+    before: {
+      full_name: target.full_name,
+      role: target.role,
+      is_active: target.is_active,
+      district_id: target.district_id,
+      big_family_id: target.big_family_id,
+      small_group_id: target.small_group_id,
+    },
+    after: {
+      full_name: updated.full_name,
+      role: updated.role,
+      is_active: updated.is_active,
+      district_id: updated.district_id,
+      big_family_id: updated.big_family_id,
+      small_group_id: updated.small_group_id,
+    },
+  });
+
   return json({ member: updated });
 }
 
@@ -357,6 +391,17 @@ async function resolveScope(
   const smallGroupId = toPositiveInt(body?.small_group_id);
 
   if (role === "preacher") {
+    if (smallGroupId) {
+      const smallGroup = await getOne(db, "small_groups", smallGroupId);
+      if (!smallGroup?.district_id) {
+        return null;
+      }
+      return {
+        district_id: smallGroup.district_id,
+        big_family_id: smallGroup.big_family_id || null,
+        small_group_id: smallGroup.id,
+      };
+    }
     return { district_id: districtId || null, big_family_id: null, small_group_id: null };
   }
 
@@ -455,7 +500,8 @@ async function handleDashboard(
 ) {
   const weekStart = getMondayIso(url.searchParams.get("week_start") || new Date());
   const week = await ensureWeek(db, weekStart);
-  const members = await loadVisibleMembers(db, viewer);
+  const manageAll = url.searchParams.get("manage_all") === "true";
+  const members = await loadVisibleMembers(db, viewer, { manageAll });
   const memberIds = members.map((member) => member.id);
   const records = await loadRecords(db, week.id, memberIds);
   const recordMap = new Map(records.map((record) => [`${record.member_id}:${record.event_type}`, record]));
@@ -492,13 +538,14 @@ async function handleSaveAttendance(
 ) {
   const body = await request.json().catch(() => null);
   const entries = Array.isArray(body?.entries) ? body.entries : [];
+  const manageAll = body?.manage_all === true;
   if (!entries.length) {
     return json({ error: "entries is required." }, 400);
   }
 
   const week = await ensureWeek(db, getMondayIso(body?.week_start || new Date()));
   const visibleMembers = new Map(
-    (await loadVisibleMembers(db, viewer)).map((member) => [member.id, member]),
+    (await loadVisibleMembers(db, viewer, { manageAll })).map((member) => [member.id, member]),
   );
   const nowIso = new Date().toISOString();
   const rows = [];
@@ -511,7 +558,7 @@ async function handleSaveAttendance(
       return json({ error: `No permission to access member ${memberId}.` }, 403);
     }
 
-    const note = String(entry?.note || "").trim();
+    const note = normalizeNote(entry?.note);
     const notePriorityHigh = Boolean(note && entry?.note_priority_high);
     if (canEditNote(viewer, target)) {
       noteUpdates.push({
@@ -555,6 +602,12 @@ async function handleSaveAttendance(
     if (error) {
       return json({ error: error.message }, 500);
     }
+
+    await writeAuditLog(db, viewer, "save_attendance", "attendance_records", week.id, {
+      week_start: week.week_start_date,
+      member_ids: Array.from(new Set(rows.map((row) => row.member_id))),
+      manage_all: manageAll,
+    });
   }
 
   for (const update of noteUpdates) {
@@ -571,12 +624,19 @@ async function handleSaveAttendance(
     }
   }
 
-  return json({ status: "ok", message: "本週點名已儲存。" });
+  return json({ status: "ok", message: "本週點名已儲存；若多人同時編輯，以最後儲存為準。" });
 }
 
-async function loadVisibleMembers(db: ReturnType<typeof createAdminClient>, viewer: MemberRow) {
+async function loadVisibleMembers(
+  db: ReturnType<typeof createAdminClient>,
+  viewer: MemberRow,
+  options: { manageAll?: boolean } = {},
+) {
   let query = db.from("member_directory").select("*").eq("is_active", true).order("full_name");
   if (viewer.is_admin || viewer.role === "preacher") {
+    if (viewer.small_group_id && !options.manageAll) {
+      query = query.eq("small_group_id", viewer.small_group_id);
+    }
     const { data, error } = await query;
     if (error) {
       throw new Error(error.message);
@@ -697,7 +757,8 @@ async function handleAttendanceOverview(
   const memberIds = members.map((member) => member.id);
   const records = await loadRecords(db, week.id, memberIds);
   const recordMap = new Map(records.map((record) => [`${record.member_id}:${record.event_type}`, record]));
-  const units = await buildUnits(db, viewer, members, recordMap);
+  const historyMap = await loadMemberHistory(db, memberIds, selectedWeekStart);
+  const units = await buildUnits(db, viewer, members, recordMap, historyMap);
 
   return {
     scope_label: getScopeLabel(viewer),
@@ -762,11 +823,69 @@ async function loadRecords(
   return data || [];
 }
 
+async function loadMemberHistory(
+  db: ReturnType<typeof createAdminClient>,
+  memberIds: number[],
+  anchorWeekStart: string,
+) {
+  const historyMap = new Map<number, Record<string, any>>();
+  for (const memberId of memberIds) {
+    historyMap.set(memberId, createEmptyHistorySummary(anchorWeekStart));
+  }
+  if (!memberIds.length) {
+    return historyMap;
+  }
+
+  const earliestStart = getDateWeeksBefore(anchorWeekStart, 52);
+  const { data: weeks, error: weekError } = await db
+    .from("attendance_weeks")
+    .select("id, week_start_date")
+    .gte("week_start_date", earliestStart)
+    .lte("week_start_date", anchorWeekStart);
+  if (weekError) {
+    throw new Error(weekError.message);
+  }
+
+  const weekRows = weeks || [];
+  const weekIds = weekRows.map((item) => item.id);
+  if (!weekIds.length) {
+    return historyMap;
+  }
+
+  const weekStartById = new Map(weekRows.map((item) => [item.id, String(item.week_start_date)]));
+  const { data: records, error: recordError } = await db
+    .from("attendance_records")
+    .select("member_id, attendance_week_id, event_type, status")
+    .in("attendance_week_id", weekIds)
+    .in("member_id", memberIds);
+  if (recordError) {
+    throw new Error(recordError.message);
+  }
+
+  for (const record of records || []) {
+    const memberHistory = historyMap.get(record.member_id);
+    const weekStart = weekStartById.get(record.attendance_week_id);
+    if (!memberHistory || !weekStart) {
+      continue;
+    }
+
+    for (const range of HISTORY_RANGES) {
+      const startDate = memberHistory[range.key]?.start_date;
+      if (startDate && weekStart >= startDate && weekStart <= anchorWeekStart) {
+        addHistoryRecord(memberHistory[range.key], record.event_type, record.status);
+      }
+    }
+  }
+
+  return historyMap;
+}
+
 async function buildUnits(
   db: ReturnType<typeof createAdminClient>,
   viewer: MemberRow,
   members: MemberRow[],
   recordMap: Map<string, any>,
+  historyMap: Map<number, Record<string, any>>,
 ) {
   const units = [];
   const includeDistrict = viewer.is_admin || viewer.role === "preacher";
@@ -775,20 +894,20 @@ async function buildUnits(
   if (includeDistrict) {
     const districtIds = uniqueIds(members.map((member) => member.district_id));
     for (const district of await loadByIds(db, "districts", districtIds)) {
-      units.push(unit("district", district.id, district.name, null, members.filter((member) => member.district_id === district.id), recordMap));
+      units.push(unit("district", district.id, district.name, null, members.filter((member) => member.district_id === district.id), recordMap, historyMap));
     }
   }
 
   if (includeBig) {
     const bigIds = uniqueIds(members.map((member) => member.big_family_id));
     for (const big of await loadByIds(db, "big_families", bigIds)) {
-      units.push(unit("big_family", big.id, big.name, null, members.filter((member) => member.big_family_id === big.id), recordMap));
+      units.push(unit("big_family", big.id, big.name, null, members.filter((member) => member.big_family_id === big.id), recordMap, historyMap));
     }
   }
 
   const smallIds = uniqueIds(members.map((member) => member.small_group_id));
   for (const small of await loadByIds(db, "small_groups", smallIds)) {
-    units.push(unit("small_group", small.id, small.name, null, members.filter((member) => member.small_group_id === small.id), recordMap));
+    units.push(unit("small_group", small.id, small.name, null, members.filter((member) => member.small_group_id === small.id), recordMap, historyMap));
   }
 
   return units.filter((item) => item.member_count > 0);
@@ -805,7 +924,15 @@ async function loadByIds(db: ReturnType<typeof createAdminClient>, table: string
   return data || [];
 }
 
-function unit(type: string, id: number, name: string, parentName: string | null, members: MemberRow[], recordMap: Map<string, any>) {
+function unit(
+  type: string,
+  id: number,
+  name: string,
+  parentName: string | null,
+  members: MemberRow[],
+  recordMap: Map<string, any>,
+  historyMap: Map<number, Record<string, any>>,
+) {
   return {
     type,
     level: type,
@@ -818,8 +945,8 @@ function unit(type: string, id: number, name: string, parentName: string | null,
       small_group_fellowship: stats(members, recordMap, "small_group_fellowship"),
     },
     detail: {
-      sunday_service: detail(members, recordMap, "sunday_service"),
-      small_group_fellowship: detail(members, recordMap, "small_group_fellowship"),
+      sunday_service: detail(members, recordMap, "sunday_service", historyMap),
+      small_group_fellowship: detail(members, recordMap, "small_group_fellowship", historyMap),
     },
   };
 }
@@ -841,7 +968,12 @@ function stats(members: MemberRow[], recordMap: Map<string, any>, eventType: str
   return result;
 }
 
-function detail(members: MemberRow[], recordMap: Map<string, any>, eventType: string) {
+function detail(
+  members: MemberRow[],
+  recordMap: Map<string, any>,
+  eventType: string,
+  historyMap: Map<number, Record<string, any>>,
+) {
   const result: Record<string, any[]> = { present: [], absent: [], unknown: [] };
   for (const member of members) {
     const record = recordMap.get(`${member.id}:${eventType}`);
@@ -853,9 +985,49 @@ function detail(members: MemberRow[], recordMap: Map<string, any>, eventType: st
       gender: member.gender,
       note: String(record?.note || "").trim(),
       note_priority_high: Boolean(record?.note && record?.note_priority_high),
+      history: historyMap.get(member.id) || createEmptyHistorySummary(formatDate(new Date())),
     });
   }
   return result;
+}
+
+function createEmptyHistorySummary(anchorWeekStart: string) {
+  return Object.fromEntries(
+    HISTORY_RANGES.map((range) => [
+      range.key,
+      {
+        label: range.label,
+        start_date:
+          range.key === "month"
+            ? getMonthStart(anchorWeekStart)
+            : getDateWeeksBefore(anchorWeekStart, range.weeksBack),
+        end_date: anchorWeekStart,
+        sunday_service: createEmptyEventStats(),
+        small_group_fellowship: createEmptyEventStats(),
+      },
+    ]),
+  );
+}
+
+function createEmptyEventStats() {
+  return { present_count: 0, absent_count: 0, unknown_count: 0, confirmed_count: 0 };
+}
+
+function addHistoryRecord(range: any, eventType: string, value: unknown) {
+  const stats = range?.[eventType];
+  if (!stats) {
+    return;
+  }
+  const status = normalizeStatus(value);
+  if (status === "present") {
+    stats.present_count += 1;
+    stats.confirmed_count += 1;
+  } else if (status === "absent") {
+    stats.absent_count += 1;
+    stats.confirmed_count += 1;
+  } else {
+    stats.unknown_count += 1;
+  }
 }
 
 function normalizeStatus(value: unknown) {
@@ -869,6 +1041,11 @@ function statusOf(value: unknown) {
 
 function uniqueIds(values: Array<number | null>) {
   return Array.from(new Set(values.filter(Boolean) as number[]));
+}
+
+function normalizeNote(value: unknown) {
+  const note = String(value || "").trim();
+  return note.length > NOTE_MAX_LENGTH ? note.slice(0, NOTE_MAX_LENGTH) : note;
 }
 
 function recentWeeks(anchorWeekStart: string, count: number) {
@@ -889,6 +1066,37 @@ function getScopeLabel(viewer: MemberRow) {
     return viewer.district_name ? `${viewer.district_name} 轄區` : "所屬區";
   }
   return viewer.big_family_name ? `${viewer.big_family_name} 轄區` : "所屬大家";
+}
+
+function getMonthStart(anchorWeekStart: string) {
+  const date = parseIsoDate(anchorWeekStart);
+  return formatDate(new Date(date.getFullYear(), date.getMonth(), 1));
+}
+
+function getDateWeeksBefore(anchorWeekStart: string, weeksBack: number) {
+  const date = parseIsoDate(anchorWeekStart);
+  date.setDate(date.getDate() - weeksBack * 7);
+  return formatDate(date);
+}
+
+async function writeAuditLog(
+  db: ReturnType<typeof createAdminClient>,
+  actor: MemberRow,
+  action: string,
+  targetTable: string,
+  targetId: number,
+  details: Record<string, unknown>,
+) {
+  const { error } = await db.from("audit_logs").insert({
+    actor_member_id: actor.id,
+    action,
+    target_table: targetTable,
+    target_id: targetId,
+    details,
+  });
+  if (error) {
+    console.warn("Audit log skipped", error.message);
+  }
 }
 
 function getMondayIso(source: Date | string) {

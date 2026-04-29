@@ -2,6 +2,7 @@ const STORAGE_KEYS = {
   config: "topheart-line-app-config",
   appToken: "topheart-line-app-token",
   pendingToken: "topheart-line-pending-token",
+  uiPreferences: "topheart-line-app-ui-preferences",
 };
 
 const ROLE_LABELS = {
@@ -70,6 +71,8 @@ const ADMIN_CREATE_ROLES = ["preacher", ...MANAGEMENT_CREATE_ROLES];
 const OVERVIEW_ROLES = ["preacher", "district_leader", "big_family_leader"];
 
 const DEFAULT_PROJECT_URL = "https://aiifotwroawqxkcsfjzi.supabase.co";
+const NOTE_MAX_LENGTH = 1000;
+const LAYOUT_SIZES = ["small", "medium", "large"];
 const V2_API_ACTIONS = new Set([
   "attendance-overview",
   "dashboard",
@@ -91,6 +94,10 @@ const els = {
   userNameText: document.querySelector("#userNameText"),
   userScopeText: document.querySelector("#userScopeText"),
   toggleSettingsBtn: document.querySelector("#toggleSettingsBtn"),
+  manageAllWrap: document.querySelector("#manageAllWrap"),
+  manageAllInput: document.querySelector("#manageAllInput"),
+  uiSettingsCard: document.querySelector("#uiSettingsCard"),
+  layoutSizeInputs: document.querySelectorAll('input[name="layoutSize"]'),
   setupCard: document.querySelector("#setupCard"),
   configForm: document.querySelector("#configForm"),
   projectUrlInput: document.querySelector("#projectUrlInput"),
@@ -242,6 +249,8 @@ const state = {
     overviewEvent: "sunday_service",
     overviewWeekStart: "",
     settingsOpen: false,
+    manageAll: false,
+    layoutSize: "medium",
     editorMode: null,
     editingMemberId: null,
     orgEditorMode: null,
@@ -284,6 +293,10 @@ function bindEvents() {
   els.clearConfigBtn.addEventListener("click", handleClearConfig);
   els.loginSettingsBtn.addEventListener("click", handleToggleSettings);
   els.toggleSettingsBtn.addEventListener("click", handleToggleSettings);
+  els.manageAllInput?.addEventListener("change", handleManageAllChange);
+  els.layoutSizeInputs?.forEach((input) => {
+    input.addEventListener("change", handleLayoutSizeChange);
+  });
   els.signOutBtn.addEventListener("click", handleSignOut);
   els.bindForm.addEventListener("submit", handleBindInvite);
 
@@ -365,7 +378,9 @@ function hydrateLocalState() {
   state.config = loadConfig();
   state.appToken = loadStoredValue(STORAGE_KEYS.appToken);
   state.pendingToken = loadStoredValue(STORAGE_KEYS.pendingToken);
+  state.ui.layoutSize = loadUiPreferences().layoutSize;
   els.projectUrlInput.value = state.config.projectUrl || "";
+  applyLayoutSize();
 }
 
 function loadConfig() {
@@ -384,6 +399,33 @@ function saveStoredValue(key, value) {
   } else {
     window.localStorage.removeItem(key);
   }
+}
+
+function loadUiPreferences() {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.uiPreferences) || "{}");
+    return {
+      layoutSize: LAYOUT_SIZES.includes(value.layoutSize) ? value.layoutSize : "medium",
+    };
+  } catch (_error) {
+    return { layoutSize: "medium" };
+  }
+}
+
+function saveUiPreferences() {
+  window.localStorage.setItem(
+    STORAGE_KEYS.uiPreferences,
+    JSON.stringify({ layoutSize: state.ui.layoutSize }),
+  );
+}
+
+function applyLayoutSize() {
+  for (const size of LAYOUT_SIZES) {
+    document.body.classList.toggle(`layout-${size}`, state.ui.layoutSize === size);
+  }
+  els.layoutSizeInputs?.forEach((input) => {
+    input.checked = input.value === state.ui.layoutSize;
+  });
 }
 
 function normalizeProjectUrl(value) {
@@ -567,6 +609,39 @@ function handleToggleSettings() {
   renderLayout();
 }
 
+async function handleManageAllChange(event) {
+  const nextValue = Boolean(event.target.checked);
+  if (state.ui.manageAll === nextValue) {
+    return;
+  }
+
+  if (!canUseManageAllToggle()) {
+    state.ui.manageAll = false;
+    event.target.checked = false;
+    return;
+  }
+
+  if (!canDiscardDirtyChanges()) {
+    event.target.checked = state.ui.manageAll;
+    return;
+  }
+
+  state.ui.manageAll = nextValue;
+  state.dashboardCache.clear();
+  await loadDashboard({ skipDirtyCheck: true });
+}
+
+function handleLayoutSizeChange(event) {
+  const size = event.target.value;
+  if (!LAYOUT_SIZES.includes(size)) {
+    return;
+  }
+
+  state.ui.layoutSize = size;
+  saveUiPreferences();
+  applyLayoutSize();
+}
+
 async function handleSignOut() {
   if (state.appToken) {
     try {
@@ -578,6 +653,8 @@ async function handleSignOut() {
 
   state.appToken = null;
   state.pendingToken = null;
+  state.ui.manageAll = false;
+  state.ui.settingsOpen = false;
   saveStoredValue(STORAGE_KEYS.appToken, "");
   saveStoredValue(STORAGE_KEYS.pendingToken, "");
   await refreshSessionState();
@@ -643,9 +720,14 @@ async function refreshSessionState() {
     });
 
     if (data?.status === "authenticated") {
+      const previousMemberId = state.currentMember?.id || null;
       state.currentMember = data.current_member;
       state.pendingProfile = null;
       state.ui.activeTab = TABS.attendance;
+      if (previousMemberId !== state.currentMember?.id) {
+        state.ui.manageAll = false;
+        state.dashboardCache.clear();
+      }
       if (state.currentMember) {
         state.ui.settingsOpen = false;
       }
@@ -661,6 +743,7 @@ async function refreshSessionState() {
       state.currentWeek = null;
       state.attendanceAnalytics = emptyAttendanceAnalytics();
       state.adminData = emptyAdminData();
+    state.ui.manageAll = false;
       renderLayout();
       return;
     }
@@ -676,6 +759,7 @@ async function refreshSessionState() {
   state.currentWeek = null;
   state.attendanceAnalytics = emptyAttendanceAnalytics();
   state.adminData = emptyAdminData();
+  state.ui.manageAll = false;
   saveStoredValue(STORAGE_KEYS.appToken, "");
   saveStoredValue(STORAGE_KEYS.pendingToken, "");
   renderLayout();
@@ -684,7 +768,6 @@ async function refreshSessionState() {
 function renderLayout() {
   const isAuthenticated = Boolean(state.currentMember);
   const isPending = Boolean(state.pendingProfile && !state.currentMember);
-  const showSettings = false;
   document.body.classList.toggle("is-authenticated", isAuthenticated);
 
   setHidden(els.setupCard, true);
@@ -693,10 +776,14 @@ function renderLayout() {
   setHidden(els.bindCard, !isPending);
   setHidden(els.userBar, !isAuthenticated);
   setHidden(els.navCard, !isAuthenticated);
-  setHidden(els.toggleSettingsBtn, true);
+  setHidden(els.toggleSettingsBtn, !isAuthenticated);
+  setHidden(els.uiSettingsCard, !isAuthenticated || !state.ui.settingsOpen);
 
   if (!isAuthenticated) {
+    setHidden(els.manageAllWrap, true);
+    setHidden(els.uiSettingsCard, true);
     setHidden(els.attendanceView, true);
+    setHidden(els.overviewView, true);
     setHidden(els.peopleView, true);
     setHidden(els.invitesView, true);
     setBadge(els.sessionBadge, isPending ? "待綁定" : "尚未登入", isPending ? "warning" : "neutral");
@@ -708,6 +795,8 @@ function renderLayout() {
   }
 
   renderTopBar();
+  syncManageAllToggle();
+  applyLayoutSize();
   renderTabs();
   renderActiveView();
 }
@@ -729,6 +818,17 @@ function renderTopBar() {
     : "尚未設定牧區";
   setBadge(els.sessionBadge, "已登入", "success");
   els.authSummary.textContent = `目前登入：${state.currentMember.full_name}`;
+}
+
+function syncManageAllToggle() {
+  const canUse = canUseManageAllToggle();
+  if (!canUse) {
+    state.ui.manageAll = false;
+  }
+  setHidden(els.manageAllWrap, !canUse);
+  if (els.manageAllInput) {
+    els.manageAllInput.checked = Boolean(canUse && state.ui.manageAll);
+  }
 }
 
 function renderTabs() {
@@ -824,8 +924,12 @@ async function loadDashboard(options = {}) {
 
 async function fetchDashboardData(weekStart) {
   const cacheKey = getDashboardCacheKey(weekStart);
+  const params = new URLSearchParams({ week_start: weekStart });
+  if (state.ui.manageAll && canUseManageAllToggle()) {
+    params.set("manage_all", "true");
+  }
   const data = await apiRequest(
-    `dashboard&week_start=${encodeURIComponent(weekStart)}`,
+    `dashboard&${params.toString()}`,
     {
       method: "GET",
       authMode: "app",
@@ -848,7 +952,7 @@ function applyDashboardData(data, weekStart) {
 }
 
 function getDashboardCacheKey(weekStart) {
-  return String(weekStart || "");
+  return `${weekStart || ""}:${state.ui.manageAll && canUseManageAllToggle() ? "all" : "scope"}`;
 }
 
 function prefetchAdjacentWeeks(weekStart) {
@@ -1193,6 +1297,7 @@ function renderAttendanceRows() {
               <textarea
                 class="note-input"
                 data-member-id="${member.id}"
+                maxlength="${NOTE_MAX_LENGTH}"
                 placeholder="記錄近況、代禱與需要跟進的事項"
                 ${member.can_edit_note ? "" : "disabled"}
               >${noteValue}</textarea>
@@ -1205,7 +1310,7 @@ function renderAttendanceRows() {
                     ${noteCarryChecked}
                     ${member.can_edit_note ? "" : "disabled"}
                   />
-                  <span>自動填入到下週</span>
+                  <span>持續提醒</span>
                 </label>
                 <label class="note-carry-row note-priority-row">
                   <input
@@ -1500,7 +1605,7 @@ function getSelectedAttendanceStatus(memberId, eventType) {
 
 function getSelectedNote(memberId) {
   const member = state.roster.find((item) => item.id === memberId);
-  return member?.note.trim() || "";
+  return normalizeNote(member?.note || "");
 }
 
 async function handleShiftWeek(dayDelta) {
@@ -1551,7 +1656,12 @@ function handleAttendanceFieldChange(event) {
   }
 
   if (event.target.matches(".note-input")) {
-    const member = updateMemberNote(memberId, event.target.value);
+    const normalizedNote = normalizeNote(event.target.value);
+    if (event.target.value !== normalizedNote) {
+      event.target.value = normalizedNote;
+      showToast(`備註最多 ${NOTE_MAX_LENGTH} 字。`);
+    }
+    const member = updateMemberNote(memberId, normalizedNote);
     syncNoteSummary(event.target.closest(".attendance-note-details"), member);
   } else if (event.target.matches(".note-carry-input")) {
     updateMemberNoteCarryForward(memberId, event.target.checked);
@@ -1634,6 +1744,7 @@ async function handleSaveAttendance() {
       authMode: "app",
       body: {
         week_start: els.weekInput.value,
+        manage_all: state.ui.manageAll && canUseManageAllToggle(),
         entries,
       },
     });
@@ -1681,6 +1792,11 @@ function formatPercent(numerator, denominator) {
   }
 
   return `${Math.round((numerator / denominator) * 100)}%`;
+}
+
+function normalizeNote(value) {
+  const note = String(value || "").trim();
+  return note.length > NOTE_MAX_LENGTH ? note.slice(0, NOTE_MAX_LENGTH) : note;
 }
 
 function renderGenderBadge(gender) {
@@ -1933,14 +2049,14 @@ function renderOverviewUnitCard(unit) {
         </span>
         <span class="overview-unit-stat">
           <strong>${escapeHtml(formatOverviewRate(stats, memberCount))}</strong>
-          <span class="summary-subtext">出 ${presentCount} / 未 ${absentCount} / 待 ${unknownCount}</span>
+          <span class="summary-subtext">出席 ${presentCount} 人 / 未出席 ${absentCount} 人 / 待確認 ${unknownCount} 人</span>
         </span>
       </summary>
       <div class="overview-mini-stats">
-        <span class="status-chip success">出 ${presentCount}</span>
-        <span class="status-chip warning">未 ${absentCount}</span>
-        <span class="status-chip neutral">待 ${unknownCount}</span>
-        <span class="status-chip neutral">共 ${memberCount}</span>
+        <span class="status-chip success">出席 ${presentCount} 人</span>
+        <span class="status-chip warning">未出席 ${absentCount} 人</span>
+        <span class="status-chip neutral">待確認 ${unknownCount} 人</span>
+        <span class="status-chip neutral">共 ${memberCount} 人</span>
       </div>
       <div class="overview-detail-grid">
         ${renderOverviewStatusGroup("出席", detail.present || [])}
@@ -1970,12 +2086,63 @@ function renderOverviewStatusGroup(label, members) {
 function renderOverviewMember(member) {
   const noteText = member.note ? ` · ${member.note_priority_high ? "高優先度：" : "備註："}${member.note}` : "";
   return `
-    <div class="overview-member-row">
-      <span class="name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</span>
-      <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
-      ${noteText ? `<span class="overview-note muted small-text">${escapeHtml(noteText)}</span>` : ""}
+    <details class="overview-member-details">
+      <summary class="overview-member-row">
+        <span class="name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</span>
+        <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
+        ${noteText ? `<span class="overview-note muted small-text">${escapeHtml(noteText)}</span>` : ""}
+      </summary>
+      ${renderOverviewMemberHistory(member.history)}
+    </details>
+  `;
+}
+
+function renderOverviewMemberHistory(history) {
+  const ranges = [
+    history?.month,
+    history?.three_months,
+    history?.half_year,
+    history?.year,
+  ].filter(Boolean);
+  if (!ranges.length) {
+    return '<div class="overview-history-grid"><span class="muted small-text">尚無歷史出席資料</span></div>';
+  }
+
+  return `
+    <div class="overview-history-grid">
+      ${ranges.map(renderOverviewHistoryRange).join("")}
     </div>
   `;
+}
+
+function renderOverviewHistoryRange(range) {
+  return `
+    <section class="overview-history-card">
+      <strong>${escapeHtml(range.label || "出席率")}</strong>
+      <span class="muted small-text">${escapeHtml(range.start_date || "")} 至 ${escapeHtml(range.end_date || "")}</span>
+      <div class="overview-history-events">
+        ${renderOverviewHistoryEvent("主日", range.sunday_service)}
+        ${renderOverviewHistoryEvent("小家", range.small_group_fellowship)}
+      </div>
+    </section>
+  `;
+}
+
+function renderOverviewHistoryEvent(label, stats) {
+  return `
+    <div class="overview-history-event">
+      <span class="info-label">${escapeHtml(label)}</span>
+      <strong>${escapeHtml(formatAnalyticsRate(stats))}</strong>
+      <span class="summary-subtext">${escapeHtml(formatDetailedAnalyticsBreakdown(stats))}</span>
+    </div>
+  `;
+}
+
+function formatDetailedAnalyticsBreakdown(stats) {
+  if (!stats) {
+    return "尚無資料";
+  }
+  return `出席 ${stats.present_count || 0} 次 / 已填 ${stats.confirmed_count || 0} 次 / 待確認 ${stats.unknown_count || 0} 次`;
 }
 
 function createEmptyEventStats() {
@@ -2192,7 +2359,7 @@ function renderPeopleMemberCard(member) {
             <div class="row-actions">
               <button type="button" class="secondary people-edit-btn" data-member-id="${member.id}">編輯</button>
               ${canDelete
-                ? `<button type="button" class="secondary danger-button people-delete-btn" data-member-id="${member.id}" data-member-name="${escapeHtml(member.full_name)}">刪除</button>`
+                ? `<button type="button" class="secondary danger-button people-delete-btn" data-member-id="${member.id}" data-member-name="${escapeHtml(member.full_name)}">停用封存</button>`
                 : ""}
             </div>
           </div>
@@ -2252,9 +2419,14 @@ function handlePeopleTableClick(event) {
 async function handleDeleteMember(button, memberId, memberName) {
   if (
     !window.confirm(
-      `確定要刪除「${memberName}」嗎？此動作會一併移除他的點名紀錄、登入綁定與邀請碼，且無法復原。`,
+      `確定要停用並封存「${memberName}」嗎？歷史點名紀錄會保留，但此人將無法登入並不再出現在點名名單。`,
     )
   ) {
+    return;
+  }
+  const confirmName = window.prompt(`請輸入「${memberName}」確認停用封存。`);
+  if (confirmName !== memberName) {
+    showToast("已取消停用封存。");
     return;
   }
 
@@ -2273,10 +2445,10 @@ async function handleDeleteMember(button, memberId, memberName) {
     }
 
     await Promise.all([loadAdminPanel(), loadDashboard({ skipDirtyCheck: true })]);
-    showToast(data?.message || "人員已刪除。");
+    showToast(data?.message || "人員已停用封存。");
   } catch (error) {
     console.error(error);
-    showToast(error.message || "刪除人員失敗。");
+    showToast(error.message || "停用封存人員失敗。");
   } finally {
     setButtonLoading(button, false);
   }
@@ -2403,12 +2575,12 @@ function getSelectableSmallGroups({
   includeSmallGroupId = 0,
 }) {
   return state.adminData.smallGroups.filter((smallGroup) => {
-    if (!districtId && !bigFamilyId && !MEMBER_ROLES.includes(role)) {
+    if (!districtId && !bigFamilyId && !MEMBER_ROLES.includes(role) && role !== "preacher") {
       return smallGroup.id === includeSmallGroupId;
     }
 
     const matchesScope =
-      MEMBER_ROLES.includes(role)
+      MEMBER_ROLES.includes(role) || role === "preacher"
         ? bigFamilyId
           ? smallGroup.big_family_id === bigFamilyId
           : districtId
@@ -2486,7 +2658,7 @@ function syncEditorSmallGroupOptions(member = null) {
     available.map((smallGroup) => ({
       value: String(smallGroup.id),
       label:
-        MEMBER_ROLES.includes(role)
+        MEMBER_ROLES.includes(role) || role === "preacher"
           ? [
               getOrganizationDisplayName(smallGroup.name, smallGroup.is_active),
               smallGroup.big_family_name,
@@ -2549,13 +2721,17 @@ function syncMemberFormScope() {
           ? true
           : false;
   const showSmallGroupField =
+    role === "preacher" ||
     MEMBER_ROLES.includes(role) ||
     (SMALL_GROUP_LEADER_ROLES.includes(role) && !isCreateMode);
   const showDistrictField =
-    !(role === "district_leader" && isCreateMode) &&
-    (!MEMBER_ROLES.includes(role) || isEditMode);
+    role === "preacher" ||
+    (!(role === "district_leader" && isCreateMode) &&
+      (!MEMBER_ROLES.includes(role) || isEditMode));
   const districtRequired =
-    isCreateMode && (role === "big_family_leader" || SMALL_GROUP_LEADER_ROLES.includes(role));
+    role === "preacher"
+      ? false
+      : isCreateMode && (role === "big_family_leader" || SMALL_GROUP_LEADER_ROLES.includes(role));
 
   setHidden(els.memberDistrictLabel, !showDistrictField);
   setHidden(els.memberBigFamilyLabel, !needsBigFamily);
@@ -2574,8 +2750,8 @@ function syncMemberFormScope() {
 
   const hints = {
     preacher: isCreateMode
-      ? "傳道人可選擇所屬區作為個人歸屬；仍可檢視、點名全體，但不等同管理員。"
-      : "傳道人可檢視與點名全體；所屬區僅作為個人歸屬，是否可管理人員仍取決於管理員身分。",
+      ? "傳道人可選擇直屬小家作為預設點名範圍；需要時可勾選全部管理檢視全體。"
+      : "傳道人可設定直屬小家作為預設點名範圍；需要時可勾選全部管理檢視全體。",
     district_leader: isCreateMode
       ? "新增區長時，系統會自動建立「姓名區」。"
       : "編輯區長時，可調整基本資料；所屬區也可留空。",
@@ -3586,6 +3762,14 @@ function canUseOverview() {
   return Boolean(
     state.currentMember &&
       (state.currentMember.is_admin || OVERVIEW_ROLES.includes(state.currentMember.role)),
+  );
+}
+
+function canUseManageAllToggle() {
+  return Boolean(
+    state.currentMember &&
+      state.currentMember.small_group_id &&
+      (state.currentMember.is_admin || state.currentMember.role === "preacher"),
   );
 }
 

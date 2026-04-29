@@ -154,6 +154,7 @@ const ORG_LABELS: Record<OrganizationType, string> = {
   big_family: "大家",
   small_group: "小家",
 };
+const NOTE_MAX_LENGTH = 1000;
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
@@ -689,7 +690,7 @@ async function handleSaveAttendance(
 
   return jsonResponse({
     status: "ok",
-    message: "本週點名已儲存。",
+    message: "本週點名已儲存；若多人同時編輯，以最後儲存為準。",
   });
 }
 
@@ -1264,7 +1265,7 @@ async function handleCreateMember(
   const isAdmin = Boolean(body?.is_admin);
   const birthday = body?.birthday ? String(body.birthday) : null;
   const gender = normalizeGender(body?.gender);
-  const note = String(body?.note || "").trim();
+  const note = normalizeNote(body?.note);
 
   if (!fullName || !role) {
     return jsonResponse({ error: "full_name and role are required." }, 400);
@@ -1392,7 +1393,7 @@ async function handleUpdateMember(
     full_name: String(body?.full_name || targetMember.full_name).trim(),
     birthday: body?.birthday ? String(body.birthday) : null,
     gender: normalizeGender(body?.gender),
-    note: String(body?.note || "").trim(),
+    note: normalizeNote(body?.note),
     role: targetRole,
     is_admin: sessionContext.member.is_admin
       ? Boolean(body?.is_admin)
@@ -1496,16 +1497,24 @@ async function handleDeleteMember(
 
   const { error: deleteError } = await adminClient
     .from("members")
-    .delete()
+    .update({
+      is_active: false,
+      line_user_id: null,
+    })
     .eq("id", targetMember.id);
 
   if (deleteError) {
     return jsonResponse({ error: deleteError.message }, 500);
   }
 
+  await writeAuditLog(adminClient, sessionContext.member, "archive_member", "members", targetMember.id, {
+    full_name: targetMember.full_name,
+    role: targetMember.role,
+  });
+
   return jsonResponse({
     status: "ok",
-    message: `已刪除 ${targetMember.full_name}。`,
+    message: `已停用並封存 ${targetMember.full_name}，歷史點名紀錄已保留。`,
   });
 }
 
@@ -2978,6 +2987,46 @@ async function resolveMemberScope(
   const explicitSmallGroupId = toPositiveInt(body?.small_group_id);
 
   if (role === "preacher") {
+    if (explicitSmallGroupId) {
+      const smallGroup = await fetchSmallGroup(adminClient, explicitSmallGroupId);
+      if (!smallGroup || !smallGroup.district_id) {
+        return null;
+      }
+
+      assertOrganizationSelectable(
+        "small_group",
+        smallGroup,
+        options,
+        "已封存的小家不能作為新資料歸屬。",
+      );
+
+      return {
+        district_id: smallGroup.district_id,
+        big_family_id: smallGroup.big_family_id,
+        small_group_id: smallGroup.id,
+      };
+    }
+
+    if (explicitDistrictId) {
+      const district = await fetchDistrict(adminClient, explicitDistrictId);
+      if (!district) {
+        return null;
+      }
+
+      assertOrganizationSelectable(
+        "district",
+        district,
+        options,
+        "已封存的區不能作為新資料歸屬。",
+      );
+
+      return {
+        district_id: district.id,
+        big_family_id: null,
+        small_group_id: null,
+      };
+    }
+
     return {
       district_id: null,
       big_family_id: null,
@@ -3428,9 +3477,34 @@ function normalizeGender(value: unknown) {
   return ["brother", "sister"].includes(normalized) ? normalized : null;
 }
 
+function normalizeNote(value: unknown) {
+  const note = String(value || "").trim();
+  return note.length > NOTE_MAX_LENGTH ? note.slice(0, NOTE_MAX_LENGTH) : note;
+}
+
 function toPositiveInt(value: unknown) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+}
+
+async function writeAuditLog(
+  adminClient: ReturnType<typeof createAdminClient>,
+  actor: MemberDirectoryRow,
+  action: string,
+  targetTable: string,
+  targetId: number,
+  details: Record<string, unknown>,
+) {
+  const { error } = await adminClient.from("audit_logs").insert({
+    actor_member_id: actor.id,
+    action,
+    target_table: targetTable,
+    target_id: targetId,
+    details,
+  });
+  if (error) {
+    console.warn("Audit log skipped", error.message);
+  }
 }
 
 function getMondayIso(source: Date | string) {

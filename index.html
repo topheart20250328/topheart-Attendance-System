@@ -15,9 +15,6 @@
         <div>
           <p class="eyebrow">topheart attendance</p>
           <h1>教會牧區點名系統</h1>
-          <p id="pageDescription" class="page-description">
-            針對手機與 LINE 內建瀏覽器優化，登入後可直接完成本週點名與必要管理操作。
-          </p>
         </div>
 
         <div id="userBar" class="user-bar hidden">
@@ -26,8 +23,12 @@
             <div id="userScopeText" class="muted small-text"></div>
           </div>
           <div class="button-row compact-buttons">
-            <button id="toggleSettingsBtn" type="button" class="secondary hidden system-only">
-              系統設定
+            <label id="manageAllWrap" class="topbar-checkbox hidden">
+              <input id="manageAllInput" type="checkbox" />
+              <span>全部管理</span>
+            </label>
+            <button id="toggleSettingsBtn" type="button" class="secondary hidden">
+              設定
             </button>
             <button id="signOutBtn" type="button" class="secondary">
               登出
@@ -35,6 +36,33 @@
           </div>
         </div>
       </header>
+
+      <section id="uiSettingsCard" class="card settings-card hidden">
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">Display</p>
+            <h2>介面設定</h2>
+          </div>
+        </div>
+        <fieldset class="layout-size-options">
+          <legend>排版大小</legend>
+          <label>
+            <input type="radio" name="layoutSize" value="small" />
+            <span>小</span>
+          </label>
+          <label>
+            <input type="radio" name="layoutSize" value="medium" checked />
+            <span>中</span>
+          </label>
+          <label>
+            <input type="radio" name="layoutSize" value="large" />
+            <span>大</span>
+          </label>
+        </fieldset>
+        <p class="muted small-text">
+          大字模式會放大文字與操作按鈕，盡量保留目前卡片版面的清楚度。
+        </p>
+      </section>
 
       <section id="setupCard" class="card hidden system-only">
         <div class="card-header">
@@ -362,7 +390,7 @@
 
               <label>
                 <span>近況備註</span>
-                <textarea id="memberNoteInput" rows="3"></textarea>
+                <textarea id="memberNoteInput" rows="3" maxlength="1000"></textarea>
               </label>
 
               <p id="memberScopeHint" class="muted">
