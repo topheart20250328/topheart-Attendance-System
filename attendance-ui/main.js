@@ -140,6 +140,7 @@ const els = {
   attendanceSearchInput: document.querySelector("#attendanceSearchInput"),
   attendanceRoleFilter: document.querySelector("#attendanceRoleFilter"),
   attendanceStatusFilter: document.querySelector("#attendanceStatusFilter"),
+  attendanceFilterRow: document.querySelector(".attendance-filter-row"),
   weekSummary: document.querySelector("#weekSummary"),
   rosterTableBody: document.querySelector("#rosterTableBody"),
   overviewView: document.querySelector("#overviewView"),
@@ -799,6 +800,7 @@ function renderLayout() {
   applyLayoutSize();
   renderTabs();
   renderActiveView();
+  syncAttendanceFilterVisibility();
 }
 
 function renderTopBar() {
@@ -828,6 +830,25 @@ function syncManageAllToggle() {
   setHidden(els.manageAllWrap, !canUse);
   if (els.manageAllInput) {
     els.manageAllInput.checked = Boolean(canUse && state.ui.manageAll);
+  }
+}
+
+function syncAttendanceFilterVisibility() {
+  const canUse = canUseAttendanceFilters();
+  setHidden(els.attendanceFilterRow, !canUse);
+  if (!canUse) {
+    state.ui.attendanceSearch = "";
+    state.ui.attendanceRole = "";
+    state.ui.attendanceStatus = "";
+    if (els.attendanceSearchInput) {
+      els.attendanceSearchInput.value = "";
+    }
+    if (els.attendanceRoleFilter) {
+      els.attendanceRoleFilter.value = "";
+    }
+    if (els.attendanceStatusFilter) {
+      els.attendanceStatusFilter.value = "";
+    }
   }
 }
 
@@ -948,6 +969,7 @@ function applyDashboardData(data, weekStart) {
   populateAttendanceRoleFilter();
   renderAttendanceHeader();
   renderWeekSummary();
+  syncAttendanceFilterVisibility();
   renderAttendanceRows();
 }
 
@@ -1134,6 +1156,10 @@ function renderAttendanceHeader() {
         <span class="info-value">${escapeHtml(scope || "未設定")}</span>
       </div>
       <div class="info-item">
+        <span class="info-label">顯示範圍</span>
+        <span class="info-value">${escapeHtml(getAttendanceScopeModeLabel())}</span>
+      </div>
+      <div class="info-item">
         <span class="info-label">週次</span>
         <span class="info-value">${escapeHtml(getDisplayedWeekLabel())}</span>
       </div>
@@ -1142,6 +1168,13 @@ function renderAttendanceHeader() {
 
   els.attendanceSaveWeek.textContent = getDisplayedWeekLabel();
   syncWeekStatusChip();
+}
+
+function getAttendanceScopeModeLabel() {
+  if (!canUseManageAllToggle()) {
+    return "依職分權限";
+  }
+  return state.ui.manageAll ? "全部管理" : "直屬小家";
 }
 
 function renderWeekSummary() {
@@ -1418,6 +1451,11 @@ function populateAttendanceRoleFilter() {
 }
 
 function handleAttendanceFilters() {
+  if (!canUseAttendanceFilters()) {
+    syncAttendanceFilterVisibility();
+    renderAttendanceRows();
+    return;
+  }
   state.ui.attendanceSearch = els.attendanceSearchInput?.value || "";
   state.ui.attendanceRole = els.attendanceRoleFilter?.value || "";
   state.ui.attendanceStatus = els.attendanceStatusFilter?.value || "";
@@ -2340,6 +2378,7 @@ function renderPeopleMemberCard(member) {
           ? "尚待綁定"
           : "";
       const canDelete = canDeleteMember(member);
+      const canRestore = canRestoreMember(member);
 
       return `
         <article class="member-card">
@@ -2358,6 +2397,9 @@ function renderPeopleMemberCard(member) {
             </div>
             <div class="row-actions">
               <button type="button" class="secondary people-edit-btn" data-member-id="${member.id}">編輯</button>
+              ${canRestore
+                ? `<button type="button" class="secondary people-restore-btn" data-member-id="${member.id}" data-member-name="${escapeHtml(member.full_name)}">恢復啟用</button>`
+                : ""}
               ${canDelete
                 ? `<button type="button" class="secondary danger-button people-delete-btn" data-member-id="${member.id}" data-member-name="${escapeHtml(member.full_name)}">停用封存</button>`
                 : ""}
@@ -2391,6 +2433,18 @@ function handlePeopleFilters() {
 }
 
 function handlePeopleTableClick(event) {
+  const restoreButton = event.target.closest(".people-restore-btn");
+  if (restoreButton) {
+    const memberId = Number(restoreButton.dataset.memberId);
+    const memberName = restoreButton.dataset.memberName || "這位人員";
+    if (!memberId) {
+      return;
+    }
+
+    handleRestoreMember(restoreButton, memberId, memberName);
+    return;
+  }
+
   const deleteButton = event.target.closest(".people-delete-btn");
   if (deleteButton) {
     const memberId = Number(deleteButton.dataset.memberId);
@@ -2414,6 +2468,46 @@ function handlePeopleTableClick(event) {
   }
 
   openMemberEditor("edit", memberId);
+}
+
+async function handleRestoreMember(button, memberId, memberName) {
+  if (!window.confirm(`確定要恢復啟用「${memberName}」嗎？恢復後會重新出現在點名與管理名單中。`)) {
+    return;
+  }
+
+  const member = state.adminData.members.find((item) => item.id === memberId);
+  if (!member) {
+    showToast("找不到這筆人員資料。");
+    return;
+  }
+
+  setButtonLoading(button, true);
+  try {
+    await apiRequest("update-member", {
+      method: "POST",
+      authMode: "app",
+      body: {
+        member_id: memberId,
+        full_name: member.full_name,
+        role: member.role,
+        gender: member.gender || null,
+        note: member.note || "",
+        district_id: member.district_id || null,
+        big_family_id: member.big_family_id || null,
+        small_group_id: member.small_group_id || null,
+        is_admin: Boolean(member.is_admin),
+        is_active: true,
+      },
+    });
+
+    await Promise.all([loadAdminPanel(), loadDashboard({ skipDirtyCheck: true })]);
+    showToast(`已恢復啟用 ${memberName}。`);
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "恢復啟用失敗。");
+  } finally {
+    setButtonLoading(button, false);
+  }
 }
 
 async function handleDeleteMember(button, memberId, memberName) {
@@ -3773,6 +3867,16 @@ function canUseManageAllToggle() {
   );
 }
 
+function canUseAttendanceFilters() {
+  return Boolean(
+    state.currentMember &&
+      (state.currentMember.is_admin ||
+        ["preacher", "district_leader", "big_family_leader"].includes(
+          state.currentMember.role,
+        )),
+  );
+}
+
 function canUseInvites() {
   return Boolean(state.currentMember?.is_admin);
 }
@@ -3795,6 +3899,27 @@ function canEditProfile(member) {
 
 function canDeleteMember(member) {
   if (!state.currentMember || member.id === state.currentMember.id) {
+    return false;
+  }
+
+  if (!member.is_active) {
+    return false;
+  }
+
+  if (state.currentMember.is_admin) {
+    return true;
+  }
+
+  return (
+    state.currentMember.role === "district_leader" &&
+    Boolean(state.currentMember.district_id) &&
+    member.district_id === state.currentMember.district_id &&
+    MEMBER_ROLES.includes(member.role)
+  );
+}
+
+function canRestoreMember(member) {
+  if (!state.currentMember || member.is_active) {
     return false;
   }
 

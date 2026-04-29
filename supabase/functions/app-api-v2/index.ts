@@ -328,7 +328,7 @@ async function handleUpdateMember(
       gender: normalizeGender(body?.gender),
       note,
       is_admin: viewer.is_admin ? Boolean(body?.is_admin) : target.is_admin,
-      is_active: viewer.is_admin ? body?.is_active !== false : target.is_active,
+      is_active: body?.is_active !== false,
       district_id: scope.district_id,
       big_family_id: scope.big_family_id,
       small_group_id: scope.small_group_id,

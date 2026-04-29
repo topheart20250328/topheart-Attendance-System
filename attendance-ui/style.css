@@ -3,6 +3,14 @@
   --app-font-size: 16px;
   --control-min-height: 48px;
   --card-padding: clamp(18px, 3vw, 24px);
+  --subsection-padding: clamp(16px, 2.8vw, 20px);
+  --compact-button-height: 36px;
+  --compact-button-font-size: 0.86rem;
+  --attendance-card-padding: 7px 8px;
+  --attendance-option-height: 30px;
+  --attendance-option-font-size: 0.76rem;
+  --chip-font-size: 0.72rem;
+  --small-text-size: 0.76rem;
   --bg: #f3f6fb;
   --surface: #ffffff;
   --surface-alt: #f8fbff;
@@ -79,18 +87,42 @@ body.layout-small {
   --app-font-size: 15px;
   --control-min-height: 42px;
   --card-padding: clamp(16px, 2.4vw, 20px);
+  --subsection-padding: clamp(12px, 2vw, 16px);
+  --compact-button-height: 34px;
+  --compact-button-font-size: 0.82rem;
+  --attendance-card-padding: 6px 7px;
+  --attendance-option-height: 28px;
+  --attendance-option-font-size: 0.72rem;
+  --chip-font-size: 0.68rem;
+  --small-text-size: 0.72rem;
 }
 
 body.layout-medium {
   --app-font-size: 16px;
   --control-min-height: 48px;
   --card-padding: clamp(18px, 3vw, 24px);
+  --subsection-padding: clamp(16px, 2.8vw, 20px);
+  --compact-button-height: 36px;
+  --compact-button-font-size: 0.86rem;
+  --attendance-card-padding: 7px 8px;
+  --attendance-option-height: 30px;
+  --attendance-option-font-size: 0.76rem;
+  --chip-font-size: 0.72rem;
+  --small-text-size: 0.76rem;
 }
 
 body.layout-large {
   --app-font-size: 18px;
   --control-min-height: 54px;
   --card-padding: clamp(20px, 3.2vw, 26px);
+  --subsection-padding: clamp(18px, 3vw, 24px);
+  --compact-button-height: 44px;
+  --compact-button-font-size: 0.95rem;
+  --attendance-card-padding: 10px 12px;
+  --attendance-option-height: 40px;
+  --attendance-option-font-size: 0.9rem;
+  --chip-font-size: 0.82rem;
+  --small-text-size: 0.86rem;
 }
 
 body.is-authenticated .page-shell {
@@ -113,12 +145,12 @@ body.is-authenticated .eyebrow {
 }
 
 body.is-authenticated .card {
-  padding: clamp(12px, 2vw, 18px);
+  padding: var(--card-padding);
   margin-bottom: 10px;
 }
 
 body.is-authenticated .card-subsection {
-  padding: clamp(12px, 2vw, 16px);
+  padding: var(--subsection-padding);
 }
 
 body.is-authenticated .card-header,
@@ -155,7 +187,7 @@ select {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 14px;
-  font-size: 16px;
+  font-size: max(16px, 1rem);
   min-height: var(--control-min-height);
   padding: 0.8rem 0.95rem;
   background: #fff;
@@ -428,6 +460,40 @@ code {
   padding: 0;
 }
 
+body.layout-large .app-header h1 {
+  font-size: clamp(1.6rem, 3.6vw, 2.15rem);
+}
+
+body.layout-large .tab-btn,
+body.layout-large .summary-item strong,
+body.layout-large .attendance-member-name,
+body.layout-large .overview-unit-title,
+body.layout-large .member-card-title strong {
+  letter-spacing: 0.01em;
+}
+
+body.layout-large .info-label,
+body.layout-large label span,
+body.layout-large .summary-subtext {
+  font-size: 0.96rem;
+}
+
+body.layout-large .role-pill,
+body.layout-large .status-chip,
+body.layout-large .gender-badge {
+  font-size: 0.86rem;
+  padding: 0.24rem 0.56rem;
+}
+
+body.layout-large .topbar-checkbox,
+body.layout-large .layout-size-options label {
+  padding-inline: 1.05rem;
+}
+
+body.layout-small .app-header h1 {
+  font-size: clamp(1.12rem, 2.8vw, 1.6rem);
+}
+
 .user-meta {
   display: grid;
   gap: 4px;
@@ -550,9 +616,10 @@ code {
 .summary-subtext {
   display: block;
   margin-top: 6px;
-  color: var(--muted);
+  color: #36528b;
   font-size: 0.84rem;
   line-height: 1.45;
+  font-weight: 700;
 }
 
 .info-grid {
@@ -901,9 +968,9 @@ body.is-authenticated #invitesView {
 
 #attendanceView .toolbar button,
 #attendanceView .attendance-save-bar button {
-  min-height: 36px;
+  min-height: var(--compact-button-height);
   padding: 0.48rem 0.75rem;
-  font-size: 0.86rem;
+  font-size: var(--compact-button-font-size);
 }
 
 #attendanceView .week-label {
@@ -994,7 +1061,7 @@ body.is-authenticated #invitesView {
   grid-template-columns: minmax(90px, 0.9fr) minmax(240px, 1.5fr) minmax(62px, 0.35fr);
   align-items: center;
   gap: 8px;
-  padding: 7px 8px;
+  padding: var(--attendance-card-padding);
   border-radius: 12px;
   box-shadow: none;
 }
@@ -1041,11 +1108,11 @@ body.is-authenticated #invitesView {
 #attendanceView .status-chip,
 #attendanceView .gender-badge {
   padding: 0.15rem 0.42rem;
-  font-size: 0.72rem;
+  font-size: var(--chip-font-size);
 }
 
 #attendanceView .small-text {
-  font-size: 0.76rem;
+  font-size: var(--small-text-size);
 }
 
 #attendanceView .attendance-event-grid {
@@ -1078,10 +1145,10 @@ body.is-authenticated #invitesView {
 }
 
 #attendanceView .attendance-option {
-  min-height: 30px;
+  min-height: var(--attendance-option-height);
   padding: 0.3rem 0.35rem;
   border-radius: 8px;
-  font-size: 0.76rem;
+  font-size: var(--attendance-option-font-size);
 }
 
 #attendanceView .attendance-note-details {
@@ -1889,6 +1956,12 @@ tbody tr:last-child td {
 .overview-unit-stat {
   min-width: 112px;
   text-align: right;
+}
+
+.overview-unit-stat .summary-subtext {
+  color: #1e3a8a;
+  font-size: 0.9rem;
+  font-weight: 800;
 }
 
 .overview-mini-stats {
