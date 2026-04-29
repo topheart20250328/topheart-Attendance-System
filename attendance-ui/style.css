@@ -2864,15 +2864,18 @@ tbody tr:last-child td {
   }
 
   #attendanceView .row-meta {
+    width: 100%;
     min-width: 0;
-    justify-items: start;
-    text-align: left;
+    justify-items: stretch;
+    text-align: center;
   }
 
   #attendanceView .attendance-name-line,
   #attendanceView .attendance-role-line {
-    justify-content: flex-start;
-    text-align: left;
+    width: 100%;
+    display: grid;
+    justify-content: stretch;
+    text-align: center;
   }
 
   #attendanceView .attendance-meta-line,
@@ -2881,21 +2884,23 @@ tbody tr:last-child td {
   }
 
   #attendanceView .attendance-role-line {
-    display: block;
+    display: grid;
   }
 
   #attendanceView .attendance-role-line .role-pill {
-    align-self: flex-start;
-    max-width: 100%;
+    width: 100%;
     overflow: hidden;
     font-size: 0.72rem;
+    justify-content: center;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   #attendanceView .attendance-member-name {
+    width: 100%;
     font-size: 0.95rem;
     max-width: 100%;
+    justify-content: center;
   }
 
   #attendanceView .attendance-event-grid {
