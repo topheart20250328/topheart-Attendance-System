@@ -152,8 +152,7 @@ const els = {
   overviewView: document.querySelector("#overviewView"),
   overviewEventTabs: document.querySelector("#overviewEventTabs"),
   overviewEventButtons: document.querySelectorAll("[data-overview-event]"),
-  overviewUnitTypeTabs: document.querySelector("#overviewUnitTypeTabs"),
-  overviewUnitTypeButtons: document.querySelectorAll("[data-overview-unit-type]"),
+  overviewUnitTypeSelect: document.querySelector("#overviewUnitTypeSelect"),
   overviewWeekScroller: document.querySelector("#overviewWeekScroller"),
   overviewScopeSummary: document.querySelector("#overviewScopeSummary"),
   overviewUnitList: document.querySelector("#overviewUnitList"),
@@ -362,9 +361,9 @@ function bindEvents() {
   els.overviewEventButtons?.forEach((button) => {
     button.addEventListener("click", () => switchOverviewEvent(button.dataset.overviewEvent));
   });
-  els.overviewUnitTypeButtons?.forEach((button) => {
-    button.addEventListener("click", () => switchOverviewUnitType(button.dataset.overviewUnitType || ""));
-  });
+  els.overviewUnitTypeSelect?.addEventListener("change", (event) =>
+    switchOverviewUnitType(event.target.value || ""),
+  );
   els.overviewWeekScroller?.addEventListener("click", handleOverviewWeekClick);
   els.overviewWeekScroller?.addEventListener("change", handleOverviewDateChange);
   els.overviewUnitList?.addEventListener("toggle", handleOverviewUnitToggle, true);
@@ -2164,12 +2163,9 @@ function renderAttendanceOverview() {
   els.overviewEventButtons?.forEach((button) => {
     button.classList.toggle("is-active", button.dataset.overviewEvent === state.ui.overviewEvent);
   });
-  els.overviewUnitTypeButtons?.forEach((button) => {
-    button.classList.toggle(
-      "is-active",
-      (button.dataset.overviewUnitType || "") === state.ui.overviewUnitType,
-    );
-  });
+  if (els.overviewUnitTypeSelect) {
+    els.overviewUnitTypeSelect.value = state.ui.overviewUnitType;
+  }
 
   if (!state.overviewData) {
     if (els.overviewScopeSummary) {
@@ -2208,23 +2204,7 @@ function renderOverviewWeeks() {
     { label: "前週", week_start_date: addDaysIso(currentWeekStart, -14) },
   ];
   const quickWeekSet = new Set(quickWeeks.map((week) => week.week_start_date));
-  const weekChips = state.overviewData.weeks
-    .filter((week) => !quickWeekSet.has(week.week_start_date))
-    .slice(0, 10)
-    .map((week) => {
-      const isActive = week.week_start_date === state.overviewData.selectedWeekStart;
-      return `
-        <button
-          type="button"
-          class="overview-week-chip${isActive ? " is-active" : ""}"
-          data-overview-week="${escapeHtml(week.week_start_date)}"
-        >
-          <strong>${escapeHtml(buildShortWeekLabel(week.week_start_date))}</strong>
-        </button>
-      `;
-    })
-    .join("");
-
+  const isCustomWeek = !quickWeekSet.has(state.overviewData.selectedWeekStart);
   els.overviewWeekScroller.innerHTML = `
     <div class="overview-week-quick">
       ${quickWeeks.map((week) => `
@@ -2238,11 +2218,10 @@ function renderOverviewWeeks() {
         </button>
       `).join("")}
     </div>
-    <label class="overview-date-picker">
+    <label class="overview-date-picker${isCustomWeek ? " is-active" : ""}">
       <span>選日期</span>
       <input id="overviewDateInput" type="date" value="${escapeHtml(state.overviewData.selectedWeekStart)}" />
     </label>
-    ${weekChips}
   `;
 }
 
@@ -2421,8 +2400,8 @@ function renderOverviewHistoryRange(range) {
         <span class="muted" style="font-size: 0.72rem; opacity: 0.8;">${escapeHtml(range.start_date || "")} ~ ${escapeHtml(range.end_date || "")}</span>
       </div>
       <div class="overview-history-events" style="display: grid; gap: 8px;">
-        ${renderOverviewHistoryEvent("主日", range.sunday_service)}
-        ${renderOverviewHistoryEvent("小家", range.small_group_fellowship)}
+        ${renderOverviewHistoryEvent("主日聚會", range.sunday_service)}
+        ${renderOverviewHistoryEvent("小家團契", range.small_group_fellowship)}
       </div>
     </section>
   `;

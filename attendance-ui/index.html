@@ -268,35 +268,32 @@
         <p id="overviewScopeSummary" class="muted">
           正在載入出席總覽...
         </p>
-        <div id="overviewEventTabs" class="tab-row compact-tabs">
-          <button
-            type="button"
-            class="tab-btn is-active"
-            data-overview-event="sunday_service"
-          >
-            主日
-          </button>
-          <button
-            type="button"
-            class="tab-btn"
-            data-overview-event="small_group_fellowship"
-          >
-            小家
-          </button>
-        </div>
-        <div id="overviewUnitTypeTabs" class="tab-row compact-tabs">
-          <button type="button" class="tab-btn is-active" data-overview-unit-type="">
-            全部
-          </button>
-          <button type="button" class="tab-btn" data-overview-unit-type="district">
-            區
-          </button>
-          <button type="button" class="tab-btn" data-overview-unit-type="big_family">
-            大家
-          </button>
-          <button type="button" class="tab-btn" data-overview-unit-type="small_group">
-            小家
-          </button>
+        <div class="overview-control-row">
+          <div id="overviewEventTabs" class="tab-row compact-tabs">
+            <button
+              type="button"
+              class="tab-btn is-active"
+              data-overview-event="sunday_service"
+            >
+              主日聚會
+            </button>
+            <button
+              type="button"
+              class="tab-btn"
+              data-overview-event="small_group_fellowship"
+            >
+              小家團契
+            </button>
+          </div>
+          <label class="overview-unit-filter">
+            <span>範圍</span>
+            <select id="overviewUnitTypeSelect">
+              <option value="">全部</option>
+              <option value="district">區</option>
+              <option value="big_family">大家</option>
+              <option value="small_group">小家</option>
+            </select>
+          </label>
         </div>
         <div id="overviewWeekScroller" class="overview-week-scroller"></div>
         <div id="overviewUnitList" class="overview-unit-list">
@@ -432,9 +429,6 @@
             <div class="section-toolbar">
               <div>
                 <h3>批量新增人員</h3>
-                <p class="muted">
-                  先貼上姓名並套用共同預設，產生預覽後可逐筆調整職分、性別與轄區。
-                </p>
               </div>
               <button id="closeBulkMemberEditorBtn" type="button" class="secondary">
                 關閉
@@ -489,7 +483,7 @@
                 <span>姓名清單（一行一人，也可用逗號或空白分隔）</span>
                 <textarea
                   id="bulkNamesInput"
-                  rows="6"
+                  rows="4"
                   placeholder="例如：&#10;王小明&#10;李小華&#10;陳美玲"
                 ></textarea>
               </label>
@@ -517,7 +511,6 @@
           <div class="section-toolbar">
             <div>
               <h3>組織管理</h3>
-              <p class="muted">不常用的操作收在這裡，需要時再展開。</p>
             </div>
           </div>
 
