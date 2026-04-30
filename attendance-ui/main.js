@@ -2119,6 +2119,18 @@ function switchOverviewUnitType(unitType) {
 }
 
 function handleOverviewWeekClick(event) {
+  const dateButton = event.target.closest("[data-overview-date-button]");
+  if (dateButton) {
+    const input = els.overviewWeekScroller?.querySelector("#overviewDateInput");
+    if (input?.showPicker) {
+      input.showPicker();
+    } else {
+      input?.focus();
+      input?.click();
+    }
+    return;
+  }
+
   const button = event.target.closest("[data-overview-week]");
   if (!button) {
     return;
@@ -2218,10 +2230,10 @@ function renderOverviewWeeks() {
         </button>
       `).join("")}
     </div>
-    <label class="overview-date-picker${isCustomWeek ? " is-active" : ""}">
-      <span>選日期</span>
-      <input id="overviewDateInput" type="date" value="${escapeHtml(state.overviewData.selectedWeekStart)}" />
-    </label>
+    <button type="button" class="overview-date-button${isCustomWeek ? " is-active" : ""}" data-overview-date-button>
+      選日期
+    </button>
+    <input id="overviewDateInput" class="overview-date-input" type="date" value="${escapeHtml(state.overviewData.selectedWeekStart)}" />
   `;
 }
 
@@ -3312,21 +3324,22 @@ async function handleSaveBulkMembers(event) {
 
   setButtonLoading(els.bulkSubmitBtn, true, "新增中...");
   try {
-    const data = await apiRequest("create-members-batch", {
-      method: "POST",
-      authMode: "app",
-      body: {
-        members: members.map((member) => ({
-          full_name: member.full_name,
-          role: member.role,
-          gender: member.gender || null,
-          district_id: member.district_id || null,
-          big_family_id: member.big_family_id || null,
-          small_group_id: member.small_group_id || null,
-          is_active: member.is_active,
-        })),
-      },
-    });
+    const payload = members.map(serializeBulkMember);
+    let data;
+    try {
+      data = await apiRequest("create-members-batch", {
+        method: "POST",
+        authMode: "app",
+        body: {
+          members: payload,
+        },
+      });
+    } catch (error) {
+      if (!isMissingBatchCreateAction(error)) {
+        throw error;
+      }
+      data = await createBulkMembersIndividually(payload);
+    }
 
     const results = data?.results || [];
     const failed = results.filter((result) => !result.ok);
@@ -3351,6 +3364,55 @@ async function handleSaveBulkMembers(event) {
     setButtonLoading(els.bulkSubmitBtn, false);
     renderBulkPreview();
   }
+}
+
+function serializeBulkMember(member) {
+  return {
+    full_name: member.full_name,
+    role: member.role,
+    gender: member.gender || null,
+    district_id: member.district_id || null,
+    big_family_id: member.big_family_id || null,
+    small_group_id: member.small_group_id || null,
+    is_active: member.is_active,
+  };
+}
+
+function isMissingBatchCreateAction(error) {
+  const message = String(error?.message || "");
+  return message.includes("Unknown action") || message.includes("404");
+}
+
+async function createBulkMembersIndividually(payload) {
+  const results = [];
+  for (const [index, member] of payload.entries()) {
+    try {
+      const data = await apiRequest("create-member", {
+        method: "POST",
+        authMode: "app",
+        body: member,
+      });
+      results.push({
+        index,
+        ok: true,
+        member: data?.member || null,
+        error: null,
+      });
+    } catch (error) {
+      results.push({
+        index,
+        ok: false,
+        member: null,
+        error: error.message || "新增失敗。",
+      });
+    }
+  }
+
+  return {
+    created_count: results.filter((result) => result.ok).length,
+    failed_count: results.filter((result) => !result.ok).length,
+    results,
+  };
 }
 
 function formatPeopleScopeSummary(member) {

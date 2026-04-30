@@ -1631,6 +1631,46 @@ body.is-authenticated #invitesView {
   line-height: 1.35;
 }
 
+#orgsView .org-management-panel {
+  padding: 10px;
+}
+
+#orgsView .org-management-grid {
+  gap: 8px;
+  margin-top: 10px;
+  grid-template-columns: 1fr;
+}
+
+#orgsView .org-section-card {
+  gap: 8px;
+  padding: 10px;
+}
+
+#orgsView .org-section-card .section-toolbar {
+  margin-bottom: 0;
+}
+
+#orgsView .org-section-card h4 {
+  margin: 0;
+}
+
+#orgsView .org-card-list {
+  gap: 6px;
+}
+
+#orgsView .org-scope-group > summary {
+  padding: 8px 9px;
+}
+
+#orgsView .org-scope-body {
+  padding: 5px;
+}
+
+#orgsView .org-card {
+  padding: 6px 7px;
+  border-radius: 10px;
+}
+
 #invitesView .card-header {
   margin-bottom: 8px;
 }
@@ -1645,6 +1685,12 @@ body.is-authenticated #invitesView {
 #invitesView .card-subsection,
 #invitesView .invite-card-list {
   gap: 8px;
+}
+
+#invitesView .invite-card-list {
+  max-height: min(440px, 52dvh);
+  overflow: auto;
+  padding-right: 2px;
 }
 
 #invitesView .card-subsection {
@@ -1685,10 +1731,25 @@ body.is-authenticated #invitesView {
 
 #invitesView .invite-card,
 #invitesView .latest-invite-card {
-  gap: 8px;
-  padding: 9px;
+  gap: 6px;
+  padding: 7px 8px;
   border-radius: 12px;
   box-shadow: none;
+}
+
+#invitesView .invite-card-head {
+  gap: 6px;
+}
+
+#invitesView .invite-card .row-meta {
+  min-width: 0;
+}
+
+#invitesView .invite-card .row-meta strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #invitesView .invite-code-display {
@@ -2101,8 +2162,10 @@ tbody tr:last-child td {
   width: auto;
   min-width: 82px;
   min-height: 28px;
-  padding: 0.18rem 1.65rem 0.18rem 0.5rem;
+  padding: 0.18rem 1.35rem 0.18rem 0.25rem;
+  border: none;
   border-radius: 999px;
+  background: transparent;
   font-size: 0.8rem;
 }
 
@@ -2168,13 +2231,8 @@ tbody tr:last-child td {
   color: #fff;
 }
 
-.overview-date-picker {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.overview-date-button {
   flex: 0 0 auto;
-  gap: 6px;
-  position: relative;
   min-height: 34px;
   padding: 0.34rem 0.6rem;
   border: 1px solid var(--border);
@@ -2186,19 +2244,17 @@ tbody tr:last-child td {
   cursor: pointer;
 }
 
-.overview-date-picker.is-active {
+.overview-date-button.is-active {
   background: var(--primary);
   color: #fff;
 }
 
-.overview-date-picker input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  min-height: 100%;
-  padding: 0;
+.overview-date-input {
+  position: fixed;
+  width: 1px;
+  height: 1px;
   opacity: 0;
-  cursor: pointer;
+  pointer-events: none;
 }
 
 .overview-unit-list {
@@ -3522,6 +3578,12 @@ body.is-authenticated .toast {
   }
 
   #overviewView .overview-date-picker {
+    min-height: 30px;
+    padding: 0.24rem 0.46rem;
+    font-size: 0.78rem;
+  }
+
+  #overviewView .overview-date-button {
     min-height: 30px;
     padding: 0.24rem 0.46rem;
     font-size: 0.78rem;
