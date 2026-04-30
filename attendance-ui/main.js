@@ -2334,16 +2334,17 @@ function renderOverviewStatusGroup(label, members) {
 
 function renderOverviewMember(member) {
   const alerts = getOverviewMemberAlerts(member);
-  const noteText = member.note ? ` · ${member.note_priority_high ? "高優先度：" : "備註："}${member.note}` : "";
+  const hasRegularNote = Boolean(member.note && !member.note_priority_high);
   return `
     <details class="overview-member-details${alerts.length ? " has-alerts" : ""}">
       <summary class="overview-member-row">
         <span class="name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</span>
         <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
         ${alerts.map(renderOverviewAlertBadge).join("")}
-        ${noteText && !member.note_priority_high ? `<span class="overview-note muted small-text">${escapeHtml(noteText)}</span>` : ""}
+        ${hasRegularNote ? '<span class="overview-note-badge">有備註</span>' : ""}
       </summary>
       ${alerts.length ? renderOverviewAlertPanel(alerts) : ""}
+      ${hasRegularNote ? renderOverviewNotePanel(member.note) : ""}
       ${renderOverviewMemberHistory(member.history)}
     </details>
   `;
@@ -2405,6 +2406,15 @@ function renderOverviewAlertPanel(alerts) {
       ${alerts.map((alert) => `
         <span class="overview-alert-reason ${escapeHtml(alert.tone)}">${escapeHtml(alert.detail)}</span>
       `).join("")}
+    </div>
+  `;
+}
+
+function renderOverviewNotePanel(note) {
+  return `
+    <div class="overview-note-panel">
+      <span class="info-label">備註</span>
+      <p>${escapeHtml(note)}</p>
     </div>
   `;
 }

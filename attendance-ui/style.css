@@ -2414,10 +2414,42 @@ tbody tr:last-child td {
   color: var(--danger);
 }
 
+.overview-note-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.16rem 0.42rem;
+  border-radius: 999px;
+  background: #edf3ff;
+  color: #36528b;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .overview-alert-panel {
   display: grid;
   gap: 5px;
   padding: 0 7px 7px;
+}
+
+.overview-note-panel {
+  display: grid;
+  gap: 4px;
+  margin: 0 7px 7px;
+  padding: 7px 8px;
+  border: 1px solid rgba(217, 226, 240, 0.72);
+  border-radius: 9px;
+  background: #f8fbff;
+}
+
+.overview-note-panel p {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .overview-alert-reason {
@@ -2503,10 +2535,6 @@ tbody tr:last-child td {
 .overview-member-list {
   display: grid;
   gap: 5px;
-}
-
-.overview-note {
-  flex-basis: 100%;
 }
 
 .management-list,
