@@ -280,6 +280,20 @@
             小家
           </button>
         </div>
+        <div id="overviewUnitTypeTabs" class="tab-row compact-tabs">
+          <button type="button" class="tab-btn is-active" data-overview-unit-type="">
+            全部
+          </button>
+          <button type="button" class="tab-btn" data-overview-unit-type="district">
+            區
+          </button>
+          <button type="button" class="tab-btn" data-overview-unit-type="big_family">
+            大家
+          </button>
+          <button type="button" class="tab-btn" data-overview-unit-type="small_group">
+            小家
+          </button>
+        </div>
         <div id="overviewWeekScroller" class="overview-week-scroller"></div>
         <div id="overviewUnitList" class="overview-unit-list">
           <div class="empty-state-card">載入中...</div>
@@ -293,6 +307,7 @@
             <h2>人員管理</h2>
           </div>
           <div class="button-row compact-buttons">
+            <button id="bulkMemberBtn" type="button" class="secondary">批量新增</button>
             <button id="newMemberBtn" type="button">新增人員</button>
           </div>
         </div>
@@ -383,13 +398,16 @@
                 </label>
               </div>
 
-              <div id="memberIsAdminWrap" class="checkbox-field hidden">
-                <span>額外權限</span>
+              <details id="memberIsAdminWrap" class="checkbox-field compact-panel hidden">
+                <summary>進階權限</summary>
+                <p class="muted">
+                  管理員可檢視與管理全部資料。請只在確認此人需要系統管理權限時授權。
+                </p>
                 <label class="checkbox-row">
                   <input id="memberIsAdminInput" type="checkbox" />
                   <span>賦予管理員權限</span>
                 </label>
-              </div>
+              </details>
 
               <label id="memberNoteLabel">
                 <span>近況備註</span>
@@ -402,6 +420,90 @@
 
               <div class="button-row">
                 <button id="memberSubmitBtn" type="submit">儲存資料</button>
+              </div>
+            </form>
+          </section>
+
+          <section id="bulkMemberEditorCard" class="management-editor card-subsection hidden">
+            <div class="section-toolbar">
+              <div>
+                <h3>批量新增人員</h3>
+                <p class="muted">
+                  先貼上姓名並套用共同預設，產生預覽後可逐筆調整職分、性別與轄區。
+                </p>
+              </div>
+              <button id="closeBulkMemberEditorBtn" type="button" class="secondary">
+                關閉
+              </button>
+            </div>
+
+            <form id="bulkMemberForm" class="form-grid">
+              <section class="bulk-default-panel">
+                <h4>共同預設</h4>
+                <div class="form-columns">
+                  <label>
+                    <span>預設職分</span>
+                    <select id="bulkRoleSelect" required></select>
+                  </label>
+                  <label>
+                    <span>預設性別</span>
+                    <select id="bulkGenderSelect">
+                      <option value="">未設定</option>
+                      <option value="brother">弟兄</option>
+                      <option value="sister">姊妹</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div class="form-columns">
+                  <label id="bulkDistrictLabel">
+                    <span>預設所屬區</span>
+                    <select id="bulkDistrictSelect"></select>
+                  </label>
+                  <label id="bulkBigFamilyLabel">
+                    <span>預設所屬大家</span>
+                    <select id="bulkBigFamilySelect"></select>
+                  </label>
+                </div>
+
+                <div class="form-columns">
+                  <label id="bulkSmallGroupLabel">
+                    <span>預設所屬小家</span>
+                    <select id="bulkSmallGroupSelect"></select>
+                  </label>
+                  <label>
+                    <span>狀態</span>
+                    <select id="bulkActiveSelect">
+                      <option value="true">啟用</option>
+                      <option value="false">停用</option>
+                    </select>
+                  </label>
+                </div>
+              </section>
+
+              <label>
+                <span>姓名清單（一行一人，也可用逗號或空白分隔）</span>
+                <textarea
+                  id="bulkNamesInput"
+                  rows="6"
+                  placeholder="例如：&#10;王小明&#10;李小華&#10;陳美玲"
+                ></textarea>
+              </label>
+
+              <div class="button-row compact-buttons">
+                <button id="bulkPreviewBtn" type="button" class="secondary">
+                  產生預覽
+                </button>
+                <button id="bulkSubmitBtn" type="submit" disabled>
+                  新增預覽名單
+                </button>
+              </div>
+
+              <div id="bulkSummary" class="list-count-chip">
+                尚未產生批量新增預覽
+              </div>
+              <div id="bulkPreviewList" class="bulk-preview-list">
+                <div class="empty-state-card">貼上姓名後按「產生預覽」。</div>
               </div>
             </form>
           </section>

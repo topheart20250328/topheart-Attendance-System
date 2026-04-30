@@ -75,6 +75,7 @@ const NOTE_MAX_LENGTH = 1000;
 const LAYOUT_SIZES = ["small", "medium", "large"];
 const V2_API_ACTIONS = new Set([
   "attendance-overview",
+  "create-members-batch",
   "dashboard",
   "create-member",
   "save-attendance",
@@ -151,6 +152,8 @@ const els = {
   overviewView: document.querySelector("#overviewView"),
   overviewEventTabs: document.querySelector("#overviewEventTabs"),
   overviewEventButtons: document.querySelectorAll("[data-overview-event]"),
+  overviewUnitTypeTabs: document.querySelector("#overviewUnitTypeTabs"),
+  overviewUnitTypeButtons: document.querySelectorAll("[data-overview-unit-type]"),
   overviewWeekScroller: document.querySelector("#overviewWeekScroller"),
   overviewScopeSummary: document.querySelector("#overviewScopeSummary"),
   overviewUnitList: document.querySelector("#overviewUnitList"),
@@ -159,6 +162,7 @@ const els = {
   peopleSearchInput: document.querySelector("#peopleSearchInput"),
   peopleRoleFilter: document.querySelector("#peopleRoleFilter"),
   peopleSummary: document.querySelector("#peopleSummary"),
+  bulkMemberBtn: document.querySelector("#bulkMemberBtn"),
   newMemberBtn: document.querySelector("#newMemberBtn"),
   peopleTableBody: document.querySelector("#peopleTableBody"),
   memberEditorCard: document.querySelector("#memberEditorCard"),
@@ -183,6 +187,23 @@ const els = {
   memberNoteInput: document.querySelector("#memberNoteInput"),
   memberScopeHint: document.querySelector("#memberScopeHint"),
   memberSubmitBtn: document.querySelector("#memberSubmitBtn"),
+  bulkMemberEditorCard: document.querySelector("#bulkMemberEditorCard"),
+  closeBulkMemberEditorBtn: document.querySelector("#closeBulkMemberEditorBtn"),
+  bulkMemberForm: document.querySelector("#bulkMemberForm"),
+  bulkRoleSelect: document.querySelector("#bulkRoleSelect"),
+  bulkGenderSelect: document.querySelector("#bulkGenderSelect"),
+  bulkDistrictLabel: document.querySelector("#bulkDistrictLabel"),
+  bulkDistrictSelect: document.querySelector("#bulkDistrictSelect"),
+  bulkBigFamilyLabel: document.querySelector("#bulkBigFamilyLabel"),
+  bulkBigFamilySelect: document.querySelector("#bulkBigFamilySelect"),
+  bulkSmallGroupLabel: document.querySelector("#bulkSmallGroupLabel"),
+  bulkSmallGroupSelect: document.querySelector("#bulkSmallGroupSelect"),
+  bulkActiveSelect: document.querySelector("#bulkActiveSelect"),
+  bulkNamesInput: document.querySelector("#bulkNamesInput"),
+  bulkPreviewBtn: document.querySelector("#bulkPreviewBtn"),
+  bulkSubmitBtn: document.querySelector("#bulkSubmitBtn"),
+  bulkSummary: document.querySelector("#bulkSummary"),
+  bulkPreviewList: document.querySelector("#bulkPreviewList"),
   districtDetails: document.querySelector("#districtDetails"),
   districtForm: document.querySelector("#districtForm"),
   districtNameInput: document.querySelector("#districtNameInput"),
@@ -257,6 +278,7 @@ const state = {
     overviewEvent: "sunday_service",
     overviewWeekStart: "",
     overviewLoading: false,
+    overviewUnitType: "",
     settingsOpen: false,
     manageAll: false,
     layoutSize: "medium",
@@ -268,6 +290,7 @@ const state = {
     peopleSearch: "",
     peopleRole: "",
   },
+  bulkMembers: [],
   dirty: false,
   toastTimer: null,
   saveFeedbackTimer: null,
@@ -339,15 +362,20 @@ function bindEvents() {
   els.overviewEventButtons?.forEach((button) => {
     button.addEventListener("click", () => switchOverviewEvent(button.dataset.overviewEvent));
   });
+  els.overviewUnitTypeButtons?.forEach((button) => {
+    button.addEventListener("click", () => switchOverviewUnitType(button.dataset.overviewUnitType || ""));
+  });
   els.overviewWeekScroller?.addEventListener("click", handleOverviewWeekClick);
   els.overviewWeekScroller?.addEventListener("change", handleOverviewDateChange);
   els.overviewUnitList?.addEventListener("toggle", handleOverviewUnitToggle, true);
 
   els.peopleSearchInput.addEventListener("input", handlePeopleFilters);
   els.peopleRoleFilter.addEventListener("change", handlePeopleFilters);
+  els.bulkMemberBtn?.addEventListener("click", openBulkMemberEditor);
   els.newMemberBtn.addEventListener("click", () => openMemberEditor("create"));
   els.peopleTableBody.addEventListener("click", handlePeopleTableClick);
   els.closeMemberEditorBtn.addEventListener("click", closeMemberEditor);
+  els.closeBulkMemberEditorBtn?.addEventListener("click", closeBulkMemberEditor);
 
   els.memberForm.addEventListener("submit", handleSaveMember);
   els.memberRoleSelect.addEventListener("change", () => {
@@ -367,6 +395,20 @@ function bindEvents() {
     syncEditorSmallGroupOptions();
     syncMemberFormScope();
   });
+  els.bulkRoleSelect?.addEventListener("change", syncBulkDefaultScope);
+  els.bulkDistrictSelect?.addEventListener("change", () => {
+    els.bulkBigFamilySelect.value = "";
+    els.bulkSmallGroupSelect.value = "";
+    syncBulkDefaultScope();
+  });
+  els.bulkBigFamilySelect?.addEventListener("change", () => {
+    els.bulkSmallGroupSelect.value = "";
+    syncBulkDefaultScope();
+  });
+  els.bulkPreviewBtn?.addEventListener("click", handleGenerateBulkPreview);
+  els.bulkMemberForm?.addEventListener("submit", handleSaveBulkMembers);
+  els.bulkPreviewList?.addEventListener("change", handleBulkPreviewInput);
+  els.bulkPreviewList?.addEventListener("click", handleBulkPreviewClick);
 
   els.districtForm.addEventListener("submit", handleCreateDistrict);
   els.bigFamilyForm.addEventListener("submit", handleCreateBigFamily);
@@ -2068,6 +2110,15 @@ function switchOverviewEvent(eventType) {
   renderAttendanceOverview();
 }
 
+function switchOverviewUnitType(unitType) {
+  if (state.ui.overviewUnitType === unitType) {
+    return;
+  }
+
+  state.ui.overviewUnitType = unitType;
+  renderAttendanceOverview();
+}
+
 function handleOverviewWeekClick(event) {
   const button = event.target.closest("[data-overview-week]");
   if (!button) {
@@ -2112,6 +2163,12 @@ function renderAttendanceOverview() {
   );
   els.overviewEventButtons?.forEach((button) => {
     button.classList.toggle("is-active", button.dataset.overviewEvent === state.ui.overviewEvent);
+  });
+  els.overviewUnitTypeButtons?.forEach((button) => {
+    button.classList.toggle(
+      "is-active",
+      (button.dataset.overviewUnitType || "") === state.ui.overviewUnitType,
+    );
   });
 
   if (!state.overviewData) {
@@ -2194,10 +2251,12 @@ function renderOverviewUnits() {
     return;
   }
 
-  const units = state.overviewData.units || [];
+  const units = (state.overviewData.units || []).filter((unit) =>
+    state.ui.overviewUnitType ? unit.type === state.ui.overviewUnitType : true,
+  );
   if (!units.length) {
     els.overviewUnitList.innerHTML =
-      '<div class="empty-state-card">目前沒有可檢視的出席單位。</div>';
+      '<div class="empty-state-card">目前沒有符合篩選的出席單位。</div>';
     return;
   }
 
@@ -2213,18 +2272,14 @@ function renderOverviewUnitCard(unit) {
   const absentCount = Number(stats.absent_count || 0);
   const confirmedCount = Number(stats.confirmed_count || presentCount + absentCount);
   const unknownCount = Math.max(0, Number(stats.unknown_count ?? (memberCount - confirmedCount)));
-  const typeLabel = {
-    district: "區",
-    big_family: "大家",
-    small_group: "小家",
-  }[unit.type] || "單位";
+  const parentLabel = unit.parent_name ? `所屬 ${unit.parent_name}` : "";
 
   return `
     <details class="overview-unit-details overview-level-${escapeHtml(unit.level || unit.type)}">
       <summary>
         <span class="overview-unit-main">
           <span class="overview-unit-title">${escapeHtml(unit.name)}</span>
-          <span class="muted small-text">${escapeHtml(typeLabel)}${unit.parent_name ? ` / ${escapeHtml(unit.parent_name)}` : ""}</span>
+          ${parentLabel ? `<span class="muted small-text">${escapeHtml(parentLabel)}</span>` : ""}
         </span>
         <span class="overview-unit-stat">
           <strong>${escapeHtml(formatOverviewRate(stats, memberCount))}</strong>
@@ -2853,6 +2908,7 @@ function renderMemberEditor() {
 }
 
 function openMemberEditor(mode, memberId = null) {
+  closeBulkMemberEditor();
   state.ui.editorMode = mode;
   state.ui.editingMemberId = memberId;
 
@@ -2888,6 +2944,434 @@ function closeMemberEditor() {
   els.memberForm.reset();
   setHidden(els.memberNoteLabel, true);
   setHidden(els.memberEditorCard, true);
+}
+
+function openBulkMemberEditor() {
+  closeMemberEditor();
+  state.bulkMembers = [];
+  populateBulkRoleOptions();
+  populateBulkDistrictOptions();
+  els.bulkGenderSelect.value = "";
+  els.bulkNamesInput.value = "";
+  els.bulkActiveSelect.value = "true";
+  syncBulkDefaultScope();
+  renderBulkPreview();
+  setHidden(els.bulkMemberEditorCard, false);
+  requestAnimationFrame(() => {
+    els.bulkMemberEditorCard.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+    els.bulkNamesInput.focus({ preventScroll: true });
+  });
+}
+
+function closeBulkMemberEditor() {
+  state.bulkMembers = [];
+  els.bulkMemberForm?.reset();
+  setHidden(els.bulkMemberEditorCard, true);
+  renderBulkPreview();
+}
+
+function populateBulkRoleOptions() {
+  if (!els.bulkRoleSelect) {
+    return;
+  }
+
+  const roles = state.currentMember?.is_admin ? ADMIN_CREATE_ROLES : MANAGEMENT_CREATE_ROLES;
+  fillSelect(
+    els.bulkRoleSelect,
+    roles.map((role) => ({ value: role, label: getRoleLabel(role) })),
+    { placeholder: "請選擇預設職分" },
+  );
+  if (roles.includes("member")) {
+    els.bulkRoleSelect.value = "member";
+  }
+}
+
+function populateBulkDistrictOptions() {
+  if (!els.bulkDistrictSelect) {
+    return;
+  }
+
+  const districtOptions = getSelectableDistricts().map((district) => ({
+    value: String(district.id),
+    label: getOrganizationDisplayName(district.name, district.is_active),
+  }));
+  fillSelect(els.bulkDistrictSelect, districtOptions, {
+    placeholder: districtOptions.length ? "可留空（無區）" : "尚無可選區",
+  });
+
+  if (state.currentMember?.is_admin) {
+    els.bulkDistrictSelect.disabled = false;
+  } else {
+    els.bulkDistrictSelect.value = String(state.currentMember?.district_id || "");
+    els.bulkDistrictSelect.disabled = true;
+  }
+}
+
+function syncBulkDefaultScope() {
+  if (!els.bulkRoleSelect || !els.bulkDistrictSelect) {
+    return;
+  }
+
+  const role = els.bulkRoleSelect.value;
+  const districtId = Number(els.bulkDistrictSelect.value || 0);
+  const availableBigFamilies = getSelectableBigFamilies(districtId);
+  fillSelect(
+    els.bulkBigFamilySelect,
+    availableBigFamilies.map((bigFamily) => ({
+      value: String(bigFamily.id),
+      label: getOrganizationDisplayName(bigFamily.name, bigFamily.is_active),
+    })),
+    { placeholder: availableBigFamilies.length ? "可留空（無大家）" : "可留空（無大家）" },
+  );
+
+  const bigFamilyId = Number(els.bulkBigFamilySelect.value || 0);
+  const availableSmallGroups = getSelectableSmallGroups({
+    role,
+    districtId,
+    bigFamilyId,
+  });
+  fillSelect(
+    els.bulkSmallGroupSelect,
+    availableSmallGroups.map((smallGroup) => ({
+      value: String(smallGroup.id),
+      label: [
+        getOrganizationDisplayName(smallGroup.name, smallGroup.is_active),
+        smallGroup.big_family_name,
+        smallGroup.district_name,
+      ].filter(Boolean).join(" / "),
+    })),
+    { placeholder: availableSmallGroups.length ? "請選擇小家" : "尚無可選小家" },
+  );
+
+  const isDistrictLeaderCreate = role === "district_leader";
+  const isBigFamilyLeaderCreate = role === "big_family_leader";
+  const isSmallGroupRole = SMALL_GROUP_LEADER_ROLES.includes(role);
+  setHidden(els.bulkDistrictLabel, false);
+  setHidden(els.bulkBigFamilyLabel, isDistrictLeaderCreate);
+  setHidden(els.bulkSmallGroupLabel, isDistrictLeaderCreate || isBigFamilyLeaderCreate || isSmallGroupRole);
+}
+
+function parseBulkNames(value) {
+  return String(value || "")
+    .split(/[\n\r,，、;；\t]+|\s{2,}/)
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .slice(0, 100);
+}
+
+function handleGenerateBulkPreview() {
+  const names = parseBulkNames(els.bulkNamesInput.value);
+  if (!names.length) {
+    showToast("請先輸入至少一個姓名。");
+    return;
+  }
+
+  state.bulkMembers = names.map((name, index) => createBulkMemberDraft(name, index));
+  validateBulkMembers();
+  renderBulkPreview();
+}
+
+function createBulkMemberDraft(name, index) {
+  const smallGroupId = Number(els.bulkSmallGroupSelect.value || 0);
+  const smallGroup = state.adminData.smallGroups.find((item) => item.id === smallGroupId);
+  const bigFamilyId = smallGroup?.big_family_id || Number(els.bulkBigFamilySelect.value || 0) || null;
+  const districtId = smallGroup?.district_id || Number(els.bulkDistrictSelect.value || 0) || null;
+
+  return {
+    client_id: `bulk-${Date.now()}-${index}`,
+    full_name: name,
+    role: els.bulkRoleSelect.value || "member",
+    gender: els.bulkGenderSelect.value || "",
+    district_id: districtId,
+    big_family_id: bigFamilyId,
+    small_group_id: smallGroupId || null,
+    is_active: els.bulkActiveSelect.value !== "false",
+    error: "",
+  };
+}
+
+function handleBulkPreviewInput(event) {
+  const field = event.target?.dataset?.bulkField;
+  const index = Number(event.target?.dataset?.bulkIndex);
+  if (!field || !Number.isInteger(index) || !state.bulkMembers[index]) {
+    return;
+  }
+
+  const member = state.bulkMembers[index];
+  if (field === "full_name") {
+    member.full_name = event.target.value.trimStart();
+  } else if (field === "role") {
+    member.role = event.target.value;
+    member.big_family_id = null;
+    member.small_group_id = null;
+  } else if (field === "gender") {
+    member.gender = event.target.value;
+  } else if (field === "district_id") {
+    member.district_id = Number(event.target.value || 0) || null;
+    member.big_family_id = null;
+    member.small_group_id = null;
+  } else if (field === "big_family_id") {
+    member.big_family_id = Number(event.target.value || 0) || null;
+    member.small_group_id = null;
+  } else if (field === "small_group_id") {
+    const smallGroupId = Number(event.target.value || 0) || null;
+    const smallGroup = state.adminData.smallGroups.find((item) => item.id === smallGroupId);
+    member.small_group_id = smallGroupId;
+    if (smallGroup) {
+      member.district_id = smallGroup.district_id || member.district_id;
+      member.big_family_id = smallGroup.big_family_id || null;
+    }
+  }
+
+  validateBulkMembers();
+  renderBulkPreview();
+}
+
+function handleBulkPreviewClick(event) {
+  const removeButton = event.target.closest("[data-bulk-remove]");
+  if (!removeButton) {
+    return;
+  }
+
+  const index = Number(removeButton.dataset.bulkRemove);
+  if (!Number.isInteger(index)) {
+    return;
+  }
+
+  state.bulkMembers.splice(index, 1);
+  validateBulkMembers();
+  renderBulkPreview();
+}
+
+function validateBulkMembers() {
+  state.bulkMembers.forEach((member) => {
+    member.full_name = String(member.full_name || "").trim();
+    member.error = getBulkMemberError(member);
+  });
+}
+
+function getBulkMemberError(member) {
+  if (!member.full_name) {
+    return "姓名不可空白。";
+  }
+  if (!member.role) {
+    return "請選擇職分。";
+  }
+  if (!state.currentMember?.is_admin && member.role === "preacher") {
+    return "非管理員不可新增傳道人。";
+  }
+  if (!state.currentMember?.is_admin && member.district_id !== state.currentMember?.district_id) {
+    return "只能新增到自己的轄區。";
+  }
+  if (member.role === "big_family_leader" && !member.district_id) {
+    return "新增大家長需要選擇所屬區。";
+  }
+  if (SMALL_GROUP_LEADER_ROLES.includes(member.role) && !member.district_id) {
+    return "新增小家長需要選擇所屬區。";
+  }
+  if (MEMBER_ROLES.includes(member.role) && !member.small_group_id) {
+    return "新增小家人或新朋友需要選擇小家。";
+  }
+  return "";
+}
+
+function renderBulkPreview() {
+  if (!els.bulkPreviewList || !els.bulkSummary || !els.bulkSubmitBtn) {
+    return;
+  }
+
+  const members = state.bulkMembers;
+  const errorCount = members.filter((member) => member.error).length;
+  els.bulkSubmitBtn.disabled = !members.length || errorCount > 0;
+  els.bulkSummary.textContent = members.length
+    ? `預覽 ${members.length} 位，${errorCount ? `${errorCount} 位需要修正` : "可送出新增"}`
+    : "尚未產生批量新增預覽";
+
+  if (!members.length) {
+    els.bulkPreviewList.innerHTML = '<div class="empty-state-card">貼上姓名後按「產生預覽」。</div>';
+    return;
+  }
+
+  els.bulkPreviewList.innerHTML = members.map(renderBulkMemberCard).join("");
+}
+
+function renderBulkMemberCard(member, index) {
+  const roleOptions = getBulkRoleOptions(member.role);
+  const districtOptions = getBulkDistrictOptions(member.district_id);
+  const bigFamilyOptions = getBulkBigFamilyOptions(member);
+  const smallGroupOptions = getBulkSmallGroupOptions(member);
+  return `
+    <article class="bulk-member-card${member.error ? " has-error" : ""}">
+      <div class="bulk-member-head">
+        <span class="bulk-member-index">#${index + 1}</span>
+        <button type="button" class="secondary danger-button" data-bulk-remove="${index}">移除</button>
+      </div>
+      <div class="bulk-member-grid">
+        <label>
+          <span>姓名</span>
+          <input type="text" value="${escapeHtml(member.full_name)}" data-bulk-index="${index}" data-bulk-field="full_name" required />
+        </label>
+        <label>
+          <span>職分</span>
+          <select data-bulk-index="${index}" data-bulk-field="role" required>${roleOptions}</select>
+        </label>
+        <label>
+          <span>性別</span>
+          <select data-bulk-index="${index}" data-bulk-field="gender">${getGenderOptions(member.gender)}</select>
+        </label>
+      </div>
+      <div class="bulk-member-scope-grid">
+        <label>
+          <span>所屬區</span>
+          <select data-bulk-index="${index}" data-bulk-field="district_id">${districtOptions}</select>
+        </label>
+        <label>
+          <span>所屬大家</span>
+          <select data-bulk-index="${index}" data-bulk-field="big_family_id">${bigFamilyOptions}</select>
+        </label>
+        <label>
+          <span>所屬小家</span>
+          <select data-bulk-index="${index}" data-bulk-field="small_group_id">${smallGroupOptions}</select>
+        </label>
+      </div>
+      ${member.error ? `<p class="bulk-row-error">${escapeHtml(member.error)}</p>` : ""}
+    </article>
+  `;
+}
+
+function getBulkRoleOptions(selectedValue) {
+  const roles = state.currentMember?.is_admin ? ADMIN_CREATE_ROLES : MANAGEMENT_CREATE_ROLES;
+  return renderSelectOptions(
+    roles.map((role) => ({ value: role, label: getRoleLabel(role) })),
+    selectedValue,
+    "請選擇職分",
+  );
+}
+
+function getGenderOptions(selectedValue) {
+  return renderSelectOptions(
+    [
+      { value: "brother", label: "弟兄" },
+      { value: "sister", label: "姊妹" },
+    ],
+    selectedValue,
+    "未設定",
+  );
+}
+
+function getBulkDistrictOptions(selectedValue) {
+  const districts = state.currentMember?.is_admin
+    ? getSelectableDistricts()
+    : getSelectableDistricts(state.currentMember?.district_id || 0).filter(
+        (district) => district.id === state.currentMember?.district_id,
+      );
+  return renderSelectOptions(
+    districts.map((district) => ({
+      value: String(district.id),
+      label: getOrganizationDisplayName(district.name, district.is_active),
+    })),
+    selectedValue ? String(selectedValue) : "",
+    "可留空（無區）",
+  );
+}
+
+function getBulkBigFamilyOptions(member) {
+  const options = getSelectableBigFamilies(Number(member.district_id || 0), Number(member.big_family_id || 0))
+    .map((bigFamily) => ({
+      value: String(bigFamily.id),
+      label: getOrganizationDisplayName(bigFamily.name, bigFamily.is_active),
+    }));
+  return renderSelectOptions(options, member.big_family_id ? String(member.big_family_id) : "", "可留空（無大家）");
+}
+
+function getBulkSmallGroupOptions(member) {
+  const options = getSelectableSmallGroups({
+    role: member.role,
+    districtId: Number(member.district_id || 0),
+    bigFamilyId: Number(member.big_family_id || 0),
+    includeSmallGroupId: Number(member.small_group_id || 0),
+  }).map((smallGroup) => ({
+    value: String(smallGroup.id),
+    label: [
+      getOrganizationDisplayName(smallGroup.name, smallGroup.is_active),
+      smallGroup.big_family_name,
+      smallGroup.district_name,
+    ].filter(Boolean).join(" / "),
+  }));
+  return renderSelectOptions(options, member.small_group_id ? String(member.small_group_id) : "", "請選擇小家");
+}
+
+function renderSelectOptions(items, selectedValue, placeholder) {
+  const selected = String(selectedValue || "");
+  const options = [`<option value=""${selected ? "" : " selected"}>${escapeHtml(placeholder)}</option>`];
+  for (const item of items) {
+    const value = String(item.value);
+    options.push(
+      `<option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>${escapeHtml(item.label)}</option>`,
+    );
+  }
+  return options.join("");
+}
+
+async function handleSaveBulkMembers(event) {
+  event.preventDefault();
+  validateBulkMembers();
+  renderBulkPreview();
+
+  const members = state.bulkMembers;
+  if (!members.length) {
+    showToast("請先產生批量新增預覽。");
+    return;
+  }
+  if (members.some((member) => member.error)) {
+    showToast("請先修正預覽清單中的錯誤。");
+    return;
+  }
+
+  setButtonLoading(els.bulkSubmitBtn, true, "新增中...");
+  try {
+    const data = await apiRequest("create-members-batch", {
+      method: "POST",
+      authMode: "app",
+      body: {
+        members: members.map((member) => ({
+          full_name: member.full_name,
+          role: member.role,
+          gender: member.gender || null,
+          district_id: member.district_id || null,
+          big_family_id: member.big_family_id || null,
+          small_group_id: member.small_group_id || null,
+          is_active: member.is_active,
+        })),
+      },
+    });
+
+    const results = data?.results || [];
+    const failed = results.filter((result) => !result.ok);
+    if (failed.length) {
+      state.bulkMembers = failed.map((result) => ({
+        ...members[result.index],
+        error: result.error || "新增失敗，請確認資料。",
+      }));
+      renderBulkPreview();
+      showToast(`已新增 ${results.length - failed.length} 位，${failed.length} 位失敗，請確認後再送出。`);
+      return;
+    }
+
+    closeBulkMemberEditor();
+    showToast(`已批量新增 ${results.length} 位人員。`);
+    await loadAdminPanel();
+    await loadDashboard({ skipDirtyCheck: true });
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "批量新增失敗。");
+  } finally {
+    setButtonLoading(els.bulkSubmitBtn, false);
+    renderBulkPreview();
+  }
 }
 
 function formatPeopleScopeSummary(member) {
@@ -3075,6 +3559,7 @@ function fillMemberForm(mode, member) {
     els.memberNoteInput.value = "";
     els.memberActiveSelect.value = "true";
     els.memberIsAdminInput.checked = false;
+    els.memberIsAdminWrap.open = false;
     if (Array.from(els.memberRoleSelect.options).some((option) => option.value === "member")) {
       els.memberRoleSelect.value = "member";
     } else if (els.memberRoleSelect.options.length > 1) {
@@ -3091,6 +3576,7 @@ function fillMemberForm(mode, member) {
     els.memberNoteInput.value = member.note || "";
     els.memberActiveSelect.value = member.is_active ? "true" : "false";
     els.memberIsAdminInput.checked = Boolean(member.is_admin);
+    els.memberIsAdminWrap.open = false;
   }
 }
 
@@ -3122,16 +3608,18 @@ function syncMemberFormScope() {
   setHidden(els.memberDistrictLabel, !showDistrictField);
   setHidden(els.memberBigFamilyLabel, !needsBigFamily);
   setHidden(els.memberSmallGroupLabel, !showSmallGroupField);
-  setHidden(els.memberIsAdminWrap, !state.currentMember?.is_admin);
+  const canEditAdminPermission = Boolean(state.currentMember?.is_admin && isEditMode);
+  setHidden(els.memberIsAdminWrap, !canEditAdminPermission);
 
   els.memberDistrictSelect.required = districtRequired;
   els.memberBigFamilySelect.required = false;
   els.memberSmallGroupSelect.required =
     isCreateMode && MEMBER_ROLES.includes(role);
-  els.memberIsAdminInput.disabled = !state.currentMember?.is_admin;
+  els.memberIsAdminInput.disabled = !canEditAdminPermission;
 
-  if (!state.currentMember?.is_admin) {
+  if (!canEditAdminPermission) {
     els.memberIsAdminInput.checked = false;
+    els.memberIsAdminWrap.open = false;
   }
 
   const hints = {
@@ -3196,6 +3684,22 @@ async function handleSaveMember(event) {
   if (MEMBER_ROLES.includes(body.role) && !body.small_group_id && mode === "create") {
     showToast("新增小家人或新朋友時，請先選擇所屬小家。");
     return;
+  }
+
+  if (mode === "create") {
+    body.is_admin = false;
+  } else {
+    const originalMember = state.adminData.members.find(
+      (member) => member.id === state.ui.editingMemberId,
+    );
+    if (
+      originalMember &&
+      !originalMember.is_admin &&
+      body.is_admin &&
+      !window.confirm(`確定要賦予「${body.full_name}」管理員權限嗎？此人將可管理全部資料。`)
+    ) {
+      return;
+    }
   }
 
   const action =
@@ -3751,7 +4255,6 @@ function renderOrganizationCard(orgType, organization) {
         <div class="row-meta">
           <div class="org-card-title">
             <strong>${escapeHtml(organization.name)}</strong>
-            <span class="role-pill">${escapeHtml(getOrganizationTypeLabel(orgType))}</span>
             <span class="status-chip ${organization.is_active ? "success" : "archived"}">
               ${organization.is_active ? "啟用" : "已封存"}
             </span>

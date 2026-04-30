@@ -98,6 +98,10 @@ Deno.serve(async (request) => {
       return await handleCreateMember(db, viewer, request);
     }
 
+    if (request.method === "POST" && action === "create-members-batch") {
+      return await handleCreateMembersBatch(db, viewer, request);
+    }
+
     if (request.method === "POST" && action === "save-attendance") {
       return await handleSaveAttendance(db, viewer, request);
     }
@@ -224,27 +228,80 @@ async function handleCreateMember(
   }
 
   const body = await request.json().catch(() => null);
+  const result = await createMemberFromBody(db, viewer, body);
+  return json(result.body, result.status);
+}
+
+async function handleCreateMembersBatch(
+  db: ReturnType<typeof createAdminClient>,
+  viewer: MemberRow,
+  request: Request,
+) {
+  if (!canUseManagement(viewer)) {
+    return json({ error: "Forbidden." }, 403);
+  }
+
+  const body = await request.json().catch(() => null);
+  const entries = Array.isArray(body?.members) ? body.members.slice(0, 100) : [];
+  if (!entries.length) {
+    return json({ error: "members is required." }, 400);
+  }
+
+  const results = [];
+  for (const [index, entry] of entries.entries()) {
+    try {
+      const result = await createMemberFromBody(db, viewer, entry);
+      const resultBody = result.body as any;
+      results.push({
+        index,
+        ok: result.status >= 200 && result.status < 300,
+        member: resultBody.member || null,
+        error: resultBody.error || null,
+      });
+    } catch (error) {
+      results.push({
+        index,
+        ok: false,
+        member: null,
+        error: error instanceof Error ? error.message : "Unexpected error.",
+      });
+    }
+  }
+
+  const createdCount = results.filter((result) => result.ok).length;
+  return json({
+    created_count: createdCount,
+    failed_count: results.length - createdCount,
+    results,
+  });
+}
+
+async function createMemberFromBody(
+  db: ReturnType<typeof createAdminClient>,
+  viewer: MemberRow,
+  body: any,
+) {
   const fullName = String(body?.full_name || "").trim();
   const role = normalizeRole(body?.role);
   const isAdmin = Boolean(body?.is_admin);
   const note = normalizeNote(body?.note);
   if (!fullName || !role) {
-    return json({ error: "請完整填寫姓名與職分。" }, 400);
+    return { status: 400, body: { error: "請完整填寫姓名與職分。" } };
   }
 
   if (!viewer.is_admin) {
     const allowed = ["big_family_leader", "small_group_leader", "trainee_small_group_leader", "member", "best"];
     if (isAdmin || !allowed.includes(role)) {
-      return json({ error: "No permission to create this role." }, 403);
+      return { status: 403, body: { error: "No permission to create this role." } };
     }
   }
 
   const scope = await resolveScope(db, body, role, { autoCreate: true, fullName });
   if (!scope) {
-    return json({ error: "Invalid hierarchy scope for this role." }, 400);
+    return { status: 400, body: { error: "Invalid hierarchy scope for this role." } };
   }
   if (!canManageDistrict(viewer, scope.district_id)) {
-    return json({ error: "No permission to create in this district." }, 403);
+    return { status: 403, body: { error: "No permission to create in this district." } };
   }
 
   const { data, error } = await db
@@ -264,7 +321,7 @@ async function handleCreateMember(
     .single();
 
   if (error) {
-    return json({ error: error.message }, 500);
+    return { status: 500, body: { error: error.message } };
   }
 
   await writeAuditLog(db, viewer, "create_member", "members", data.id, {
@@ -273,7 +330,7 @@ async function handleCreateMember(
     scope,
   });
 
-  return json({ member: data });
+  return { status: 200, body: { member: data } };
 }
 
 async function handleUpdateMember(
@@ -898,16 +955,30 @@ async function buildUnits(
     }
   }
 
+  const districtsById = new Map(
+    (await loadByIds(db, "districts", uniqueIds(members.map((member) => member.district_id))))
+      .map((district) => [district.id, district]),
+  );
+  const bigFamiliesById = new Map(
+    (await loadByIds(db, "big_families", uniqueIds(members.map((member) => member.big_family_id))))
+      .map((bigFamily) => [bigFamily.id, bigFamily]),
+  );
+
   if (includeBig) {
     const bigIds = uniqueIds(members.map((member) => member.big_family_id));
     for (const big of await loadByIds(db, "big_families", bigIds)) {
-      units.push(unit("big_family", big.id, big.name, null, members.filter((member) => member.big_family_id === big.id), recordMap, historyMap));
+      const parentName = districtsById.get(big.district_id)?.name || null;
+      units.push(unit("big_family", big.id, big.name, parentName, members.filter((member) => member.big_family_id === big.id), recordMap, historyMap));
     }
   }
 
   const smallIds = uniqueIds(members.map((member) => member.small_group_id));
   for (const small of await loadByIds(db, "small_groups", smallIds)) {
-    units.push(unit("small_group", small.id, small.name, null, members.filter((member) => member.small_group_id === small.id), recordMap, historyMap));
+    const parents = [
+      bigFamiliesById.get(small.big_family_id)?.name,
+      districtsById.get(small.district_id)?.name,
+    ].filter(Boolean);
+    units.push(unit("small_group", small.id, small.name, parents.join(" / ") || null, members.filter((member) => member.small_group_id === small.id), recordMap, historyMap));
   }
 
   return units.filter((item) => item.member_count > 0);

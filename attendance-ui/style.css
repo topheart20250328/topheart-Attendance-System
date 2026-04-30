@@ -1886,6 +1886,75 @@ tbody tr:last-child td {
   grid-template-columns: 1fr;
 }
 
+.bulk-default-panel,
+.bulk-preview-list {
+  display: grid;
+  gap: 10px;
+}
+
+.bulk-default-panel {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-alt);
+}
+
+.bulk-default-panel h4 {
+  margin: 0;
+}
+
+.bulk-preview-list {
+  max-height: min(560px, 62dvh);
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.bulk-member-card {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.bulk-member-card.has-error {
+  border-color: #f3b9b9;
+  background: #fff7f7;
+}
+
+.bulk-member-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.bulk-member-index {
+  color: var(--muted);
+  font-size: var(--small-text-size);
+  font-weight: 800;
+}
+
+.bulk-member-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(150px, 1.15fr) repeat(2, minmax(110px, 0.75fr));
+}
+
+.bulk-member-scope-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.bulk-row-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 .attendance-filter-row {
   align-items: end;
   padding: 10px 0;
@@ -2655,6 +2724,11 @@ body.is-authenticated .toast {
   .org-card-head {
     flex-direction: column;
   }
+
+  .bulk-member-grid,
+  .bulk-member-scope-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 720px) {
@@ -2898,6 +2972,8 @@ body.is-authenticated .toast {
   .result-box,
   .org-management-grid,
   .org-card-grid,
+  .bulk-member-grid,
+  .bulk-member-scope-grid,
   .toolbar-group,
   .member-card-grid,
   .invite-meta-grid,
