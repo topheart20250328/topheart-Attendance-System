@@ -2847,17 +2847,22 @@ async function handleRestoreMember(button, memberId, memberName) {
 }
 
 async function handleDeleteMember(button, memberId, memberName) {
-  if (
-    !window.confirm(
-      `確定要停用並封存「${memberName}」嗎？歷史點名紀錄會保留，但此人將無法登入並不再出現在點名名單。`,
-    )
-  ) {
-    return;
-  }
-  const confirmName = window.prompt(`請輸入「${memberName}」確認停用封存。`);
-  if (confirmName !== memberName) {
-    showToast("已取消停用封存。");
-    return;
+  const member = state.adminData.members.find((item) => item.id === memberId);
+  const canSkipConfirm = member && MEMBER_ROLES.includes(member.role);
+
+  if (!canSkipConfirm) {
+    if (
+      !window.confirm(
+        `確定要停用並封存「${memberName}」嗎？歷史點名紀錄會保留，但此人將無法登入並不再出現在點名名單。`,
+      )
+    ) {
+      return;
+    }
+    const confirmName = window.prompt(`請輸入「${memberName}」確認停用封存。`);
+    if (confirmName !== memberName) {
+      showToast("已取消停用封存。");
+      return;
+    }
   }
 
   setButtonLoading(button, true);
