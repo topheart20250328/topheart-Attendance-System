@@ -288,6 +288,8 @@ const state = {
     orgFocusTarget: null,
     peopleSearch: "",
     peopleRole: "",
+    peopleOpenGroups: new Set(),
+    overviewOpenUnitKey: "",
   },
   bulkMembers: [],
   dirty: false,
@@ -373,6 +375,7 @@ function bindEvents() {
   els.bulkMemberBtn?.addEventListener("click", openBulkMemberEditor);
   els.newMemberBtn.addEventListener("click", () => openMemberEditor("create"));
   els.peopleTableBody.addEventListener("click", handlePeopleTableClick);
+  els.peopleTableBody.addEventListener("toggle", handlePeopleGroupToggle, true);
   els.closeMemberEditorBtn.addEventListener("click", closeMemberEditor);
   els.closeBulkMemberEditorBtn?.addEventListener("click", closeBulkMemberEditor);
 
@@ -2150,9 +2153,19 @@ function handleOverviewDateChange(event) {
 
 function handleOverviewUnitToggle(event) {
   const details = event.target;
-  if (!details.matches?.(".overview-unit-details") || !details.open) {
+  if (!details.matches?.(".overview-unit-details")) {
     return;
   }
+
+  const unitKey = details.dataset.overviewUnitKey || "";
+  if (!details.open) {
+    if (state.ui.overviewOpenUnitKey === unitKey) {
+      state.ui.overviewOpenUnitKey = "";
+    }
+    return;
+  }
+
+  state.ui.overviewOpenUnitKey = unitKey;
 
   els.overviewUnitList
     ?.querySelectorAll(".overview-unit-details[open]")
@@ -2264,9 +2277,15 @@ function renderOverviewUnitCard(unit) {
   const confirmedCount = Number(stats.confirmed_count || presentCount + absentCount);
   const unknownCount = Math.max(0, Number(stats.unknown_count ?? (memberCount - confirmedCount)));
   const parentLabel = unit.parent_name ? `所屬 ${unit.parent_name}` : "";
+  const unitKey = getOverviewUnitKey(unit);
+  const shouldOpen = state.ui.overviewOpenUnitKey === unitKey;
 
   return `
-    <details class="overview-unit-details overview-level-${escapeHtml(unit.level || unit.type)}">
+    <details
+      class="overview-unit-details overview-level-${escapeHtml(unit.level || unit.type)}"
+      data-overview-unit-key="${escapeHtml(unitKey)}"
+      ${shouldOpen ? "open" : ""}
+    >
       <summary>
         <span class="overview-unit-main">
           <span class="overview-unit-title">${escapeHtml(unit.name)}</span>
@@ -2290,6 +2309,10 @@ function renderOverviewUnitCard(unit) {
       </div>
     </details>
   `;
+}
+
+function getOverviewUnitKey(unit) {
+  return `${unit.type || "unit"}:${unit.id || unit.name || ""}`;
 }
 
 function renderOverviewStatusGroup(label, members) {
@@ -2596,6 +2619,7 @@ function buildPeopleHierarchy(rows) {
 
     if (!districts.has(districtKey)) {
       districts.set(districtKey, {
+        key: `district:${districtKey}`,
         label: districtLabel,
         count: 0,
         bigFamilies: new Map(),
@@ -2608,6 +2632,7 @@ function buildPeopleHierarchy(rows) {
     if (!member.big_family_id && !member.big_family_name) {
       if (!district.smallGroups.has(smallGroupKey)) {
         district.smallGroups.set(smallGroupKey, {
+          key: `district:${districtKey}:small:${smallGroupKey}`,
           label: smallGroupLabel,
           members: [],
         });
@@ -2618,6 +2643,7 @@ function buildPeopleHierarchy(rows) {
 
     if (!district.bigFamilies.has(bigFamilyKey)) {
       district.bigFamilies.set(bigFamilyKey, {
+        key: `district:${districtKey}:big:${bigFamilyKey}`,
         label: bigFamilyLabel,
         count: 0,
         smallGroups: new Map(),
@@ -2628,6 +2654,7 @@ function buildPeopleHierarchy(rows) {
 
     if (!bigFamily.smallGroups.has(smallGroupKey)) {
       bigFamily.smallGroups.set(smallGroupKey, {
+        key: `district:${districtKey}:big:${bigFamilyKey}:small:${smallGroupKey}`,
         label: smallGroupLabel,
         members: [],
       });
@@ -2660,8 +2687,10 @@ function buildPeopleHierarchy(rows) {
 }
 
 function renderPeopleDistrictGroup(district, shouldOpen = false) {
+  const groupKey = district.key;
+  const isOpen = shouldOpen || state.ui.peopleOpenGroups.has(groupKey);
   return `
-    <details class="people-scope-group people-level-district" ${shouldOpen ? "open" : ""}>
+    <details class="people-scope-group people-level-district" data-people-group-key="${escapeHtml(groupKey)}" ${isOpen ? "open" : ""}>
       <summary>
         <span class="people-scope-title">${escapeHtml(district.label)}</span>
         <span class="status-chip neutral">${district.count}</span>
@@ -2675,8 +2704,10 @@ function renderPeopleDistrictGroup(district, shouldOpen = false) {
 }
 
 function renderPeopleBigFamilyGroup(bigFamily, shouldOpen = false) {
+  const groupKey = bigFamily.key;
+  const isOpen = shouldOpen || state.ui.peopleOpenGroups.has(groupKey);
   return `
-    <details class="people-scope-group people-level-big-family" ${shouldOpen ? "open" : ""}>
+    <details class="people-scope-group people-level-big-family" data-people-group-key="${escapeHtml(groupKey)}" ${isOpen ? "open" : ""}>
       <summary>
         <span class="people-scope-title">${escapeHtml(bigFamily.label)}</span>
         <span class="status-chip neutral">${bigFamily.count}</span>
@@ -2689,8 +2720,10 @@ function renderPeopleBigFamilyGroup(bigFamily, shouldOpen = false) {
 }
 
 function renderPeopleSmallGroup(smallGroup, shouldOpen = false) {
+  const groupKey = smallGroup.key;
+  const isOpen = shouldOpen || state.ui.peopleOpenGroups.has(groupKey);
   return `
-    <details class="people-scope-group people-level-small-group" ${shouldOpen ? "open" : ""}>
+    <details class="people-scope-group people-level-small-group" data-people-group-key="${escapeHtml(groupKey)}" ${isOpen ? "open" : ""}>
       <summary>
         <span class="people-scope-title">${escapeHtml(smallGroup.label)}</span>
         <span class="status-chip neutral">${smallGroup.members.length}</span>
@@ -2700,6 +2733,24 @@ function renderPeopleSmallGroup(smallGroup, shouldOpen = false) {
       </div>
     </details>
   `;
+}
+
+function handlePeopleGroupToggle(event) {
+  const details = event.target;
+  if (!details.matches?.(".people-scope-group")) {
+    return;
+  }
+
+  const groupKey = details.dataset.peopleGroupKey;
+  if (!groupKey) {
+    return;
+  }
+
+  if (details.open) {
+    state.ui.peopleOpenGroups.add(groupKey);
+  } else {
+    state.ui.peopleOpenGroups.delete(groupKey);
+  }
 }
 
 function renderPeopleMemberCard(member) {
@@ -2807,10 +2858,6 @@ function handlePeopleTableClick(event) {
 }
 
 async function handleRestoreMember(button, memberId, memberName) {
-  if (!window.confirm(`確定要恢復啟用「${memberName}」嗎？恢復後會重新出現在點名與管理名單中。`)) {
-    return;
-  }
-
   const member = state.adminData.members.find((item) => item.id === memberId);
   if (!member) {
     showToast("找不到這筆人員資料。");

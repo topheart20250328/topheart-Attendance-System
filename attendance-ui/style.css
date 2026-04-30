@@ -2130,14 +2130,22 @@ tbody tr:last-child td {
 
 .overview-control-row {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 8px;
 }
 
 .overview-control-row .compact-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  flex: 1 1 auto;
   margin-bottom: 0;
+  overflow: visible;
+}
+
+.overview-control-row .compact-tabs .tab-btn {
+  min-width: 0;
 }
 
 .overview-unit-filter {
@@ -2146,6 +2154,7 @@ tbody tr:last-child td {
   flex: 0 0 auto;
   gap: 6px;
   min-height: 34px;
+  align-self: stretch;
   padding: 0.22rem 0.36rem 0.22rem 0.62rem;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -2162,11 +2171,13 @@ tbody tr:last-child td {
   width: auto;
   min-width: 82px;
   min-height: 28px;
+  height: 100%;
   padding: 0.18rem 1.35rem 0.18rem 0.25rem;
   border: none;
   border-radius: 999px;
   background: transparent;
   font-size: 0.8rem;
+  line-height: 1;
 }
 
 #overviewView.card {
