@@ -278,6 +278,7 @@ const state = {
     overviewWeekStart: "",
     overviewLoading: false,
     overviewUnitType: "",
+    overviewHistoryRange: "month",
     settingsOpen: false,
     manageAll: false,
     layoutSize: "medium",
@@ -290,6 +291,7 @@ const state = {
     peopleRole: "",
     peopleOpenGroups: new Set(),
     overviewOpenUnitKey: "",
+    overviewOpenMemberKeys: new Set(),
   },
   bulkMembers: [],
   dirty: false,
@@ -368,6 +370,7 @@ function bindEvents() {
   );
   els.overviewWeekScroller?.addEventListener("click", handleOverviewWeekClick);
   els.overviewWeekScroller?.addEventListener("change", handleOverviewDateChange);
+  els.overviewUnitList?.addEventListener("click", handleOverviewHistoryRangeClick);
   els.overviewUnitList?.addEventListener("toggle", handleOverviewUnitToggle, true);
 
   els.peopleSearchInput.addEventListener("input", handlePeopleFilters);
@@ -2153,6 +2156,19 @@ function handleOverviewDateChange(event) {
 
 function handleOverviewUnitToggle(event) {
   const details = event.target;
+  if (details.matches?.(".overview-member-details")) {
+    const memberKey = details.dataset.overviewMemberKey || "";
+    if (!memberKey) {
+      return;
+    }
+    if (details.open) {
+      state.ui.overviewOpenMemberKeys.add(memberKey);
+    } else {
+      state.ui.overviewOpenMemberKeys.delete(memberKey);
+    }
+    return;
+  }
+
   if (!details.matches?.(".overview-unit-details")) {
     return;
   }
@@ -2174,6 +2190,21 @@ function handleOverviewUnitToggle(event) {
         item.open = false;
       }
     });
+}
+
+function handleOverviewHistoryRangeClick(event) {
+  const button = event.target.closest("[data-overview-history-range]");
+  if (!button) {
+    return;
+  }
+
+  const rangeKey = button.dataset.overviewHistoryRange;
+  if (!getOverviewHistoryRangeDefinitions().some((range) => range.key === rangeKey)) {
+    return;
+  }
+
+  state.ui.overviewHistoryRange = rangeKey;
+  renderOverviewUnits();
 }
 
 function renderAttendanceOverview() {
@@ -2335,8 +2366,14 @@ function renderOverviewStatusGroup(label, members) {
 function renderOverviewMember(member) {
   const alerts = getOverviewMemberAlerts(member);
   const hasRegularNote = Boolean(member.note && !member.note_priority_high);
+  const memberKey = getOverviewMemberKey(member);
+  const shouldOpen = state.ui.overviewOpenMemberKeys.has(memberKey);
   return `
-    <details class="overview-member-details${alerts.length ? " has-alerts" : ""}">
+    <details
+      class="overview-member-details${alerts.length ? " has-alerts" : ""}"
+      data-overview-member-key="${escapeHtml(memberKey)}"
+      ${shouldOpen ? "open" : ""}
+    >
       <summary class="overview-member-row">
         <span class="name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</span>
         <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
@@ -2412,29 +2449,59 @@ function renderOverviewAlertPanel(alerts) {
 
 function renderOverviewNotePanel(note) {
   return `
-    <div class="overview-note-panel">
-      <span class="info-label">備註</span>
-      <p>${escapeHtml(note)}</p>
+    <div class="overview-alert-panel">
+      <span class="overview-alert-reason note">備註：${escapeHtml(note)}</span>
     </div>
   `;
 }
 
 function renderOverviewMemberHistory(history) {
-  const ranges = [
-    history?.month,
-    history?.three_months,
-    history?.half_year,
-    history?.year,
-  ].filter(Boolean);
+  const ranges = getOverviewHistoryRangeDefinitions()
+    .map((range) => ({
+      ...range,
+      data: history?.[range.key],
+    }))
+    .filter((range) => range.data);
   if (!ranges.length) {
     return '<div class="overview-history-grid"><span class="muted small-text" style="padding: 10px;">尚無歷史出席資料</span></div>';
   }
 
+  const selectedRange = ranges.find((range) => range.key === state.ui.overviewHistoryRange) || ranges[0];
+
   return `
-    <div class="overview-history-grid">
-      ${ranges.map(renderOverviewHistoryRange).join("")}
+    <div class="overview-history-panel">
+      <div class="overview-history-range-tabs">
+        ${ranges.map((range) => renderOverviewHistoryRangeButton(range)).join("")}
+      </div>
+      ${renderOverviewHistoryRange(selectedRange.data)}
     </div>
   `;
+}
+
+function getOverviewHistoryRangeDefinitions() {
+  return [
+    { key: "month", label: "本月" },
+    { key: "three_months", label: "近三個月" },
+    { key: "half_year", label: "近半年" },
+    { key: "year", label: "近一年" },
+  ];
+}
+
+function renderOverviewHistoryRangeButton(range) {
+  const isActive = range.key === state.ui.overviewHistoryRange;
+  return `
+    <button
+      type="button"
+      class="overview-history-range-btn${isActive ? " is-active" : ""}"
+      data-overview-history-range="${escapeHtml(range.key)}"
+    >
+      ${escapeHtml(range.label)}
+    </button>
+  `;
+}
+
+function getOverviewMemberKey(member) {
+  return `member:${member.id || member.full_name || ""}`;
 }
 
 function renderOverviewHistoryRange(range) {
