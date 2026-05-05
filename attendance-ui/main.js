@@ -78,7 +78,10 @@ const V2_API_ACTIONS = new Set([
   "create-members-batch",
   "dashboard",
   "create-member",
+  "delete-invite",
   "save-attendance",
+  "move-organization",
+  "reset-member-line-binding",
   "update-member",
 ]);
 
@@ -2442,10 +2445,10 @@ function renderOverviewUnitCard(unit) {
         <span class="status-chip neutral">共 ${memberCount} 人</span>
       </div>
       <div class="overview-detail-grid">
-        ${renderOverviewRateGroup(stats, memberCount)}
-        ${renderOverviewStatusGroup("出席", detail.present || [])}
-        ${renderOverviewStatusGroup("未出席", detail.absent || [])}
-        ${renderOverviewStatusGroup("待確認", detail.unknown || [])}
+        ${renderOverviewUnitHistory(unit.history, stats, memberCount)}
+        ${renderOverviewStatusGroup("出席", detail.present || [], unit.type)}
+        ${renderOverviewStatusGroup("未出席", detail.absent || [], unit.type)}
+        ${renderOverviewStatusGroup("待確認", detail.unknown || [], unit.type)}
       </div>
     </details>
   `;
@@ -2455,45 +2458,49 @@ function getOverviewUnitKey(unit) {
   return `${unit.type || "unit"}:${unit.id || unit.name || ""}`;
 }
 
-function renderOverviewStatusGroup(label, members) {
+function renderOverviewStatusGroup(label, members, unitType = "") {
   const sortedMembers = sortMembers([...(members || [])]);
   if (!sortedMembers.length) {
     return "";
   }
+  const shouldCollapse = unitType === "district" || unitType === "big_family";
   return `
-    <section class="overview-status-group">
-      <div class="overview-status-head">
+    <details class="overview-status-group overview-status-details" ${shouldCollapse ? "" : "open"}>
+      <summary class="overview-status-head">
         <strong>${escapeHtml(label)}</strong>
         <span class="status-chip neutral">${sortedMembers.length}</span>
-      </div>
+      </summary>
       <div class="overview-member-list">
-        ${sortedMembers.length
-          ? sortedMembers.map(renderOverviewMember).join("")
-          : '<span class="muted small-text">無人員</span>'}
+        ${sortedMembers.map(renderOverviewMember).join("")}
+      </div>
+    </details>
+  `;
+}
+
+function renderOverviewUnitHistory(history, currentStats, memberCount) {
+  const ranges = getOverviewHistoryRangeDefinitions();
+  return `
+    <section class="overview-status-group overview-rate-group">
+      <div class="overview-status-head">
+        <strong>整體出席率</strong>
+        <span class="status-chip neutral">${escapeHtml(formatOverviewRate(currentStats, memberCount))}</span>
+      </div>
+      <div class="overview-unit-history-grid">
+        ${ranges.map((range) => renderOverviewUnitHistoryCard(range, history?.[range.key])).join("")}
       </div>
     </section>
   `;
 }
 
-function renderOverviewRateGroup(stats, memberCount) {
-  const present = Number(stats?.present_count || 0);
-  const absent = Number(stats?.absent_count || 0);
-  const unknown = Number(stats?.unknown_count || 0);
-  const breakdown = formatNonZeroParts([
-    { label: "出席", value: present },
-    { label: "未出席", value: absent },
-    { label: "待確認", value: unknown },
-  ], " 人");
+function renderOverviewUnitHistoryCard(range, data) {
+  const eventType = state.ui.overviewEvent;
+  const stats = data?.[eventType] || createEmptyEventStats();
   return `
-    <section class="overview-status-group overview-rate-group">
-      <div class="overview-status-head">
-        <strong>整體出席率</strong>
-        <span class="status-chip neutral">${escapeHtml(formatOverviewRate(stats, memberCount))}</span>
-      </div>
-      <div class="overview-member-list">
-        <span class="muted small-text">${escapeHtml(breakdown || "尚無出席資料")}</span>
-      </div>
-    </section>
+    <div class="overview-history-event">
+      <span class="info-label">${escapeHtml(range.label)}</span>
+      <strong>${escapeHtml(formatAnalyticsRate(stats))}</strong>
+      <span class="summary-subtext">${escapeHtml(formatDetailedAnalyticsBreakdown(stats))}</span>
+    </div>
   `;
 }
 
@@ -4321,14 +4328,9 @@ function renderOrganizationDistrictGroup(district) {
   const childCount = bigFamilies.length + directSmallGroups.length;
 
   return `
-    <details class="org-scope-group org-level-district">
-      <summary>
-        <span class="org-scope-title">${escapeHtml(district.name)}</span>
-        <span class="org-scope-counts">
-          <span class="status-chip neutral">${bigFamilies.length} 大家</span>
-          <span class="status-chip neutral">${directSmallGroups.length} 直屬小家</span>
-          <span class="status-chip neutral">${memberCount} 人</span>
-        </span>
+    <details class="org-scope-group org-tree-node org-level-district">
+      <summary class="org-tree-summary">
+        <span class="org-tree-node-label">${escapeHtml(district.name)}</span>
       </summary>
       <div class="org-scope-body">
         ${renderOrganizationCard("district", district)}
@@ -4350,13 +4352,9 @@ function renderOrganizationBigFamilyGroup(bigFamily) {
   const memberCount = state.adminData.members.filter((member) => member.big_family_id === bigFamily.id).length;
 
   return `
-    <details class="org-scope-group org-level-big-family">
-      <summary>
-        <span class="org-scope-title">${escapeHtml(bigFamily.name)}</span>
-        <span class="org-scope-counts">
-          <span class="status-chip neutral">${smallGroups.length} 小家</span>
-          <span class="status-chip neutral">${memberCount} 人</span>
-        </span>
+    <details class="org-scope-group org-tree-node org-level-big-family">
+      <summary class="org-tree-summary">
+        <span class="org-tree-node-label">${escapeHtml(bigFamily.name)}</span>
       </summary>
       <div class="org-scope-body">
         ${renderOrganizationCard("big_family", bigFamily)}
@@ -4371,7 +4369,16 @@ function renderOrganizationBigFamilyGroup(bigFamily) {
 }
 
 function renderOrganizationSmallGroupItem(smallGroup) {
-  return renderOrganizationCard("small_group", smallGroup);
+  return `
+    <details class="org-tree-node org-level-small-group">
+      <summary class="org-tree-summary">
+        <span class="org-tree-node-label">${escapeHtml(smallGroup.name)}</span>
+      </summary>
+      <div class="org-scope-body">
+        ${renderOrganizationCard("small_group", smallGroup)}
+      </div>
+    </details>
+  `;
 }
 
 function compareOrganizations(left, right) {
@@ -5027,6 +5034,8 @@ function renderInviteTable() {
 
   els.inviteTableBody.innerHTML = getSortedInvites()
     .map((invite) => {
+      const targetMember = getInviteTargetMember(invite);
+      const hasLineBinding = Boolean(invite.target_line_user_id || targetMember?.line_user_id);
       const status = invite.used_at
         ? '<span class="status-chip success">已使用</span>'
         : new Date(invite.expires_at).getTime() < Date.now()
@@ -5054,17 +5063,15 @@ function renderInviteTable() {
             >
               複製
             </button>
-            ${!invite.used_at
-              ? `<button
-                  type="button"
-                  class="secondary danger-button invite-delete-btn"
-                  data-invite-id="${escapeHtml(invite.id)}"
-                  data-invite-code="${escapeHtml(invite.invite_code)}"
-                >
-                  刪除邀請碼
-                </button>`
-              : ""}
-            ${invite.target_line_user_id
+            <button
+              type="button"
+              class="secondary danger-button invite-delete-btn"
+              data-invite-id="${escapeHtml(invite.id)}"
+              data-invite-code="${escapeHtml(invite.invite_code)}"
+            >
+              刪除邀請碼
+            </button>
+            ${hasLineBinding
               ? `<button
                   type="button"
                   class="secondary danger-button invite-reset-binding-btn"
@@ -5090,6 +5097,10 @@ function renderInviteTable() {
       `;
     })
     .join("");
+}
+
+function getInviteTargetMember(invite) {
+  return state.adminData.members.find((member) => member.id === Number(invite.target_member_id));
 }
 
 function getSortedInvites() {

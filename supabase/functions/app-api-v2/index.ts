@@ -106,6 +106,18 @@ Deno.serve(async (request) => {
       return await handleSaveAttendance(db, viewer, request);
     }
 
+    if (request.method === "POST" && action === "move-organization") {
+      return await handleMoveOrganization(db, viewer, request);
+    }
+
+    if (request.method === "POST" && action === "delete-invite") {
+      return await handleDeleteInvite(db, viewer, request);
+    }
+
+    if (request.method === "POST" && action === "reset-member-line-binding") {
+      return await handleResetMemberLineBinding(db, viewer, request);
+    }
+
     if (request.method === "POST" && action === "update-member") {
       return await handleUpdateMember(db, viewer, request);
     }
@@ -684,6 +696,176 @@ async function handleSaveAttendance(
   return json({ status: "ok", message: "本週點名已儲存；若多人同時編輯，以最後儲存為準。" });
 }
 
+async function handleMoveOrganization(
+  db: ReturnType<typeof createAdminClient>,
+  viewer: MemberRow,
+  request: Request,
+) {
+  if (!viewer.is_admin) {
+    return json({ error: "Only admins can reorder organizations." }, 403);
+  }
+
+  const body = await request.json().catch(() => null);
+  const orgType = String(body?.org_type || "");
+  const orgId = toPositiveInt(body?.org_id);
+  const direction = Number(body?.direction) < 0 ? -1 : 1;
+  if (!["district", "big_family", "small_group"].includes(orgType) || !orgId) {
+    return json({ error: "org_type and org_id are required." }, 400);
+  }
+
+  const tableName = getOrganizationTableName(orgType);
+  const { data: target, error: targetError } = await db
+    .from(tableName)
+    .select("*")
+    .eq("id", orgId)
+    .maybeSingle();
+  if (targetError) {
+    return json({ error: targetError.message }, 500);
+  }
+  if (!target) {
+    return json({ error: "Organization not found." }, 404);
+  }
+
+  let query = db
+    .from(tableName)
+    .select("*")
+    .order("is_active", { ascending: false })
+    .order("display_order", { ascending: true, nullsFirst: false })
+    .order("name");
+  if (orgType === "big_family") {
+    query = query.eq("district_id", target.district_id);
+  } else if (orgType === "small_group") {
+    query = target.big_family_id
+      ? query.eq("big_family_id", target.big_family_id)
+      : query.eq("district_id", target.district_id).is("big_family_id", null);
+  }
+
+  const { data: siblings, error: siblingsError } = await query;
+  if (siblingsError) {
+    return json({ error: siblingsError.message }, 500);
+  }
+
+  const rows = siblings || [];
+  const currentIndex = rows.findIndex((row) => row.id === orgId);
+  const nextIndex = currentIndex + direction;
+  if (currentIndex < 0 || nextIndex < 0 || nextIndex >= rows.length) {
+    return json({ status: "ok", message: "排序已在邊界。" });
+  }
+
+  const current = rows[currentIndex];
+  const next = rows[nextIndex];
+  let currentOrder = Number.isFinite(Number(current.display_order))
+    ? Number(current.display_order)
+    : currentIndex + 1;
+  let nextOrder = Number.isFinite(Number(next.display_order))
+    ? Number(next.display_order)
+    : nextIndex + 1;
+  if (currentOrder === nextOrder) {
+    currentOrder = currentIndex + 1;
+    nextOrder = nextIndex + 1;
+  }
+
+  const { error: currentError } = await db
+    .from(tableName)
+    .update({ display_order: nextOrder })
+    .eq("id", current.id);
+  if (currentError) {
+    return json({ error: currentError.message }, 500);
+  }
+
+  const { error: nextError } = await db
+    .from(tableName)
+    .update({ display_order: currentOrder })
+    .eq("id", next.id);
+  if (nextError) {
+    return json({ error: nextError.message }, 500);
+  }
+
+  return json({ status: "ok" });
+}
+
+async function handleDeleteInvite(
+  db: ReturnType<typeof createAdminClient>,
+  viewer: MemberRow,
+  request: Request,
+) {
+  if (!viewer.is_admin) {
+    return json({ error: "Forbidden." }, 403);
+  }
+
+  const body = await request.json().catch(() => null);
+  const inviteId = String(body?.invite_id || "").trim();
+  if (!inviteId) {
+    return json({ error: "invite_id is required." }, 400);
+  }
+
+  const { error } = await db.from("login_invites").delete().eq("id", inviteId);
+  if (error) {
+    return json({ error: error.message }, 500);
+  }
+  return json({ status: "ok" });
+}
+
+async function handleResetMemberLineBinding(
+  db: ReturnType<typeof createAdminClient>,
+  viewer: MemberRow,
+  request: Request,
+) {
+  if (!viewer.is_admin) {
+    return json({ error: "Forbidden." }, 403);
+  }
+
+  const body = await request.json().catch(() => null);
+  const memberId = toPositiveInt(body?.member_id);
+  if (!memberId) {
+    return json({ error: "member_id is required." }, 400);
+  }
+
+  const { data: target, error: targetError } = await db
+    .from("members")
+    .select("id, line_user_id")
+    .eq("id", memberId)
+    .maybeSingle();
+  if (targetError) {
+    return json({ error: targetError.message }, 500);
+  }
+  if (!target) {
+    return json({ error: "Member not found." }, 404);
+  }
+
+  const nowIso = new Date().toISOString();
+  const { error: memberError } = await db
+    .from("members")
+    .update({ line_user_id: null, last_line_login_at: null })
+    .eq("id", memberId);
+  if (memberError) {
+    return json({ error: memberError.message }, 500);
+  }
+
+  if (target.line_user_id) {
+    const { error: sessionError } = await db
+      .from("app_sessions")
+      .update({ revoked_at: nowIso })
+      .eq("line_user_id", target.line_user_id)
+      .is("revoked_at", null);
+    if (sessionError) {
+      return json({ error: sessionError.message }, 500);
+    }
+  }
+
+  return json({ status: "ok" });
+}
+
+function getOrganizationTableName(orgType: string) {
+  if (orgType === "district") {
+    return "districts";
+  }
+  if (orgType === "big_family") {
+    return "big_families";
+  }
+  return "small_groups";
+}
+
 async function loadVisibleMembers(
   db: ReturnType<typeof createAdminClient>,
   viewer: MemberRow,
@@ -1055,11 +1237,55 @@ function unit(
       sunday_service: stats(members, recordMap, "sunday_service"),
       small_group_fellowship: stats(members, recordMap, "small_group_fellowship"),
     },
+    history: aggregateUnitHistory(members, historyMap),
     detail: {
       sunday_service: detail(members, recordMap, "sunday_service", historyMap),
       small_group_fellowship: detail(members, recordMap, "small_group_fellowship", historyMap),
     },
   };
+}
+
+function aggregateUnitHistory(
+  members: MemberRow[],
+  historyMap: Map<number, Record<string, any>>,
+) {
+  const firstHistory = members
+    .map((member) => historyMap.get(member.id))
+    .find(Boolean);
+  const anchorWeekStart = firstHistory?.month?.end_date || formatDate(new Date());
+  const result = createEmptyHistorySummary(anchorWeekStart);
+
+  for (const member of members) {
+    const memberHistory = historyMap.get(member.id);
+    if (!memberHistory) {
+      continue;
+    }
+
+    for (const range of HISTORY_RANGES) {
+      const rangeSummary = result[range.key];
+      const memberRange = memberHistory[range.key];
+      if (!rangeSummary || !memberRange) {
+        continue;
+      }
+      rangeSummary.start_date = memberRange.start_date || rangeSummary.start_date;
+      rangeSummary.end_date = memberRange.end_date || rangeSummary.end_date;
+      for (const eventType of ["sunday_service", "small_group_fellowship"]) {
+        addStats(rangeSummary[eventType], memberRange[eventType]);
+      }
+    }
+  }
+
+  return result;
+}
+
+function addStats(target: any, source: any) {
+  if (!target || !source) {
+    return;
+  }
+  target.present_count += Number(source.present_count || 0);
+  target.absent_count += Number(source.absent_count || 0);
+  target.unknown_count += Number(source.unknown_count || 0);
+  target.confirmed_count += Number(source.confirmed_count || 0);
 }
 
 function stats(members: MemberRow[], recordMap: Map<string, any>, eventType: string) {
