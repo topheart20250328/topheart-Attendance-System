@@ -2750,14 +2750,17 @@ tbody tr:last-child td {
 
 .org-tree-board {
   display: grid;
-  gap: 18px;
+  align-items: start;
+  gap: 12px;
+  max-width: 100%;
+  box-sizing: border-box;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-x pan-y;
-  padding: 14px;
+  padding: 10px;
   border: 1px solid rgba(43, 111, 243, 0.12);
-  border-radius: 24px;
+  border-radius: 18px;
   background:
     radial-gradient(circle at top left, rgba(43, 111, 243, 0.09), transparent 32%),
     linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
@@ -2766,30 +2769,32 @@ tbody tr:last-child td {
 .org-flow-row,
 .org-flow-branch {
   position: relative;
-  display: grid;
-  grid-template-columns: 190px minmax(360px, 1fr);
+  display: inline-grid;
+  grid-template-columns: 132px max-content;
   align-items: start;
-  gap: 30px;
-  min-width: 820px;
+  gap: 22px;
+  width: max-content;
+  max-width: none;
 }
 
 .org-flow-row {
-  padding: 18px;
+  min-width: 100%;
+  padding: 10px;
   border: 1px solid rgba(217, 226, 240, 0.86);
-  border-radius: 24px;
+  border-radius: 18px;
   background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
 }
 
 .org-flow-branch + .org-flow-branch {
-  margin-top: 14px;
+  margin-top: 8px;
 }
 
 .org-flow-branches {
   position: relative;
   display: grid;
-  gap: 14px;
-  padding-left: 8px;
+  gap: 8px;
+  padding-left: 6px;
 }
 
 .org-flow-row > .org-flow-branches::before,
@@ -2797,9 +2802,9 @@ tbody tr:last-child td {
 .org-flow-small-branch > .org-flow-members::before {
   content: "";
   position: absolute;
-  top: 36px;
-  left: -30px;
-  width: 30px;
+  top: 19px;
+  left: -22px;
+  width: 22px;
   height: 2px;
   background: linear-gradient(90deg, rgba(43, 111, 243, 0.54), rgba(43, 111, 243, 0.12));
 }
@@ -2807,9 +2812,9 @@ tbody tr:last-child td {
 .org-flow-branches::after {
   content: "";
   position: absolute;
-  top: 36px;
-  bottom: 36px;
-  left: -8px;
+  top: 19px;
+  bottom: 19px;
+  left: -6px;
   width: 2px;
   border-radius: 999px;
   background: linear-gradient(180deg, rgba(43, 111, 243, 0.12), rgba(43, 111, 243, 0.52), rgba(43, 111, 243, 0.12));
@@ -2818,9 +2823,9 @@ tbody tr:last-child td {
 .org-flow-branch::before {
   content: "";
   position: absolute;
-  top: 36px;
-  left: -8px;
-  width: 30px;
+  top: 19px;
+  left: -6px;
+  width: 22px;
   height: 2px;
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(43, 111, 243, 0.46), rgba(43, 111, 243, 0.1));
@@ -2835,15 +2840,17 @@ tbody tr:last-child td {
 .org-flow-node {
   position: relative;
   z-index: 2;
-  display: grid;
-  gap: 3px;
-  min-height: 72px;
-  padding: 12px 14px;
-  border: 1px solid rgba(43, 111, 243, 0.2);
-  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid rgba(43, 111, 243, 0.24);
+  border-left-width: 4px;
+  border-radius: 12px;
   background: linear-gradient(180deg, #ffffff 0%, #edf4ff 100%);
   color: #1e3a8a;
-  box-shadow: 0 10px 24px rgba(43, 111, 243, 0.1);
+  box-shadow: 0 6px 14px rgba(43, 111, 243, 0.08);
   text-align: center;
 }
 
@@ -2871,21 +2878,9 @@ tbody tr:last-child td {
   opacity: 0.72;
 }
 
-.org-flow-node-type {
-  font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .org-flow-node strong {
-  font-size: 1.02rem;
+  font-size: 0.9rem;
   line-height: 1.25;
-}
-
-.org-flow-node small {
-  color: var(--muted);
-  font-weight: 700;
 }
 
 .org-flow-members {
@@ -2894,79 +2889,46 @@ tbody tr:last-child td {
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: center;
-  gap: 8px;
-  min-height: 46px;
-  padding: 12px;
+  gap: 5px;
+  width: max-content;
+  min-width: 148px;
+  max-width: 420px;
+  min-height: 34px;
+  padding: 6px;
   border: 1px dashed rgba(148, 163, 184, 0.36);
-  border-radius: 16px;
+  border-radius: 12px;
   background: rgba(248, 250, 252, 0.78);
 }
 
 .org-member-pill {
-  --member-role-color: rgba(100, 116, 139, 0.42);
   display: inline-grid;
   place-items: center;
-  gap: 1px;
-  min-width: 96px;
-  min-height: 50px;
-  padding: 8px 12px;
-  border-radius: 18px;
-  border: 1.5px solid var(--member-role-color);
+  gap: 3px;
+  min-width: 72px;
+  padding: 4px 5px;
+  border-radius: 12px;
+  border: 1px solid rgba(217, 226, 240, 0.9);
+  background: rgba(255, 255, 255, 0.86);
   color: #334155;
   text-align: center;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.68),
-    0 8px 18px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.04);
 }
 
-.org-member-pill strong {
-  font-size: 0.86rem;
+.org-member-pill .name-card {
+  justify-content: center;
+  width: 100%;
+  padding: 0.1rem 0.38rem;
+  font-size: 0.78rem;
+  font-weight: 900;
   line-height: 1.15;
 }
 
-.org-member-pill small {
-  font-size: 0.72rem;
-  color: rgba(51, 65, 85, 0.78);
-}
-
-.org-member-pill.gender-brother {
-  background: linear-gradient(180deg, #eff8ff 0%, #dbeafe 100%);
-}
-
-.org-member-pill.gender-sister {
-  background: linear-gradient(180deg, #fff5f9 0%, #fce7f3 100%);
-}
-
-.org-member-pill.gender-unknown {
-  background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
-}
-
-.org-member-pill.role-preacher {
-  --member-role-color: rgba(124, 58, 237, 0.72);
-}
-
-.org-member-pill.role-district_leader {
-  --member-role-color: rgba(37, 99, 235, 0.72);
-}
-
-.org-member-pill.role-big_family_leader {
-  --member-role-color: rgba(8, 145, 178, 0.72);
-}
-
-.org-member-pill.role-small_group_leader {
-  --member-role-color: rgba(5, 150, 105, 0.72);
-}
-
-.org-member-pill.role-trainee_small_group_leader {
-  --member-role-color: rgba(217, 119, 6, 0.72);
-}
-
-.org-member-pill.role-best {
-  --member-role-color: rgba(244, 114, 182, 0.72);
-}
-
-.org-member-pill.role-member {
-  --member-role-color: rgba(100, 116, 139, 0.48);
+.org-member-pill .role-pill {
+  justify-content: center;
+  width: 100%;
+  padding: 0.08rem 0.34rem;
+  font-size: 0.66rem;
+  line-height: 1.15;
 }
 
 .org-member-pill.is-inactive {
@@ -2977,13 +2939,13 @@ tbody tr:last-child td {
 .org-flow-empty {
   display: inline-flex;
   align-items: center;
-  min-height: 42px;
-  padding: 10px 12px;
+  min-height: 32px;
+  padding: 6px 9px;
   border: 1px dashed rgba(148, 163, 184, 0.38);
-  border-radius: 14px;
+  border-radius: 10px;
   color: var(--muted);
   background: rgba(255, 255, 255, 0.72);
-  font-size: 0.9rem;
+  font-size: 0.8rem;
 }
 
 .org-scope-group {

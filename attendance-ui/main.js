@@ -4362,10 +4362,7 @@ function renderOrganizationTreeDistrict(district) {
   return `
     <article class="org-flow-row ${district.is_active ? "" : "is-archived"}">
       <div class="org-flow-column org-flow-column-district">
-        ${renderOrganizationFlowNode("district", district.name, {
-          meta: `${bigFamilies.length + directSmallGroups.length} 個單位`,
-          isActive: district.is_active,
-        })}
+        ${renderOrganizationFlowNode("district", district.name, { isActive: district.is_active })}
       </div>
       <div class="org-flow-branches">
         ${bigFamilies.map((bigFamily) => renderOrganizationTreeBigFamily(bigFamily)).join("")}
@@ -4390,10 +4387,7 @@ function renderOrganizationTreeBigFamily(bigFamily) {
   return `
     <div class="org-flow-branch ${bigFamily.is_active ? "" : "is-archived"}">
       <div class="org-flow-column org-flow-column-big">
-        ${renderOrganizationFlowNode("big_family", bigFamily.name, {
-          meta: `${smallGroups.length} 個小家`,
-          isActive: bigFamily.is_active,
-        })}
+        ${renderOrganizationFlowNode("big_family", bigFamily.name, { isActive: bigFamily.is_active })}
       </div>
       <div class="org-flow-branches org-flow-small-branches">
         ${smallGroups.map((smallGroup) => renderOrganizationTreeSmallGroup(smallGroup)).join("")}
@@ -4408,9 +4402,7 @@ function renderOrganizationTreeMemberBucket(label, members) {
   return `
     <div class="org-flow-branch org-flow-small-branch">
       <div class="org-flow-column org-flow-column-small">
-        ${renderOrganizationFlowNode("member_bucket", label, {
-          meta: `${members.length} 位人員`,
-        })}
+        ${renderOrganizationFlowNode("member_bucket", label)}
       </div>
       <div class="org-flow-members">
         ${members.map(renderOrganizationTreeMember).join("")}
@@ -4427,10 +4419,7 @@ function renderOrganizationTreeSmallGroup(smallGroup) {
   return `
     <div class="org-flow-branch org-flow-small-branch ${smallGroup.is_active ? "" : "is-archived"}">
       <div class="org-flow-column org-flow-column-small">
-        ${renderOrganizationFlowNode("small_group", smallGroup.name, {
-          meta: `${members.length} 位人員`,
-          isActive: smallGroup.is_active,
-        })}
+        ${renderOrganizationFlowNode("small_group", smallGroup.name, { isActive: smallGroup.is_active })}
       </div>
       <div class="org-flow-members">
         ${members.length
@@ -4443,11 +4432,11 @@ function renderOrganizationTreeSmallGroup(smallGroup) {
 
 function renderOrganizationTreeMember(member) {
   const genderClass = getOrganizationTreeGenderClass(member.gender);
-  const roleClass = `role-${member.role || "member"}`;
+  const roleClass = `role-${escapeHtml(member.role || "member")}`;
   return `
-    <span class="org-member-pill ${genderClass} ${escapeHtml(roleClass)} ${member.is_active ? "" : "is-inactive"}">
-      <strong>${escapeHtml(member.full_name)}</strong>
-      <small>${escapeHtml(getRoleLabel(member.role))}</small>
+    <span class="org-member-pill ${member.is_active ? "" : "is-inactive"}">
+      <strong class="name-card ${genderClass}">${escapeHtml(member.full_name)}</strong>
+      <span class="role-pill ${roleClass}">${escapeHtml(getRoleLabel(member.role))}</span>
     </span>
   `;
 }
@@ -4462,12 +4451,10 @@ function getOrganizationTreeGenderClass(gender) {
   return "gender-unknown";
 }
 
-function renderOrganizationFlowNode(type, name, { meta = "", isActive = true } = {}) {
+function renderOrganizationFlowNode(type, name, { isActive = true } = {}) {
   return `
     <div class="org-flow-node org-flow-node-${escapeHtml(type)} ${isActive ? "" : "is-archived"}">
-      <span class="org-flow-node-type">${escapeHtml(getOrganizationTypeLabel(type))}</span>
       <strong>${escapeHtml(name)}</strong>
-      ${meta ? `<small>${escapeHtml(meta)}</small>` : ""}
     </div>
   `;
 }
