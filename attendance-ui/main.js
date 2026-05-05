@@ -4413,7 +4413,14 @@ function renderOrganizationSummary(element, label, items) {
   const activeCount = items.filter((item) => item.is_active).length;
   const archivedCount = items.length - activeCount;
   const unitLabel = label === "區" ? "區" : `個${label}`;
-  element.textContent = `共 ${items.length} ${unitLabel}，啟用 ${activeCount}、封存 ${archivedCount}`;
+  const parts = [`共 ${items.length} ${unitLabel}`];
+  if (activeCount) {
+    parts.push(`啟用 ${activeCount}`);
+  }
+  if (archivedCount) {
+    parts.push(`封存 ${archivedCount}`);
+  }
+  element.textContent = parts.join("，");
 }
 
 function getOrganizationDependencySummary(orgType, orgId) {
@@ -5063,14 +5070,6 @@ function renderInviteTable() {
             >
               複製
             </button>
-            <button
-              type="button"
-              class="secondary danger-button invite-delete-btn"
-              data-invite-id="${escapeHtml(invite.id)}"
-              data-invite-code="${escapeHtml(invite.invite_code)}"
-            >
-              刪除邀請碼
-            </button>
             ${hasLineBinding
               ? `<button
                   type="button"
@@ -5080,7 +5079,16 @@ function renderInviteTable() {
                 >
                   解除綁定
                 </button>`
-              : ""}
+              : !invite.used_at
+                ? `<button
+                    type="button"
+                    class="secondary danger-button invite-delete-btn"
+                    data-invite-id="${escapeHtml(invite.id)}"
+                    data-invite-code="${escapeHtml(invite.invite_code)}"
+                  >
+                    刪除邀請碼
+                  </button>`
+                : '<span class="muted small-text">已使用的邀請碼不可刪除</span>'}
           </div>
 
           <div class="invite-meta-grid">

@@ -2737,6 +2737,11 @@ tbody tr:last-child td {
   gap: 12px;
 }
 
+#districtTableBody.org-card-list {
+  gap: 18px;
+  padding: 8px 0;
+}
+
 .org-flow-district,
 .org-flow-big-family {
   display: grid;
@@ -2882,9 +2887,44 @@ tbody tr:last-child td {
 .org-tree-node .org-scope-children,
 .org-tree-node .compact-org-list {
   position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   margin-top: 8px;
   padding-top: 18px;
   border-top: 2px solid #dbe6fb;
+}
+
+.org-tree-node .compact-org-list {
+  gap: 12px;
+}
+
+.org-tree-node .org-card {
+  margin-inline: auto;
+  width: min(420px, 100%);
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.org-level-district > .org-scope-body > .org-card,
+.org-level-big-family > .org-scope-body > .org-card,
+.org-level-small-group > .org-scope-body > .org-card {
+  margin-bottom: 10px;
+}
+
+#orgsView .org-card-head {
+  align-items: center;
+}
+
+#orgsView .org-card .row-actions {
+  justify-content: center;
+}
+
+#orgsView .org-card-chips,
+#orgsView .org-card-description,
+#orgsView .org-card-hint,
+#orgsView .org-card-subline {
+  justify-content: center;
+  text-align: center;
 }
 
 .org-tree-node .org-scope-children > *,
