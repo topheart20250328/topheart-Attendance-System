@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <title>topheart 教會點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260505-bugfix-v23" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260505-bugfix-v24" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -517,6 +517,19 @@
             <div>
               <h3>組織樹狀圖</h3>
             </div>
+            <div class="button-row compact-buttons org-tree-actions">
+              <div class="segmented-control org-tree-mode-control" role="group" aria-label="組織樹顯示模式">
+                <button id="orgTreeCompactBtn" type="button" class="secondary is-active">
+                  精簡橫向
+                </button>
+                <button id="orgTreeVerticalBtn" type="button" class="secondary">
+                  手機直向
+                </button>
+              </div>
+              <button id="captureOrgTreeBtn" type="button" class="secondary">
+                截圖
+              </button>
+            </div>
           </div>
           <div id="orgTreeBody" class="org-tree-board">
             <div class="empty-state-card">尚未載入組織樹。</div>
@@ -532,11 +545,6 @@
 
           <div class="org-management-grid">
             <section id="districtSection" class="card-subsection org-section-card">
-              <div class="section-toolbar">
-                <div>
-                  <h4>組織總覽</h4>
-                </div>
-              </div>
               <div id="districtSummary" class="list-count-chip">目前尚未載入區摘要</div>
               <div id="districtTableBody" class="org-card-list">
                 <div class="empty-state-card">尚未載入區資料。</div>
@@ -763,6 +771,7 @@
       <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
     </div>
 
-    <script type="module" src="./attendance-ui/main.js?v=20260505-bugfix-v23"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js" defer></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260505-bugfix-v24"></script>
   </body>
 </html>

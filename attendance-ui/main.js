@@ -73,6 +73,7 @@ const OVERVIEW_ROLES = ["preacher", "district_leader", "big_family_leader"];
 const DEFAULT_PROJECT_URL = "https://aiifotwroawqxkcsfjzi.supabase.co";
 const NOTE_MAX_LENGTH = 1000;
 const LAYOUT_SIZES = ["small", "medium", "large"];
+const ORG_TREE_MODES = ["compact", "vertical"];
 const V2_API_ACTIONS = new Set([
   "attendance-overview",
   "create-members-batch",
@@ -230,6 +231,9 @@ const els = {
   smallGroupDescriptionInput: document.querySelector("#smallGroupDescriptionInput"),
   smallGroupSubmitBtn: document.querySelector("#smallGroupSubmitBtn"),
   orgTreeBody: document.querySelector("#orgTreeBody"),
+  orgTreeCompactBtn: document.querySelector("#orgTreeCompactBtn"),
+  orgTreeVerticalBtn: document.querySelector("#orgTreeVerticalBtn"),
+  captureOrgTreeBtn: document.querySelector("#captureOrgTreeBtn"),
   districtSection: document.querySelector("#districtSection"),
   districtSummary: document.querySelector("#districtSummary"),
   districtTableBody: document.querySelector("#districtTableBody"),
@@ -299,6 +303,7 @@ const state = {
     orgEditorMode: null,
     editingOrgId: null,
     orgFocusTarget: null,
+    orgTreeMode: "compact",
     peopleSearch: "",
     peopleRole: "",
     peopleOpenGroups: new Set(),
@@ -436,6 +441,9 @@ function bindEvents() {
   els.districtTableBody.addEventListener("click", handleOrgTableClick);
   els.bigFamilyTableBody.addEventListener("click", handleOrgTableClick);
   els.smallGroupTableBody.addEventListener("click", handleOrgTableClick);
+  els.orgTreeCompactBtn?.addEventListener("click", () => switchOrganizationTreeMode("compact"));
+  els.orgTreeVerticalBtn?.addEventListener("click", () => switchOrganizationTreeMode("vertical"));
+  els.captureOrgTreeBtn?.addEventListener("click", handleCaptureOrganizationTree);
   els.closeOrgEditorBtn.addEventListener("click", closeOrgEditor);
   els.orgEditorForm.addEventListener("submit", handleSaveOrganization);
   els.orgDistrictSelect.addEventListener("change", syncOrgEditorBigFamilyOptions);
@@ -463,6 +471,7 @@ function hydrateLocalState() {
   state.ui.layoutSize = uiPreferences.layoutSize;
   state.ui.overviewUnitType = uiPreferences.overviewUnitType;
   state.ui.inviteSort = uiPreferences.inviteSort;
+  state.ui.orgTreeMode = uiPreferences.orgTreeMode;
   els.projectUrlInput.value = state.config.projectUrl || "";
   if (els.overviewUnitTypeSelect) {
     els.overviewUnitTypeSelect.value = state.ui.overviewUnitType;
@@ -503,9 +512,17 @@ function loadUiPreferences() {
       inviteSort: INVITE_SORT_OPTIONS.includes(value.inviteSort)
         ? value.inviteSort
         : "created_desc",
+      orgTreeMode: ORG_TREE_MODES.includes(value.orgTreeMode)
+        ? value.orgTreeMode
+        : "compact",
     };
   } catch (_error) {
-    return { layoutSize: "medium", overviewUnitType: "", inviteSort: "created_desc" };
+    return {
+      layoutSize: "medium",
+      overviewUnitType: "",
+      inviteSort: "created_desc",
+      orgTreeMode: "compact",
+    };
   }
 }
 
@@ -516,6 +533,7 @@ function saveUiPreferences() {
       layoutSize: state.ui.layoutSize,
       overviewUnitType: state.ui.overviewUnitType,
       inviteSort: state.ui.inviteSort,
+      orgTreeMode: state.ui.orgTreeMode,
     }),
   );
 }
@@ -4332,6 +4350,10 @@ function renderOrganizationTree() {
     return;
   }
 
+  syncOrganizationTreeControls();
+  els.orgTreeBody.classList.toggle("is-compact-tree", state.ui.orgTreeMode !== "vertical");
+  els.orgTreeBody.classList.toggle("is-vertical-tree", state.ui.orgTreeMode === "vertical");
+
   const districts = [...state.adminData.districts].sort(compareOrganizations);
   if (!districts.length) {
     els.orgTreeBody.innerHTML = '<div class="empty-state-card">尚未建立組織，建立後會在此顯示樹狀圖。</div>';
@@ -4353,6 +4375,7 @@ function renderOrganizationTreeDistrict(district) {
   const directMembers = sortMembers(
     state.adminData.members.filter(
       (member) =>
+        member.is_active !== false &&
         member.district_id === district.id &&
         !member.big_family_id &&
         !member.small_group_id,
@@ -4380,7 +4403,10 @@ function renderOrganizationTreeBigFamily(bigFamily) {
     .sort(compareOrganizations);
   const directMembers = sortMembers(
     state.adminData.members.filter(
-      (member) => member.big_family_id === bigFamily.id && !member.small_group_id,
+      (member) =>
+        member.is_active !== false &&
+        member.big_family_id === bigFamily.id &&
+        !member.small_group_id,
     ),
   );
 
@@ -4413,7 +4439,11 @@ function renderOrganizationTreeMemberBucket(label, members) {
 
 function renderOrganizationTreeSmallGroup(smallGroup) {
   const members = sortMembers(
-    state.adminData.members.filter((member) => member.small_group_id === smallGroup.id),
+    state.adminData.members.filter(
+      (member) =>
+        member.is_active !== false &&
+        member.small_group_id === smallGroup.id,
+    ),
   );
 
   return `
@@ -4457,6 +4487,70 @@ function renderOrganizationFlowNode(type, name, { isActive = true } = {}) {
       <strong>${escapeHtml(name)}</strong>
     </div>
   `;
+}
+
+function switchOrganizationTreeMode(mode) {
+  if (!ORG_TREE_MODES.includes(mode) || state.ui.orgTreeMode === mode) {
+    return;
+  }
+
+  state.ui.orgTreeMode = mode;
+  saveUiPreferences();
+  renderOrganizationTree();
+}
+
+function syncOrganizationTreeControls() {
+  const isVertical = state.ui.orgTreeMode === "vertical";
+  els.orgTreeCompactBtn?.classList.toggle("is-active", !isVertical);
+  els.orgTreeVerticalBtn?.classList.toggle("is-active", isVertical);
+}
+
+async function handleCaptureOrganizationTree() {
+  if (!els.orgTreeBody) {
+    showToast("尚未載入組織樹。");
+    return;
+  }
+
+  const htmlToImage = window.htmlToImage;
+  if (!htmlToImage?.toPng) {
+    showToast("截圖工具尚未載入，請稍後再試。");
+    return;
+  }
+
+  const previousScrollLeft = els.orgTreeBody.scrollLeft;
+  const previousScrollTop = els.orgTreeBody.scrollTop;
+  setButtonLoading(els.captureOrgTreeBtn, true, "產生中...");
+  els.orgTreeBody.classList.add("is-exporting");
+
+  try {
+    const width = Math.max(els.orgTreeBody.scrollWidth, els.orgTreeBody.offsetWidth);
+    const height = Math.max(els.orgTreeBody.scrollHeight, els.orgTreeBody.offsetHeight);
+    const dataUrl = await htmlToImage.toPng(els.orgTreeBody, {
+      cacheBust: true,
+      pixelRatio: 2,
+      width,
+      height,
+      style: {
+        width: `${width}px`,
+        height: `${height}px`,
+        overflow: "visible",
+        background: "#ffffff",
+      },
+    });
+    const link = document.createElement("a");
+    link.download = `topheart-organization-tree-${formatDate(new Date())}.png`;
+    link.href = dataUrl;
+    link.click();
+    showToast("已產生組織樹截圖。");
+  } catch (error) {
+    console.error(error);
+    showToast("產生截圖失敗，請稍後再試。");
+  } finally {
+    els.orgTreeBody.classList.remove("is-exporting");
+    els.orgTreeBody.scrollLeft = previousScrollLeft;
+    els.orgTreeBody.scrollTop = previousScrollTop;
+    setButtonLoading(els.captureOrgTreeBtn, false);
+  }
 }
 
 function renderOrganizationDirectory() {
