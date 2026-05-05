@@ -1510,6 +1510,15 @@ function formatAnalyticsRate(stats) {
   return formatPercent(stats.present_count || 0, stats.confirmed_count);
 }
 
+function formatCompletionRate(stats, expectedFallback = 0) {
+  const expectedCount = Number(stats?.expected_count ?? expectedFallback);
+  if (!expectedCount) {
+    return "尚無資料";
+  }
+
+  return formatPercent(stats?.confirmed_count || 0, expectedCount);
+}
+
 function formatAnalyticsBreakdown(stats) {
   if (!stats) {
     return "尚無歷史資料";
@@ -2432,10 +2441,13 @@ function renderOverviewUnitCard(unit) {
   const presentCount = Number(stats.present_count || 0);
   const absentCount = Number(stats.absent_count || 0);
   const confirmedCount = Number(stats.confirmed_count || presentCount + absentCount);
-  const unknownCount = Math.max(0, Number(stats.unknown_count ?? (memberCount - confirmedCount)));
+  const expectedCount = Number(stats.expected_count ?? memberCount);
+  const unknownCount = Math.max(0, Number(stats.unknown_count ?? (expectedCount - confirmedCount)));
+  const completionRate = formatCompletionRate(stats, memberCount);
   const breakdown = formatNonZeroParts([
     { label: "出席", value: presentCount },
     { label: "未出席", value: absentCount },
+    { label: "已填", value: confirmedCount },
     { label: "待確認", value: unknownCount },
   ], " 人");
   const parentLabel = unit.parent_name ? `所屬 ${unit.parent_name}` : "";
@@ -2455,13 +2467,16 @@ function renderOverviewUnitCard(unit) {
         </span>
         <span class="overview-unit-stat">
           <strong>${escapeHtml(formatOverviewRate(stats, memberCount))}</strong>
+          <span class="summary-subtext">${escapeHtml(`填寫率 ${completionRate}`)}</span>
           ${breakdown ? `<span class="summary-subtext">${escapeHtml(breakdown)}</span>` : ""}
         </span>
       </summary>
       <div class="overview-mini-stats">
         ${presentCount ? `<span class="status-chip success">出席 ${presentCount} 人</span>` : ""}
         ${absentCount ? `<span class="status-chip warning">未出席 ${absentCount} 人</span>` : ""}
+        ${confirmedCount ? `<span class="status-chip neutral">已填 ${confirmedCount} 人</span>` : ""}
         ${unknownCount ? `<span class="status-chip neutral">待確認 ${unknownCount} 人</span>` : ""}
+        <span class="status-chip neutral">填寫率 ${escapeHtml(completionRate)}</span>
         <span class="status-chip neutral">共 ${memberCount} 人</span>
       </div>
       <div class="overview-detail-grid">
@@ -2503,7 +2518,8 @@ function renderOverviewUnitHistory(history, currentStats, memberCount) {
     <section class="overview-status-group overview-rate-group">
       <div class="overview-status-head">
         <strong>整體出席率</strong>
-        <span class="status-chip neutral">${escapeHtml(formatOverviewRate(currentStats, memberCount))}</span>
+        <span class="status-chip neutral">出席 ${escapeHtml(formatOverviewRate(currentStats, memberCount))}</span>
+        <span class="status-chip neutral">填寫 ${escapeHtml(formatCompletionRate(currentStats, memberCount))}</span>
       </div>
       <div class="overview-unit-history-grid">
         ${ranges.map((range) => renderOverviewUnitHistoryCard(range, history?.[range.key])).join("")}
@@ -2519,6 +2535,7 @@ function renderOverviewUnitHistoryCard(range, data) {
     <div class="overview-history-event">
       <span class="info-label">${escapeHtml(range.label)}</span>
       <strong>${escapeHtml(formatAnalyticsRate(stats))}</strong>
+      <span class="summary-subtext">${escapeHtml(`填寫率 ${formatCompletionRate(stats)}`)}</span>
       <span class="summary-subtext">${escapeHtml(formatDetailedAnalyticsBreakdown(stats))}</span>
     </div>
   `;
@@ -2697,6 +2714,7 @@ function formatDetailedAnalyticsBreakdown(stats) {
   return formatNonZeroParts([
     { label: "出席", value: stats.present_count || 0 },
     { label: "缺席", value: stats.absent_count || 0 },
+    { label: "已填", value: stats.confirmed_count || 0 },
     { label: "待確認", value: stats.unknown_count || 0 },
   ]) || "尚無資料";
 }
@@ -2707,6 +2725,7 @@ function createEmptyEventStats() {
     absent_count: 0,
     unknown_count: 0,
     confirmed_count: 0,
+    expected_count: 0,
   };
 }
 
@@ -2719,8 +2738,9 @@ function createEmptyOverviewDetail() {
 }
 
 function formatOverviewRate(stats, memberCount = 0) {
-  return memberCount
-    ? formatPercent(stats?.present_count || 0, memberCount)
+  const confirmedCount = Number(stats?.confirmed_count || 0);
+  return confirmedCount
+    ? formatPercent(stats?.present_count || 0, confirmedCount)
     : "尚無資料";
 }
 

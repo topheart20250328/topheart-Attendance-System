@@ -1108,6 +1108,8 @@ async function loadMemberHistory(
 
   const weekRows = weeks || [];
   const weekIds = weekRows.map((item) => item.id);
+  const expectedWeekCounts = countHistoryWeeksByRange(weekRows, anchorWeekStart);
+  applyHistoryExpectedCounts(historyMap, expectedWeekCounts);
   if (!weekIds.length) {
     return historyMap;
   }
@@ -1137,6 +1139,7 @@ async function loadMemberHistory(
     }
   }
 
+  finalizeHistoryUnknownCounts(historyMap);
   return historyMap;
 }
 
@@ -1286,10 +1289,17 @@ function addStats(target: any, source: any) {
   target.absent_count += Number(source.absent_count || 0);
   target.unknown_count += Number(source.unknown_count || 0);
   target.confirmed_count += Number(source.confirmed_count || 0);
+  target.expected_count += Number(source.expected_count || 0);
 }
 
 function stats(members: MemberRow[], recordMap: Map<string, any>, eventType: string) {
-  const result = { present_count: 0, absent_count: 0, unknown_count: 0, confirmed_count: 0 };
+  const result = {
+    present_count: 0,
+    absent_count: 0,
+    unknown_count: 0,
+    confirmed_count: 0,
+    expected_count: members.length,
+  };
   for (const member of members) {
     const status = normalizeStatus(recordMap.get(`${member.id}:${eventType}`)?.status);
     if (status === "present") {
@@ -1347,7 +1357,7 @@ function createEmptyHistorySummary(anchorWeekStart: string) {
 }
 
 function createEmptyEventStats() {
-  return { present_count: 0, absent_count: 0, unknown_count: 0, confirmed_count: 0 };
+  return { present_count: 0, absent_count: 0, unknown_count: 0, confirmed_count: 0, expected_count: 0 };
 }
 
 function addHistoryRecord(range: any, eventType: string, value: unknown) {
@@ -1362,8 +1372,54 @@ function addHistoryRecord(range: any, eventType: string, value: unknown) {
   } else if (status === "absent") {
     stats.absent_count += 1;
     stats.confirmed_count += 1;
-  } else {
-    stats.unknown_count += 1;
+  }
+}
+
+function countHistoryWeeksByRange(weekRows: any[], anchorWeekStart: string) {
+  return Object.fromEntries(
+    HISTORY_RANGES.map((range) => {
+      const startDate = range.key === "month"
+        ? getMonthStart(anchorWeekStart)
+        : getDateWeeksBefore(anchorWeekStart, range.weeksBack);
+      const count = weekRows.filter((week) => {
+        const weekStart = String(week.week_start_date);
+        return weekStart >= startDate && weekStart <= anchorWeekStart;
+      }).length;
+      return [range.key, count];
+    }),
+  );
+}
+
+function applyHistoryExpectedCounts(
+  historyMap: Map<number, Record<string, any>>,
+  expectedWeekCounts: Record<string, number>,
+) {
+  for (const memberHistory of historyMap.values()) {
+    for (const range of HISTORY_RANGES) {
+      const expectedCount = Number(expectedWeekCounts[range.key] || 0);
+      for (const eventType of ["sunday_service", "small_group_fellowship"]) {
+        if (memberHistory[range.key]?.[eventType]) {
+          memberHistory[range.key][eventType].expected_count = expectedCount;
+        }
+      }
+    }
+  }
+}
+
+function finalizeHistoryUnknownCounts(historyMap: Map<number, Record<string, any>>) {
+  for (const memberHistory of historyMap.values()) {
+    for (const range of HISTORY_RANGES) {
+      for (const eventType of ["sunday_service", "small_group_fellowship"]) {
+        const stats = memberHistory[range.key]?.[eventType];
+        if (!stats) {
+          continue;
+        }
+        stats.unknown_count = Math.max(
+          0,
+          Number(stats.expected_count || 0) - Number(stats.confirmed_count || 0),
+        );
+      }
+    }
   }
 }
 
