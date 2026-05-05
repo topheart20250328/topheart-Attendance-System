@@ -2374,6 +2374,7 @@ async function buildAdminOverview(
     .from("big_families")
     .select("*")
     .order("is_active", { ascending: false })
+    .order("display_order")
     .order("name");
   if (!viewer.is_admin) {
     bigFamilyQuery = bigFamilyQuery.in("district_id", scopedDistrictIds);
@@ -2393,6 +2394,7 @@ async function buildAdminOverview(
     .from("small_groups")
     .select("*")
     .order("is_active", { ascending: false })
+    .order("display_order")
     .order("name");
   if (!viewer.is_admin) {
     smallGroupQuery = smallGroupQuery.in("district_id", scopedDistrictIds);
@@ -2864,6 +2866,7 @@ async function loadManagedDistricts(
     .from("districts")
     .select("*")
     .order("is_active", { ascending: false })
+    .order("display_order")
     .order("name");
   if (viewer.is_admin) {
     const { data, error } = await query;
@@ -2883,6 +2886,7 @@ async function loadManagedDistricts(
     .select("*")
     .eq("id", viewer.district_id)
     .order("is_active", { ascending: false })
+    .order("display_order")
     .order("name");
 
   if (error) {

@@ -229,6 +229,7 @@ const els = {
   smallGroupNameInput: document.querySelector("#smallGroupNameInput"),
   smallGroupDescriptionInput: document.querySelector("#smallGroupDescriptionInput"),
   smallGroupSubmitBtn: document.querySelector("#smallGroupSubmitBtn"),
+  orgTreeBody: document.querySelector("#orgTreeBody"),
   districtSection: document.querySelector("#districtSection"),
   districtSummary: document.querySelector("#districtSummary"),
   districtTableBody: document.querySelector("#districtTableBody"),
@@ -2838,11 +2839,16 @@ function buildPeopleHierarchy(rows) {
     const bigFamilyLabel = member.big_family_name || "未設定大家";
     const smallGroupKey = member.small_group_id || `name:${member.small_group_name || "未設定小家"}`;
     const smallGroupLabel = member.small_group_name || "未設定小家";
+    const districtRecord = state.adminData.districts.find((item) => item.id === member.district_id);
+    const bigFamilyRecord = state.adminData.bigFamilies.find((item) => item.id === member.big_family_id);
+    const smallGroupRecord = state.adminData.smallGroups.find((item) => item.id === member.small_group_id);
 
     if (!districts.has(districtKey)) {
       districts.set(districtKey, {
         key: `district:${districtKey}`,
         label: districtLabel,
+        displayOrder: districtRecord?.display_order,
+        isActive: districtRecord?.is_active !== false,
         count: 0,
         bigFamilies: new Map(),
         smallGroups: new Map(),
@@ -2856,6 +2862,8 @@ function buildPeopleHierarchy(rows) {
         district.smallGroups.set(smallGroupKey, {
           key: `district:${districtKey}:small:${smallGroupKey}`,
           label: smallGroupLabel,
+          displayOrder: smallGroupRecord?.display_order,
+          isActive: smallGroupRecord?.is_active !== false,
           members: [],
         });
       }
@@ -2867,6 +2875,8 @@ function buildPeopleHierarchy(rows) {
       district.bigFamilies.set(bigFamilyKey, {
         key: `district:${districtKey}:big:${bigFamilyKey}`,
         label: bigFamilyLabel,
+        displayOrder: bigFamilyRecord?.display_order,
+        isActive: bigFamilyRecord?.is_active !== false,
         count: 0,
         smallGroups: new Map(),
       });
@@ -2878,6 +2888,8 @@ function buildPeopleHierarchy(rows) {
       bigFamily.smallGroups.set(smallGroupKey, {
         key: `district:${districtKey}:big:${bigFamilyKey}:small:${smallGroupKey}`,
         label: smallGroupLabel,
+        displayOrder: smallGroupRecord?.display_order,
+        isActive: smallGroupRecord?.is_active !== false,
         members: [],
       });
     }
@@ -2885,27 +2897,46 @@ function buildPeopleHierarchy(rows) {
   }
 
   return Array.from(districts.values())
-    .sort((left, right) => left.label.localeCompare(right.label, "zh-Hant"))
+    .sort(compareHierarchyGroups)
     .map((district) => ({
       ...district,
       bigFamilies: Array.from(district.bigFamilies.values())
-        .sort((left, right) => left.label.localeCompare(right.label, "zh-Hant"))
+        .sort(compareHierarchyGroups)
         .map((bigFamily) => ({
           ...bigFamily,
           smallGroups: Array.from(bigFamily.smallGroups.values())
-            .sort((left, right) => left.label.localeCompare(right.label, "zh-Hant"))
+            .sort(compareHierarchyGroups)
             .map((smallGroup) => ({
               ...smallGroup,
               members: sortMembers(smallGroup.members),
             })),
         })),
       smallGroups: Array.from(district.smallGroups.values())
-        .sort((left, right) => left.label.localeCompare(right.label, "zh-Hant"))
+        .sort(compareHierarchyGroups)
         .map((smallGroup) => ({
           ...smallGroup,
           members: sortMembers(smallGroup.members),
         })),
     }));
+}
+
+function compareHierarchyGroups(left, right) {
+  if (left.isActive !== right.isActive) {
+    return left.isActive ? -1 : 1;
+  }
+  const leftOrder = Number(left.displayOrder);
+  const rightOrder = Number(right.displayOrder);
+  const hasLeftOrder = Number.isFinite(leftOrder);
+  const hasRightOrder = Number.isFinite(rightOrder);
+  if (hasLeftOrder || hasRightOrder) {
+    if (hasLeftOrder !== hasRightOrder) {
+      return hasLeftOrder ? -1 : 1;
+    }
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+  }
+  return String(left.label || "").localeCompare(String(right.label || ""), "zh-Hant");
 }
 
 function renderPeopleDistrictGroup(district, shouldOpen = false) {
@@ -4290,8 +4321,147 @@ async function handleCreateSmallGroup(event) {
 }
 
 function renderOrganizationTables() {
+  renderOrganizationTree();
   renderOrganizationDirectory();
   restoreOrganizationFocus();
+}
+
+function renderOrganizationTree() {
+  if (!els.orgTreeBody) {
+    return;
+  }
+
+  const districts = [...state.adminData.districts].sort(compareOrganizations);
+  if (!districts.length) {
+    els.orgTreeBody.innerHTML = '<div class="empty-state-card">尚未建立組織，建立後會在此顯示樹狀圖。</div>';
+    return;
+  }
+
+  els.orgTreeBody.innerHTML = districts
+    .map((district) => renderOrganizationTreeDistrict(district))
+    .join("");
+}
+
+function renderOrganizationTreeDistrict(district) {
+  const bigFamilies = state.adminData.bigFamilies
+    .filter((bigFamily) => bigFamily.district_id === district.id)
+    .sort(compareOrganizations);
+  const directSmallGroups = state.adminData.smallGroups
+    .filter((smallGroup) => smallGroup.district_id === district.id && !smallGroup.big_family_id)
+    .sort(compareOrganizations);
+  const directMembers = sortMembers(
+    state.adminData.members.filter(
+      (member) =>
+        member.district_id === district.id &&
+        !member.big_family_id &&
+        !member.small_group_id,
+    ),
+  );
+
+  return `
+    <article class="org-flow-row ${district.is_active ? "" : "is-archived"}">
+      <div class="org-flow-column org-flow-column-district">
+        ${renderOrganizationFlowNode("district", district.name, {
+          meta: `${bigFamilies.length + directSmallGroups.length} 個單位`,
+          isActive: district.is_active,
+        })}
+      </div>
+      <div class="org-flow-branches">
+        ${bigFamilies.map((bigFamily) => renderOrganizationTreeBigFamily(bigFamily)).join("")}
+        ${directSmallGroups.map((smallGroup) => renderOrganizationTreeSmallGroup(smallGroup)).join("")}
+        ${directMembers.length ? renderOrganizationTreeMemberBucket("直屬人員", directMembers) : ""}
+        ${bigFamilies.length || directSmallGroups.length || directMembers.length ? "" : '<div class="org-flow-empty">尚未建立大家或小家</div>'}
+      </div>
+    </article>
+  `;
+}
+
+function renderOrganizationTreeBigFamily(bigFamily) {
+  const smallGroups = state.adminData.smallGroups
+    .filter((smallGroup) => smallGroup.big_family_id === bigFamily.id)
+    .sort(compareOrganizations);
+  const directMembers = sortMembers(
+    state.adminData.members.filter(
+      (member) => member.big_family_id === bigFamily.id && !member.small_group_id,
+    ),
+  );
+
+  return `
+    <div class="org-flow-branch ${bigFamily.is_active ? "" : "is-archived"}">
+      <div class="org-flow-column org-flow-column-big">
+        ${renderOrganizationFlowNode("big_family", bigFamily.name, {
+          meta: `${smallGroups.length} 個小家`,
+          isActive: bigFamily.is_active,
+        })}
+      </div>
+      <div class="org-flow-branches org-flow-small-branches">
+        ${smallGroups.map((smallGroup) => renderOrganizationTreeSmallGroup(smallGroup)).join("")}
+        ${directMembers.length ? renderOrganizationTreeMemberBucket("直屬人員", directMembers) : ""}
+        ${smallGroups.length || directMembers.length ? "" : '<div class="org-flow-empty">尚未建立小家</div>'}
+      </div>
+    </div>
+  `;
+}
+
+function renderOrganizationTreeMemberBucket(label, members) {
+  return `
+    <div class="org-flow-branch org-flow-small-branch">
+      <div class="org-flow-column org-flow-column-small">
+        ${renderOrganizationFlowNode("member_bucket", label, {
+          meta: `${members.length} 位人員`,
+        })}
+      </div>
+      <div class="org-flow-members">
+        ${members.map(renderOrganizationTreeMember).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderOrganizationTreeSmallGroup(smallGroup) {
+  const members = sortMembers(
+    state.adminData.members.filter((member) => member.small_group_id === smallGroup.id),
+  );
+
+  return `
+    <div class="org-flow-branch org-flow-small-branch ${smallGroup.is_active ? "" : "is-archived"}">
+      <div class="org-flow-column org-flow-column-small">
+        ${renderOrganizationFlowNode("small_group", smallGroup.name, {
+          meta: `${members.length} 位人員`,
+          isActive: smallGroup.is_active,
+        })}
+      </div>
+      <div class="org-flow-members">
+        ${members.length
+          ? members.map(renderOrganizationTreeMember).join("")
+          : '<span class="org-flow-empty">尚無人員</span>'}
+      </div>
+    </div>
+  `;
+}
+
+function renderOrganizationTreeMember(member) {
+  const genderClass = member.gender === "male"
+    ? "gender-male"
+    : member.gender === "female"
+      ? "gender-female"
+      : "gender-unknown";
+  return `
+    <span class="org-member-pill ${genderClass} ${member.is_active ? "" : "is-inactive"}">
+      <strong>${escapeHtml(member.full_name)}</strong>
+      <small>${escapeHtml(getRoleLabel(member.role))}</small>
+    </span>
+  `;
+}
+
+function renderOrganizationFlowNode(type, name, { meta = "", isActive = true } = {}) {
+  return `
+    <div class="org-flow-node org-flow-node-${escapeHtml(type)} ${isActive ? "" : "is-archived"}">
+      <span class="org-flow-node-type">${escapeHtml(getOrganizationTypeLabel(type))}</span>
+      <strong>${escapeHtml(name)}</strong>
+      ${meta ? `<small>${escapeHtml(meta)}</small>` : ""}
+    </div>
+  `;
 }
 
 function renderOrganizationDirectory() {
@@ -4328,9 +4498,11 @@ function renderOrganizationDistrictGroup(district) {
   const childCount = bigFamilies.length + directSmallGroups.length;
 
   return `
-    <details class="org-scope-group org-tree-node org-level-district">
-      <summary class="org-tree-summary">
-        <span class="org-tree-node-label">${escapeHtml(district.name)}</span>
+    <details class="org-scope-group org-edit-group org-level-district">
+      <summary>
+        <span class="people-scope-title">${escapeHtml(district.name)}</span>
+        <span class="status-chip neutral">${memberCount} 人</span>
+        <span class="status-chip neutral">${childCount} 個單位</span>
       </summary>
       <div class="org-scope-body">
         ${renderOrganizationCard("district", district)}
@@ -4352,9 +4524,11 @@ function renderOrganizationBigFamilyGroup(bigFamily) {
   const memberCount = state.adminData.members.filter((member) => member.big_family_id === bigFamily.id).length;
 
   return `
-    <details class="org-scope-group org-tree-node org-level-big-family">
-      <summary class="org-tree-summary">
-        <span class="org-tree-node-label">${escapeHtml(bigFamily.name)}</span>
+    <details class="org-scope-group org-edit-group org-level-big-family">
+      <summary>
+        <span class="people-scope-title">${escapeHtml(bigFamily.name)}</span>
+        <span class="status-chip neutral">${memberCount} 人</span>
+        <span class="status-chip neutral">${smallGroups.length} 個小家</span>
       </summary>
       <div class="org-scope-body">
         ${renderOrganizationCard("big_family", bigFamily)}
@@ -4369,10 +4543,12 @@ function renderOrganizationBigFamilyGroup(bigFamily) {
 }
 
 function renderOrganizationSmallGroupItem(smallGroup) {
+  const memberCount = state.adminData.members.filter((member) => member.small_group_id === smallGroup.id).length;
   return `
-    <details class="org-tree-node org-level-small-group">
-      <summary class="org-tree-summary">
-        <span class="org-tree-node-label">${escapeHtml(smallGroup.name)}</span>
+    <details class="org-scope-group org-edit-group org-level-small-group">
+      <summary>
+        <span class="people-scope-title">${escapeHtml(smallGroup.name)}</span>
+        <span class="status-chip neutral">${memberCount} 人</span>
       </summary>
       <div class="org-scope-body">
         ${renderOrganizationCard("small_group", smallGroup)}
@@ -4489,6 +4665,7 @@ function getOrganizationTypeLabel(orgType) {
     district: "區",
     big_family: "大家",
     small_group: "小家",
+    member_bucket: "人員",
   }[orgType];
 }
 
