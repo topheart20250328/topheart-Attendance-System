@@ -1123,6 +1123,7 @@ function shouldIgnoreTabSwipe(target) {
         ".tab-row",
         ".overview-week-scroller",
         ".overview-history-grid",
+        ".org-tree-board",
         ".attendance-save-bar",
       ].join(","),
     ),
@@ -4441,17 +4442,24 @@ function renderOrganizationTreeSmallGroup(smallGroup) {
 }
 
 function renderOrganizationTreeMember(member) {
-  const genderClass = member.gender === "male"
-    ? "gender-male"
-    : member.gender === "female"
-      ? "gender-female"
-      : "gender-unknown";
+  const genderClass = getOrganizationTreeGenderClass(member.gender);
+  const roleClass = `role-${member.role || "member"}`;
   return `
-    <span class="org-member-pill ${genderClass} ${member.is_active ? "" : "is-inactive"}">
+    <span class="org-member-pill ${genderClass} ${escapeHtml(roleClass)} ${member.is_active ? "" : "is-inactive"}">
       <strong>${escapeHtml(member.full_name)}</strong>
       <small>${escapeHtml(getRoleLabel(member.role))}</small>
     </span>
   `;
+}
+
+function getOrganizationTreeGenderClass(gender) {
+  if (gender === "brother" || gender === "male") {
+    return "gender-brother";
+  }
+  if (gender === "sister" || gender === "female") {
+    return "gender-sister";
+  }
+  return "gender-unknown";
 }
 
 function renderOrganizationFlowNode(type, name, { meta = "", isActive = true } = {}) {
