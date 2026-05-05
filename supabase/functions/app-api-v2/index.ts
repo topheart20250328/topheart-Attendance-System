@@ -829,18 +829,39 @@ async function handleAttendanceOverview(
 }
 
 async function ensureWeek(db: ReturnType<typeof createAdminClient>, weekStart: string) {
-  const { data } = await db
+  const { data, error } = await db
     .from("attendance_weeks")
     .select("*")
     .eq("week_start_date", weekStart)
     .maybeSingle();
+  if (error) {
+    throw new Error(error.message);
+  }
   if (data) {
     return data;
   }
-  return await insertOne(db, "attendance_weeks", {
+
+  const { data: inserted, error: insertError } = await db
+    .from("attendance_weeks")
+    .insert({
     week_start_date: weekStart,
     label: weekStart,
-  });
+    })
+    .select("*")
+    .single();
+  if (!insertError) {
+    return inserted;
+  }
+
+  const { data: fallback, error: fallbackError } = await db
+    .from("attendance_weeks")
+    .select("*")
+    .eq("week_start_date", weekStart)
+    .single();
+  if (fallbackError) {
+    throw new Error(insertError.message);
+  }
+  return fallback;
 }
 
 async function loadOverviewMembers(db: ReturnType<typeof createAdminClient>, viewer: MemberRow) {
@@ -950,7 +971,7 @@ async function buildUnits(
 
   if (includeDistrict) {
     const districtIds = uniqueIds(members.map((member) => member.district_id));
-    for (const district of await loadByIds(db, "districts", districtIds)) {
+    for (const district of (await loadByIds(db, "districts", districtIds)).sort(compareOrganizationRows)) {
       units.push(unit("district", district.id, district.name, null, members.filter((member) => member.district_id === district.id), recordMap, historyMap));
     }
   }
@@ -966,14 +987,14 @@ async function buildUnits(
 
   if (includeBig) {
     const bigIds = uniqueIds(members.map((member) => member.big_family_id));
-    for (const big of await loadByIds(db, "big_families", bigIds)) {
+    for (const big of (await loadByIds(db, "big_families", bigIds)).sort(compareOrganizationRows)) {
       const parentName = districtsById.get(big.district_id)?.name || null;
       units.push(unit("big_family", big.id, big.name, parentName, members.filter((member) => member.big_family_id === big.id), recordMap, historyMap));
     }
   }
 
   const smallIds = uniqueIds(members.map((member) => member.small_group_id));
-  for (const small of await loadByIds(db, "small_groups", smallIds)) {
+  for (const small of (await loadByIds(db, "small_groups", smallIds)).sort(compareOrganizationRows)) {
     const parents = [
       bigFamiliesById.get(small.big_family_id)?.name,
       districtsById.get(small.district_id)?.name,
@@ -982,6 +1003,25 @@ async function buildUnits(
   }
 
   return units.filter((item) => item.member_count > 0);
+}
+
+function compareOrganizationRows(left: any, right: any) {
+  if (left.is_active !== right.is_active) {
+    return left.is_active ? -1 : 1;
+  }
+  const leftOrder = Number(left.display_order);
+  const rightOrder = Number(right.display_order);
+  const hasLeftOrder = Number.isFinite(leftOrder);
+  const hasRightOrder = Number.isFinite(rightOrder);
+  if (hasLeftOrder || hasRightOrder) {
+    if (hasLeftOrder !== hasRightOrder) {
+      return hasLeftOrder ? -1 : 1;
+    }
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+  }
+  return String(left.name || "").localeCompare(String(right.name || ""), "zh-Hant");
 }
 
 async function loadByIds(db: ReturnType<typeof createAdminClient>, table: string, ids: number[]) {

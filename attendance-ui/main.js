@@ -82,6 +82,13 @@ const V2_API_ACTIONS = new Set([
   "update-member",
 ]);
 
+const INVITE_SORT_OPTIONS = [
+  "created_desc",
+  "created_asc",
+  "role",
+  "unused",
+];
+
 const TABS = {
   attendance: "attendance",
   overview: "overview",
@@ -244,6 +251,7 @@ const els = {
   inviteForm: document.querySelector("#inviteForm"),
   inviteMemberSelect: document.querySelector("#inviteMemberSelect"),
   inviteExpiresInput: document.querySelector("#inviteExpiresInput"),
+  inviteSortSelect: document.querySelector("#inviteSortSelect"),
   inviteSubmitBtn: document.querySelector("#inviteSubmitBtn"),
   inviteSummary: document.querySelector("#inviteSummary"),
   latestInviteBox: document.querySelector("#latestInviteBox"),
@@ -292,6 +300,7 @@ const state = {
     peopleOpenGroups: new Set(),
     overviewOpenUnitKey: "",
     overviewOpenMemberKeys: new Set(),
+    inviteSort: "created_desc",
   },
   bulkMembers: [],
   dirty: false,
@@ -428,6 +437,7 @@ function bindEvents() {
   els.orgDistrictSelect.addEventListener("change", syncOrgEditorBigFamilyOptions);
 
   els.inviteForm.addEventListener("submit", handleCreateInvite);
+  els.inviteSortSelect?.addEventListener("change", handleInviteSortChange);
   els.inviteTableBody.addEventListener("click", handleInviteTableClick);
   els.copyLatestInviteBtn.addEventListener("click", handleCopyLatestInvite);
 
@@ -445,9 +455,19 @@ function hydrateLocalState() {
   state.config = loadConfig();
   state.appToken = loadStoredValue(STORAGE_KEYS.appToken);
   state.pendingToken = loadStoredValue(STORAGE_KEYS.pendingToken);
-  state.ui.layoutSize = loadUiPreferences().layoutSize;
+  const uiPreferences = loadUiPreferences();
+  state.ui.layoutSize = uiPreferences.layoutSize;
+  state.ui.overviewUnitType = uiPreferences.overviewUnitType;
+  state.ui.inviteSort = uiPreferences.inviteSort;
   els.projectUrlInput.value = state.config.projectUrl || "";
+  if (els.overviewUnitTypeSelect) {
+    els.overviewUnitTypeSelect.value = state.ui.overviewUnitType;
+  }
+  if (els.inviteSortSelect) {
+    els.inviteSortSelect.value = state.ui.inviteSort;
+  }
   applyLayoutSize();
+  syncWeekControls();
 }
 
 function loadConfig() {
@@ -473,16 +493,26 @@ function loadUiPreferences() {
     const value = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.uiPreferences) || "{}");
     return {
       layoutSize: LAYOUT_SIZES.includes(value.layoutSize) ? value.layoutSize : "medium",
+      overviewUnitType: ["", "district", "big_family", "small_group"].includes(value.overviewUnitType)
+        ? value.overviewUnitType
+        : "",
+      inviteSort: INVITE_SORT_OPTIONS.includes(value.inviteSort)
+        ? value.inviteSort
+        : "created_desc",
     };
   } catch (_error) {
-    return { layoutSize: "medium" };
+    return { layoutSize: "medium", overviewUnitType: "", inviteSort: "created_desc" };
   }
 }
 
 function saveUiPreferences() {
   window.localStorage.setItem(
     STORAGE_KEYS.uiPreferences,
-    JSON.stringify({ layoutSize: state.ui.layoutSize }),
+    JSON.stringify({
+      layoutSize: state.ui.layoutSize,
+      overviewUnitType: state.ui.overviewUnitType,
+      inviteSort: state.ui.inviteSort,
+    }),
   );
 }
 
@@ -925,6 +955,39 @@ function syncAttendanceFilterVisibility() {
   }
 }
 
+function getCurrentWeekStart() {
+  return getMondayIso(new Date());
+}
+
+function isFutureWeek(weekStart) {
+  return parseIsoDate(getMondayIso(weekStart)).getTime() > parseIsoDate(getCurrentWeekStart()).getTime();
+}
+
+function clampToAllowedAttendanceWeek(weekStart, options = {}) {
+  const normalized = getMondayIso(weekStart || new Date());
+  if (!isFutureWeek(normalized)) {
+    return normalized;
+  }
+  if (options.showToast) {
+    showToast("點名頁不能檢視或切換到未來週次。");
+  }
+  return getCurrentWeekStart();
+}
+
+function syncWeekControls() {
+  if (!els.weekInput) {
+    return;
+  }
+  const currentWeekStart = getCurrentWeekStart();
+  els.weekInput.max = currentWeekStart;
+  const selectedWeek = clampToAllowedAttendanceWeek(els.weekInput.value || currentWeekStart);
+  els.weekInput.value = selectedWeek;
+  if (els.nextWeekBtn) {
+    els.nextWeekBtn.disabled = parseIsoDate(selectedWeek).getTime() >= parseIsoDate(currentWeekStart).getTime();
+  }
+  syncWeekStatusChip();
+}
+
 function renderTabs() {
   const canViewOverview = canUseOverview();
   const canManagePeople = canUseManagement();
@@ -1083,8 +1146,11 @@ async function loadDashboard(options = {}) {
   }
 
   try {
-    const weekStart = getMondayIso(els.weekInput.value || new Date());
+    const weekStart = clampToAllowedAttendanceWeek(els.weekInput.value || new Date(), {
+      showToast: true,
+    });
     els.weekInput.value = weekStart;
+    syncWeekControls();
 
     const data = await fetchDashboardData(weekStart);
     applyDashboardData(data, weekStart);
@@ -1116,6 +1182,7 @@ async function fetchDashboardData(weekStart) {
 function applyDashboardData(data, weekStart) {
   state.currentMember = data.current_member;
   state.currentWeek = normalizeWeek(data.week, weekStart);
+  els.weekInput.value = state.currentWeek?.week_start_date || weekStart;
   state.attendanceAnalytics = normalizeAttendanceAnalytics(data.analytics);
   state.roster = sortMembers((data.roster || []).map(enrichRosterMember));
   captureAttendanceBaseline();
@@ -1124,6 +1191,7 @@ function applyDashboardData(data, weekStart) {
   renderWeekSummary();
   syncAttendanceFilterVisibility();
   renderAttendanceRows();
+  syncWeekControls();
 }
 
 function getDashboardCacheKey(weekStart) {
@@ -1135,6 +1203,9 @@ function prefetchAdjacentWeeks(weekStart) {
     const target = parseIsoDate(weekStart);
     target.setDate(target.getDate() + dayDelta);
     const targetWeek = getMondayIso(target);
+    if (isFutureWeek(targetWeek)) {
+      continue;
+    }
     const cacheKey = getDashboardCacheKey(targetWeek);
     if (state.dashboardCache.has(cacheKey) || state.prefetchingWeeks.has(cacheKey)) {
       continue;
@@ -1347,10 +1418,10 @@ function renderWeekSummary() {
       <span class="info-label">總人數</span>
       <strong>${visibleCount}</strong>
     </div>
-    <div class="summary-item">
-      <span class="info-label">完成/待確認</span>
-      <strong>${completedCount} / ${pendingCount}</strong>
-    </div>
+    ${renderNonZeroSummaryItem("完成/待確認", [
+      { label: "完成", value: completedCount },
+      { label: "待確認", value: pendingCount },
+    ])}
     <div class="summary-item">
       <span class="info-label">主日</span>
       <strong>${sundayPresentCount} / ${formatPercent(
@@ -1384,11 +1455,26 @@ function renderWeekSummary() {
 }
 
 function renderAnalyticsSummaryCard(label, stats) {
+  const breakdown = formatAnalyticsBreakdown(stats);
   return `
     <div class="summary-item">
       <span class="info-label">${escapeHtml(label)}</span>
       <strong>${escapeHtml(formatAnalyticsRate(stats))}</strong>
-      <span class="summary-subtext">${escapeHtml(formatAnalyticsBreakdown(stats))}</span>
+      ${breakdown ? `<span class="summary-subtext">${escapeHtml(breakdown)}</span>` : ""}
+    </div>
+  `;
+}
+
+function renderNonZeroSummaryItem(label, parts) {
+  const visibleParts = parts.filter((part) => Number(part.value || 0) !== 0);
+  return `
+    <div class="summary-item">
+      <span class="info-label">${escapeHtml(label)}</span>
+      <strong>${escapeHtml(
+        visibleParts.length
+          ? visibleParts.map((part) => `${part.label} ${part.value}`).join(" / ")
+          : "0",
+      )}</strong>
     </div>
   `;
 }
@@ -1407,7 +1493,10 @@ function formatAnalyticsBreakdown(stats) {
   }
 
   if (stats.confirmed_count) {
-    return `出席 ${stats.present_count || 0} / 已填 ${stats.confirmed_count}`;
+    return formatNonZeroParts([
+      { label: "出席", value: stats.present_count || 0 },
+      { label: "已填", value: stats.confirmed_count || 0 },
+    ]);
   }
 
   if (stats.unknown_count) {
@@ -1415,6 +1504,13 @@ function formatAnalyticsBreakdown(stats) {
   }
 
   return "尚無歷史資料";
+}
+
+function formatNonZeroParts(parts, suffix = "") {
+  return parts
+    .filter((part) => Number(part.value || 0) !== 0)
+    .map((part) => `${part.label} ${part.value}${suffix}`)
+    .join(" / ");
 }
 
 function renderAttendanceRows() {
@@ -1804,8 +1900,9 @@ async function handleShiftWeek(dayDelta) {
 
   const current = parseIsoDate(els.weekInput.value || getMondayIso(new Date()));
   current.setDate(current.getDate() + dayDelta);
-  const weekStart = getMondayIso(current);
+  const weekStart = clampToAllowedAttendanceWeek(current, { showToast: dayDelta > 0 });
   els.weekInput.value = weekStart;
+  syncWeekControls();
   const cached = state.dashboardCache.get(getDashboardCacheKey(weekStart));
   if (cached) {
     applyDashboardData(cached, weekStart);
@@ -1831,6 +1928,11 @@ async function handleWeekChange() {
     return;
   }
 
+  const weekStart = clampToAllowedAttendanceWeek(els.weekInput.value || new Date(), {
+    showToast: true,
+  });
+  els.weekInput.value = weekStart;
+  syncWeekControls();
   await loadDashboard();
 }
 
@@ -2121,6 +2223,7 @@ function switchOverviewUnitType(unitType) {
   }
 
   state.ui.overviewUnitType = unitType;
+  saveUiPreferences();
   renderAttendanceOverview();
 }
 
@@ -2307,6 +2410,11 @@ function renderOverviewUnitCard(unit) {
   const absentCount = Number(stats.absent_count || 0);
   const confirmedCount = Number(stats.confirmed_count || presentCount + absentCount);
   const unknownCount = Math.max(0, Number(stats.unknown_count ?? (memberCount - confirmedCount)));
+  const breakdown = formatNonZeroParts([
+    { label: "出席", value: presentCount },
+    { label: "未出席", value: absentCount },
+    { label: "待確認", value: unknownCount },
+  ], " 人");
   const parentLabel = unit.parent_name ? `所屬 ${unit.parent_name}` : "";
   const unitKey = getOverviewUnitKey(unit);
   const shouldOpen = state.ui.overviewOpenUnitKey === unitKey;
@@ -2324,16 +2432,17 @@ function renderOverviewUnitCard(unit) {
         </span>
         <span class="overview-unit-stat">
           <strong>${escapeHtml(formatOverviewRate(stats, memberCount))}</strong>
-          <span class="summary-subtext">出席 ${presentCount} 人 / 未出席 ${absentCount} 人 / 待確認 ${unknownCount} 人</span>
+          ${breakdown ? `<span class="summary-subtext">${escapeHtml(breakdown)}</span>` : ""}
         </span>
       </summary>
       <div class="overview-mini-stats">
-        <span class="status-chip success">出席 ${presentCount} 人</span>
-        <span class="status-chip warning">未出席 ${absentCount} 人</span>
-        <span class="status-chip neutral">待確認 ${unknownCount} 人</span>
+        ${presentCount ? `<span class="status-chip success">出席 ${presentCount} 人</span>` : ""}
+        ${absentCount ? `<span class="status-chip warning">未出席 ${absentCount} 人</span>` : ""}
+        ${unknownCount ? `<span class="status-chip neutral">待確認 ${unknownCount} 人</span>` : ""}
         <span class="status-chip neutral">共 ${memberCount} 人</span>
       </div>
       <div class="overview-detail-grid">
+        ${renderOverviewRateGroup(stats, memberCount)}
         ${renderOverviewStatusGroup("出席", detail.present || [])}
         ${renderOverviewStatusGroup("未出席", detail.absent || [])}
         ${renderOverviewStatusGroup("待確認", detail.unknown || [])}
@@ -2348,6 +2457,9 @@ function getOverviewUnitKey(unit) {
 
 function renderOverviewStatusGroup(label, members) {
   const sortedMembers = sortMembers([...(members || [])]);
+  if (!sortedMembers.length) {
+    return "";
+  }
   return `
     <section class="overview-status-group">
       <div class="overview-status-head">
@@ -2358,6 +2470,28 @@ function renderOverviewStatusGroup(label, members) {
         ${sortedMembers.length
           ? sortedMembers.map(renderOverviewMember).join("")
           : '<span class="muted small-text">無人員</span>'}
+      </div>
+    </section>
+  `;
+}
+
+function renderOverviewRateGroup(stats, memberCount) {
+  const present = Number(stats?.present_count || 0);
+  const absent = Number(stats?.absent_count || 0);
+  const unknown = Number(stats?.unknown_count || 0);
+  const breakdown = formatNonZeroParts([
+    { label: "出席", value: present },
+    { label: "未出席", value: absent },
+    { label: "待確認", value: unknown },
+  ], " 人");
+  return `
+    <section class="overview-status-group overview-rate-group">
+      <div class="overview-status-head">
+        <strong>整體出席率</strong>
+        <span class="status-chip neutral">${escapeHtml(formatOverviewRate(stats, memberCount))}</span>
+      </div>
+      <div class="overview-member-list">
+        <span class="muted small-text">${escapeHtml(breakdown || "尚無出席資料")}</span>
       </div>
     </section>
   `;
@@ -2533,7 +2667,11 @@ function formatDetailedAnalyticsBreakdown(stats) {
   if (!stats) {
     return "尚無資料";
   }
-  return `出席 ${stats.present_count || 0} / 缺席 ${stats.absent_count || 0} / 待確認 ${stats.unknown_count || 0}`;
+  return formatNonZeroParts([
+    { label: "出席", value: stats.present_count || 0 },
+    { label: "缺席", value: stats.absent_count || 0 },
+    { label: "待確認", value: stats.unknown_count || 0 },
+  ]) || "尚無資料";
 }
 
 function createEmptyEventStats() {
@@ -2846,7 +2984,7 @@ function renderPeopleMemberCard(member) {
       const canRestore = canRestoreMember(member);
 
       return `
-        <article class="member-card">
+        <article class="member-card${member.is_active ? "" : " is-inactive"}">
           <div class="member-card-head">
             <div class="row-meta">
               <div class="member-card-title">
@@ -2862,7 +3000,7 @@ function renderPeopleMemberCard(member) {
             <div class="row-actions">
               <button type="button" class="secondary people-edit-btn" data-member-id="${member.id}">編輯</button>
               ${canRestore
-                ? `<button type="button" class="secondary people-restore-btn" data-member-id="${member.id}" data-member-name="${escapeHtml(member.full_name)}">恢復啟用</button>`
+                ? `<button type="button" class="danger-button people-restore-btn" data-member-id="${member.id}" data-member-name="${escapeHtml(member.full_name)}">恢復啟用</button>`
                 : ""}
               ${canDelete
                 ? `<button type="button" class="secondary danger-button people-delete-btn" data-member-id="${member.id}" data-member-name="${escapeHtml(member.full_name)}">停用封存</button>`
@@ -4165,12 +4303,7 @@ function renderOrganizationDirectory() {
     return;
   }
 
-  const activeFirstDistricts = [...state.adminData.districts].sort((left, right) => {
-    if (left.is_active !== right.is_active) {
-      return left.is_active ? -1 : 1;
-    }
-    return String(left.name || "").localeCompare(String(right.name || ""), "zh-Hant");
-  });
+  const activeFirstDistricts = [...state.adminData.districts].sort(compareOrganizations);
 
   els.districtTableBody.innerHTML = activeFirstDistricts
     .map(renderOrganizationDistrictGroup)
@@ -4180,10 +4313,10 @@ function renderOrganizationDirectory() {
 function renderOrganizationDistrictGroup(district) {
   const bigFamilies = state.adminData.bigFamilies
     .filter((bigFamily) => bigFamily.district_id === district.id)
-    .sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""), "zh-Hant"));
+    .sort(compareOrganizations);
   const directSmallGroups = state.adminData.smallGroups
     .filter((smallGroup) => smallGroup.district_id === district.id && !smallGroup.big_family_id)
-    .sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""), "zh-Hant"));
+    .sort(compareOrganizations);
   const memberCount = state.adminData.members.filter((member) => member.district_id === district.id).length;
   const childCount = bigFamilies.length + directSmallGroups.length;
 
@@ -4213,7 +4346,7 @@ function renderOrganizationDistrictGroup(district) {
 function renderOrganizationBigFamilyGroup(bigFamily) {
   const smallGroups = state.adminData.smallGroups
     .filter((smallGroup) => smallGroup.big_family_id === bigFamily.id)
-    .sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""), "zh-Hant"));
+    .sort(compareOrganizations);
   const memberCount = state.adminData.members.filter((member) => member.big_family_id === bigFamily.id).length;
 
   return `
@@ -4239,6 +4372,25 @@ function renderOrganizationBigFamilyGroup(bigFamily) {
 
 function renderOrganizationSmallGroupItem(smallGroup) {
   return renderOrganizationCard("small_group", smallGroup);
+}
+
+function compareOrganizations(left, right) {
+  if (left.is_active !== right.is_active) {
+    return left.is_active ? -1 : 1;
+  }
+  const leftOrder = Number(left.display_order);
+  const rightOrder = Number(right.display_order);
+  const hasLeftOrder = Number.isFinite(leftOrder);
+  const hasRightOrder = Number.isFinite(rightOrder);
+  if (hasLeftOrder || hasRightOrder) {
+    if (hasLeftOrder !== hasRightOrder) {
+      return hasLeftOrder ? -1 : 1;
+    }
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+  }
+  return String(left.name || "").localeCompare(String(right.name || ""), "zh-Hant");
 }
 
 function renderOrganizationSummary(element, label, items) {
@@ -4373,6 +4525,30 @@ function renderOrganizationCard(orgType, organization) {
       <button
         type="button"
         class="secondary org-action-btn"
+        data-org-action="move-up"
+        data-org-type="${orgType}"
+        data-org-id="${organization.id}"
+        data-org-name="${escapeHtml(organization.name)}"
+      >
+        上移
+      </button>
+    `);
+    actionButtons.push(`
+      <button
+        type="button"
+        class="secondary org-action-btn"
+        data-org-action="move-down"
+        data-org-type="${orgType}"
+        data-org-id="${organization.id}"
+        data-org-name="${escapeHtml(organization.name)}"
+      >
+        下移
+      </button>
+    `);
+    actionButtons.push(`
+      <button
+        type="button"
+        class="secondary org-action-btn"
         data-org-action="edit"
         data-org-type="${orgType}"
         data-org-id="${organization.id}"
@@ -4458,8 +4634,46 @@ function renderDistrictTable() {
   }
 
   els.districtTableBody.innerHTML = state.adminData.districts
-    .map((district) => renderOrganizationCard("district", district))
+    .map(renderOrganizationFlowDistrict)
     .join("");
+}
+
+function renderOrganizationFlowDistrict(district) {
+  const bigFamilies = state.adminData.bigFamilies.filter(
+    (bigFamily) => bigFamily.district_id === district.id,
+  );
+  const directSmallGroups = state.adminData.smallGroups.filter(
+    (smallGroup) => smallGroup.district_id === district.id && !smallGroup.big_family_id,
+  );
+  return `
+    <details class="org-flow-district" open>
+      <summary>${renderOrganizationCard("district", district)}</summary>
+      <div class="org-flow-children">
+        ${bigFamilies.map((bigFamily) => renderOrganizationFlowBigFamily(bigFamily)).join("")}
+        ${directSmallGroups.map((smallGroup) => `
+          <div class="org-flow-small">${renderOrganizationCard("small_group", smallGroup)}</div>
+        `).join("")}
+      </div>
+    </details>
+  `;
+}
+
+function renderOrganizationFlowBigFamily(bigFamily) {
+  const smallGroups = state.adminData.smallGroups.filter(
+    (smallGroup) => smallGroup.big_family_id === bigFamily.id,
+  );
+  return `
+    <details class="org-flow-big-family" open>
+      <summary>${renderOrganizationCard("big_family", bigFamily)}</summary>
+      <div class="org-flow-children org-flow-small-list">
+        ${smallGroups.length
+          ? smallGroups.map((smallGroup) => `
+              <div class="org-flow-small">${renderOrganizationCard("small_group", smallGroup)}</div>
+            `).join("")
+          : '<div class="empty-state-card">此大家底下尚無小家。</div>'}
+      </div>
+    </details>
+  `;
 }
 
 function renderBigFamilyTable() {
@@ -4560,12 +4774,48 @@ function handleOrgTableClick(event) {
     return;
   }
 
+  if (action === "move-up" || action === "move-down") {
+    handleOrganizationMove(button, orgType, orgId, action === "move-up" ? -1 : 1);
+    return;
+  }
+
   if (action === "delete" && button.dataset.blockedReason) {
     showToast(button.dataset.blockedReason);
     return;
   }
 
   handleOrganizationAction(button, action, orgType, orgId, orgName);
+}
+
+async function handleOrganizationMove(button, orgType, orgId, direction) {
+  setButtonLoading(button, true);
+  try {
+    await apiRequest("move-organization", {
+      method: "POST",
+      authMode: "app",
+      body: {
+        org_type: orgType,
+        org_id: orgId,
+        direction,
+      },
+    });
+    queueOrganizationFocus({
+      type: orgType,
+      id: orgId,
+      sectionId: getOrganizationSectionId(orgType),
+    });
+    await loadAdminPanel();
+    await Promise.all([
+      loadDashboard({ skipDirtyCheck: true }),
+      canUseOverview() ? loadAttendanceOverview(state.ui.overviewWeekStart) : Promise.resolve(),
+    ]);
+    showToast("組織排序已更新。");
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "更新組織排序失敗，請確認資料庫已套用 display_order 欄位。");
+  } finally {
+    setButtonLoading(button, false);
+  }
 }
 
 function openOrgEditor(type, id) {
@@ -4742,6 +4992,9 @@ function renderInvites() {
       ? `目前可產生邀請碼 ${candidates.length} 位，仍可使用 ${activeInviteCount} 組`
       : "目前沒有可產生邀請碼的對象";
   }
+  if (els.inviteSortSelect) {
+    els.inviteSortSelect.value = state.ui.inviteSort;
+  }
 
   renderInviteTable();
   renderLatestInvite();
@@ -4772,7 +5025,7 @@ function renderInviteTable() {
     return;
   }
 
-  els.inviteTableBody.innerHTML = state.adminData.invites
+  els.inviteTableBody.innerHTML = getSortedInvites()
     .map((invite) => {
       const status = invite.used_at
         ? '<span class="status-chip success">已使用</span>'
@@ -4801,6 +5054,26 @@ function renderInviteTable() {
             >
               複製
             </button>
+            ${!invite.used_at
+              ? `<button
+                  type="button"
+                  class="secondary danger-button invite-delete-btn"
+                  data-invite-id="${escapeHtml(invite.id)}"
+                  data-invite-code="${escapeHtml(invite.invite_code)}"
+                >
+                  刪除邀請碼
+                </button>`
+              : ""}
+            ${invite.target_line_user_id
+              ? `<button
+                  type="button"
+                  class="secondary danger-button invite-reset-binding-btn"
+                  data-member-id="${escapeHtml(invite.target_member_id)}"
+                  data-member-name="${escapeHtml(invite.target_name)}"
+                >
+                  解除綁定
+                </button>`
+              : ""}
           </div>
 
           <div class="invite-meta-grid">
@@ -4817,6 +5090,40 @@ function renderInviteTable() {
       `;
     })
     .join("");
+}
+
+function getSortedInvites() {
+  const now = Date.now();
+  return [...state.adminData.invites].sort((left, right) => {
+    if (state.ui.inviteSort === "unused") {
+      const leftUnused = !left.used_at && new Date(left.expires_at).getTime() >= now;
+      const rightUnused = !right.used_at && new Date(right.expires_at).getTime() >= now;
+      if (leftUnused !== rightUnused) {
+        return leftUnused ? -1 : 1;
+      }
+    }
+
+    if (state.ui.inviteSort === "role") {
+      const leftRole = ROLE_ORDER[left.target_role] || 99;
+      const rightRole = ROLE_ORDER[right.target_role] || 99;
+      if (leftRole !== rightRole) {
+        return leftRole - rightRole;
+      }
+    }
+
+    const leftTime = new Date(left.created_at || 0).getTime();
+    const rightTime = new Date(right.created_at || 0).getTime();
+    return state.ui.inviteSort === "created_asc"
+      ? leftTime - rightTime
+      : rightTime - leftTime;
+  });
+}
+
+function handleInviteSortChange(event) {
+  const sortValue = event.target.value;
+  state.ui.inviteSort = INVITE_SORT_OPTIONS.includes(sortValue) ? sortValue : "created_desc";
+  saveUiPreferences();
+  renderInviteTable();
 }
 
 function renderLatestInvite() {
@@ -4836,12 +5143,78 @@ function renderLatestInvite() {
 }
 
 function handleInviteTableClick(event) {
+  const deleteButton = event.target.closest(".invite-delete-btn");
+  if (deleteButton) {
+    handleDeleteInvite(deleteButton);
+    return;
+  }
+
+  const resetButton = event.target.closest(".invite-reset-binding-btn");
+  if (resetButton) {
+    handleResetMemberLineBinding(resetButton);
+    return;
+  }
+
   const copyButton = event.target.closest(".invite-copy-btn");
   if (!copyButton) {
     return;
   }
 
   copyInviteCode(copyButton.dataset.inviteCode || "");
+}
+
+async function handleDeleteInvite(button) {
+  const inviteId = button.dataset.inviteId || "";
+  const inviteCode = button.dataset.inviteCode || "";
+  if (!inviteId) {
+    return;
+  }
+  if (!window.confirm(`確定要刪除邀請碼「${inviteCode}」嗎？`)) {
+    return;
+  }
+
+  setButtonLoading(button, true);
+  try {
+    await apiRequest("delete-invite", {
+      method: "POST",
+      authMode: "app",
+      body: { invite_id: inviteId },
+    });
+    await loadAdminPanel();
+    showToast("邀請碼已刪除。");
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "刪除邀請碼失敗。");
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+async function handleResetMemberLineBinding(button) {
+  const memberId = Number(button.dataset.memberId || 0);
+  const memberName = button.dataset.memberName || "這位人員";
+  if (!memberId) {
+    return;
+  }
+  if (!window.confirm(`確定要解除「${memberName}」的 LINE 綁定嗎？解除後需重新產生邀請碼綁定。`)) {
+    return;
+  }
+
+  setButtonLoading(button, true);
+  try {
+    await apiRequest("reset-member-line-binding", {
+      method: "POST",
+      authMode: "app",
+      body: { member_id: memberId },
+    });
+    await loadAdminPanel();
+    showToast("LINE 綁定已解除，可重新產生邀請碼。");
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "解除 LINE 綁定失敗。");
+  } finally {
+    setButtonLoading(button, false);
+  }
 }
 
 function handleCopyLatestInvite() {
@@ -5300,33 +5673,73 @@ function formatDate(date) {
 }
 
 function sortMembers(members) {
+  const districtOrder = new Map(state.adminData.districts.map((item) => [item.id, Number(item.display_order)]));
+  const bigFamilyOrder = new Map(state.adminData.bigFamilies.map((item) => [item.id, Number(item.display_order)]));
+  const smallGroupOrder = new Map(state.adminData.smallGroups.map((item) => [item.id, Number(item.display_order)]));
   return [...members].sort((left, right) => {
+    if (left.is_active !== right.is_active) {
+      return left.is_active === false ? 1 : -1;
+    }
+
     const leftRole = ROLE_ORDER[left.role] || 99;
     const rightRole = ROLE_ORDER[right.role] || 99;
     if (leftRole !== rightRole) {
       return leftRole - rightRole;
     }
 
-    const leftDistrict = left.district_name || "";
-    const rightDistrict = right.district_name || "";
-    if (leftDistrict !== rightDistrict) {
-      return leftDistrict.localeCompare(rightDistrict, "zh-Hant");
+    const districtCompare = compareMemberScopeOrder(
+      left.district_id,
+      right.district_id,
+      left.district_name,
+      right.district_name,
+      districtOrder,
+    );
+    if (districtCompare) {
+      return districtCompare;
     }
 
-    const leftBigFamily = left.big_family_name || "";
-    const rightBigFamily = right.big_family_name || "";
-    if (leftBigFamily !== rightBigFamily) {
-      return leftBigFamily.localeCompare(rightBigFamily, "zh-Hant");
+    const bigFamilyCompare = compareMemberScopeOrder(
+      left.big_family_id,
+      right.big_family_id,
+      left.big_family_name,
+      right.big_family_name,
+      bigFamilyOrder,
+    );
+    if (bigFamilyCompare) {
+      return bigFamilyCompare;
     }
 
-    const leftSmallGroup = left.small_group_name || "";
-    const rightSmallGroup = right.small_group_name || "";
-    if (leftSmallGroup !== rightSmallGroup) {
-      return leftSmallGroup.localeCompare(rightSmallGroup, "zh-Hant");
+    const smallGroupCompare = compareMemberScopeOrder(
+      left.small_group_id,
+      right.small_group_id,
+      left.small_group_name,
+      right.small_group_name,
+      smallGroupOrder,
+    );
+    if (smallGroupCompare) {
+      return smallGroupCompare;
     }
 
     return left.full_name.localeCompare(right.full_name, "zh-Hant");
   });
+}
+
+function compareMemberScopeOrder(leftId, rightId, leftName, rightName, orderMap) {
+  const leftOrder = Number(orderMap.get(leftId));
+  const rightOrder = Number(orderMap.get(rightId));
+  const hasLeftOrder = Number.isFinite(leftOrder);
+  const hasRightOrder = Number.isFinite(rightOrder);
+  if (hasLeftOrder || hasRightOrder) {
+    if (hasLeftOrder !== hasRightOrder) {
+      return hasLeftOrder ? -1 : 1;
+    }
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+  }
+  const leftValue = leftName || "";
+  const rightValue = rightName || "";
+  return leftValue.localeCompare(rightValue, "zh-Hant");
 }
 
 function escapeHtml(value) {

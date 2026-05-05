@@ -256,6 +256,10 @@ Deno.serve(async (request) => {
       return await handleDeleteOrganization(adminClient, request, "small_group");
     }
 
+    if (request.method === "POST" && action === "move-organization") {
+      return await handleMoveOrganization(adminClient, request);
+    }
+
     if (request.method === "POST" && action === "create-member") {
       return await handleCreateMember(adminClient, request);
     }
@@ -270,6 +274,14 @@ Deno.serve(async (request) => {
 
     if (request.method === "POST" && action === "create-invite") {
       return await handleCreateInvite(adminClient, request);
+    }
+
+    if (request.method === "POST" && action === "delete-invite") {
+      return await handleDeleteInvite(adminClient, request);
+    }
+
+    if (request.method === "POST" && action === "reset-member-line-binding") {
+      return await handleResetMemberLineBinding(adminClient, request);
     }
 
     return jsonResponse({ error: "Unknown action." }, 404);
@@ -469,7 +481,7 @@ async function handleBindInvite(
   const { data: existingByLineUserId, error: existingByLineUserIdError } =
     await adminClient
       .from("members")
-      .select("id")
+      .select("id, role, is_admin, is_active")
       .eq("line_user_id", pendingContext.pending.line_user_id)
       .maybeSingle();
 
@@ -478,7 +490,17 @@ async function handleBindInvite(
   }
 
   if (existingByLineUserId && existingByLineUserId.id !== inviteRow.member_id) {
-    return jsonResponse({ error: "此 LINE 帳號已綁定其他人員。" }, 409);
+    if (isLoginEnabledMember(existingByLineUserId)) {
+      return jsonResponse({ error: "此 LINE 帳號已綁定其他可登入人員。" }, 409);
+    }
+
+    const { error: clearOldBindingError } = await adminClient
+      .from("members")
+      .update({ line_user_id: null })
+      .eq("id", existingByLineUserId.id);
+    if (clearOldBindingError) {
+      return jsonResponse({ error: clearOldBindingError.message }, 500);
+    }
   }
 
   if (
@@ -692,6 +714,98 @@ async function handleSaveAttendance(
     status: "ok",
     message: "本週點名已儲存；若多人同時編輯，以最後儲存為準。",
   });
+}
+
+async function handleMoveOrganization(
+  adminClient: ReturnType<typeof createAdminClient>,
+  request: Request,
+) {
+  const sessionContext = await getSessionContext(adminClient, request.headers);
+  if (!sessionContext) {
+    return jsonResponse({ error: "Unauthorized." }, 401);
+  }
+
+  if (!sessionContext.member.is_admin) {
+    return jsonResponse({ error: "Only admins can reorder organizations." }, 403);
+  }
+
+  const body = await request.json().catch(() => null);
+  const orgType = String(body?.org_type || "") as OrganizationType;
+  const orgId = toPositiveInt(body?.org_id);
+  const direction = Number(body?.direction) < 0 ? -1 : 1;
+  if (!["district", "big_family", "small_group"].includes(orgType) || !orgId) {
+    return jsonResponse({ error: "org_type and org_id are required." }, 400);
+  }
+
+  const tableName = getOrganizationTableName(orgType);
+  const { data: target, error: targetError } = await adminClient
+    .from(tableName)
+    .select("*")
+    .eq("id", orgId)
+    .maybeSingle();
+  if (targetError) {
+    return jsonResponse({ error: targetError.message }, 500);
+  }
+  if (!target) {
+    return jsonResponse({ error: "Organization not found." }, 404);
+  }
+
+  let query = adminClient
+    .from(tableName)
+    .select("*")
+    .order("is_active", { ascending: false })
+    .order("display_order", { ascending: true, nullsFirst: false })
+    .order("name");
+  if (orgType === "big_family") {
+    query = query.eq("district_id", target.district_id);
+  } else if (orgType === "small_group") {
+    query = target.big_family_id
+      ? query.eq("big_family_id", target.big_family_id)
+      : query.eq("district_id", target.district_id).is("big_family_id", null);
+  }
+
+  const { data: siblings, error: siblingsError } = await query;
+  if (siblingsError) {
+    return jsonResponse({ error: siblingsError.message }, 500);
+  }
+
+  const rows = siblings || [];
+  const currentIndex = rows.findIndex((row) => row.id === orgId);
+  const nextIndex = currentIndex + direction;
+  if (currentIndex < 0 || nextIndex < 0 || nextIndex >= rows.length) {
+    return jsonResponse({ status: "ok", message: "排序已在邊界。" });
+  }
+
+  const current = rows[currentIndex];
+  const next = rows[nextIndex];
+  let currentOrder = Number.isFinite(Number(current.display_order))
+    ? Number(current.display_order)
+    : currentIndex + 1;
+  let nextOrder = Number.isFinite(Number(next.display_order))
+    ? Number(next.display_order)
+    : nextIndex + 1;
+  if (currentOrder === nextOrder) {
+    currentOrder = currentIndex + 1;
+    nextOrder = nextIndex + 1;
+  }
+
+  const { error: currentError } = await adminClient
+    .from(tableName)
+    .update({ display_order: nextOrder })
+    .eq("id", current.id);
+  if (currentError) {
+    return jsonResponse({ error: currentError.message }, 500);
+  }
+
+  const { error: nextError } = await adminClient
+    .from(tableName)
+    .update({ display_order: currentOrder })
+    .eq("id", next.id);
+  if (nextError) {
+    return jsonResponse({ error: nextError.message }, 500);
+  }
+
+  return jsonResponse({ status: "ok" });
 }
 
 async function handleCreateDistrict(
@@ -1593,6 +1707,90 @@ async function handleCreateInvite(
   });
 }
 
+async function handleDeleteInvite(
+  adminClient: ReturnType<typeof createAdminClient>,
+  request: Request,
+) {
+  const sessionContext = await getSessionContext(adminClient, request.headers);
+  if (!sessionContext) {
+    return jsonResponse({ error: "Unauthorized." }, 401);
+  }
+
+  if (!sessionContext.member.is_admin) {
+    return jsonResponse({ error: "Forbidden." }, 403);
+  }
+
+  const body = await request.json().catch(() => null);
+  const inviteId = String(body?.invite_id || "").trim();
+  if (!inviteId) {
+    return jsonResponse({ error: "invite_id is required." }, 400);
+  }
+
+  const { error } = await adminClient
+    .from("login_invites")
+    .delete()
+    .eq("id", inviteId);
+  if (error) {
+    return jsonResponse({ error: error.message }, 500);
+  }
+
+  return jsonResponse({ status: "ok" });
+}
+
+async function handleResetMemberLineBinding(
+  adminClient: ReturnType<typeof createAdminClient>,
+  request: Request,
+) {
+  const sessionContext = await getSessionContext(adminClient, request.headers);
+  if (!sessionContext) {
+    return jsonResponse({ error: "Unauthorized." }, 401);
+  }
+
+  if (!sessionContext.member.is_admin) {
+    return jsonResponse({ error: "Forbidden." }, 403);
+  }
+
+  const body = await request.json().catch(() => null);
+  const memberId = toPositiveInt(body?.member_id);
+  if (!memberId) {
+    return jsonResponse({ error: "member_id is required." }, 400);
+  }
+
+  const { data: targetMember, error: targetError } = await adminClient
+    .from("members")
+    .select("id, full_name, line_user_id")
+    .eq("id", memberId)
+    .maybeSingle();
+  if (targetError) {
+    return jsonResponse({ error: targetError.message }, 500);
+  }
+  if (!targetMember) {
+    return jsonResponse({ error: "Member not found." }, 404);
+  }
+
+  const nowIso = new Date().toISOString();
+  const { error: memberError } = await adminClient
+    .from("members")
+    .update({ line_user_id: null, last_line_login_at: null })
+    .eq("id", memberId);
+  if (memberError) {
+    return jsonResponse({ error: memberError.message }, 500);
+  }
+
+  if (targetMember.line_user_id) {
+    const { error: sessionError } = await adminClient
+      .from("app_sessions")
+      .update({ revoked_at: nowIso })
+      .eq("line_user_id", targetMember.line_user_id)
+      .is("revoked_at", null);
+    if (sessionError) {
+      return jsonResponse({ error: sessionError.message }, 500);
+    }
+  }
+
+  return jsonResponse({ status: "ok" });
+}
+
 async function getSessionContext(
   adminClient: ReturnType<typeof createAdminClient>,
   headers: Headers,
@@ -2174,7 +2372,7 @@ async function buildAdminOverview(
 
   let bigFamilyQuery = adminClient
     .from("big_families")
-    .select("id, district_id, name, description, is_active")
+    .select("*")
     .order("is_active", { ascending: false })
     .order("name");
   if (!viewer.is_admin) {
@@ -2193,7 +2391,7 @@ async function buildAdminOverview(
 
   let smallGroupQuery = adminClient
     .from("small_groups")
-    .select("id, district_id, big_family_id, name, description, is_active")
+    .select("*")
     .order("is_active", { ascending: false })
     .order("name");
   if (!viewer.is_admin) {
@@ -2270,6 +2468,7 @@ async function buildAdminOverview(
             target_member_id: target.id,
             target_name: target.full_name,
             target_role: target.role,
+            target_line_user_id: target.line_user_id,
             created_by_name: invite.created_by_member_id
               ? creatorMap.get(invite.created_by_member_id) || "-"
               : "-",
@@ -2402,17 +2601,17 @@ async function loadOverviewOrganizations(
 
   const districtQuery = adminClient
     .from("districts")
-    .select("id, name, description, is_active")
+    .select("*")
     .in("id", districtIds.length ? districtIds : [-1])
     .order("name");
   const bigFamilyQuery = adminClient
     .from("big_families")
-    .select("id, district_id, name, description, is_active")
+    .select("*")
     .in("id", bigFamilyIds.length ? bigFamilyIds : [-1])
     .order("name");
   const smallGroupQuery = adminClient
     .from("small_groups")
-    .select("id, district_id, big_family_id, name, description, is_active")
+    .select("*")
     .in("id", smallGroupIds.length ? smallGroupIds : [-1])
     .order("name");
 

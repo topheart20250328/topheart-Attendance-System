@@ -449,7 +449,12 @@ body:not(.is-authenticated) #attendanceSaveBar {
 }
 
 .settings-card {
-  margin-top: -4px;
+  position: fixed;
+  top: max(72px, calc(12px + env(safe-area-inset-top)));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 12;
+  width: min(420px, calc(100vw - 24px));
+  margin: 0;
 }
 
 .layout-size-options {
@@ -1554,6 +1559,11 @@ body.is-authenticated #invitesView {
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
 }
 
+.member-card.is-inactive {
+  border-color: rgba(153, 27, 27, 0.28);
+  background: #fff5f5;
+}
+
 .latest-invite-card {
   margin-top: 14px;
   background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
@@ -1871,8 +1881,8 @@ tbody tr:last-child td {
 }
 
 .status-chip.archived {
-  background: #eceff5;
-  color: #5c667a;
+  background: #fee2e2;
+  color: var(--danger);
 }
 
 .row-meta {
@@ -2673,6 +2683,19 @@ tbody tr:last-child td {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
+.create-org-panel {
+  margin-bottom: 12px;
+}
+
+.create-org-panel > .org-grid {
+  padding-top: 10px;
+}
+
+.overview-rate-group {
+  border-color: rgba(43, 111, 243, 0.22);
+  background: #f4f8ff;
+}
+
 .org-section-card {
   display: grid;
   gap: 14px;
@@ -2681,6 +2704,43 @@ tbody tr:last-child td {
 .org-card-list {
   display: grid;
   gap: 12px;
+}
+
+.org-flow-district,
+.org-flow-big-family {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(217, 226, 240, 0.82);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  padding: 8px;
+}
+
+.org-flow-district > summary,
+.org-flow-big-family > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.org-flow-district > summary::-webkit-details-marker,
+.org-flow-big-family > summary::-webkit-details-marker {
+  display: none;
+}
+
+.org-flow-children {
+  display: grid;
+  gap: 8px;
+  margin-left: clamp(10px, 3vw, 26px);
+  padding-left: clamp(10px, 3vw, 22px);
+  border-left: 3px solid #dbe6fb;
+}
+
+.org-flow-big-family {
+  background: #fbfdff;
+}
+
+.org-flow-small-list {
+  border-left-color: #e6eefc;
 }
 
 .org-scope-group {

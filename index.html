@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <title>topheart 教會點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260429-ui-v18" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260505-bugfix-v19" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -518,9 +518,11 @@
 
         <section class="card-subsection org-management-panel">
 
-          <div class="org-grid">
-            <details id="districtDetails" class="editor-details hidden">
-              <summary>建立區</summary>
+          <details class="editor-details create-org-panel">
+            <summary>建立組織</summary>
+            <div class="org-grid">
+              <details id="districtDetails" class="editor-details hidden">
+                <summary>建立區</summary>
               <form id="districtForm" class="form-grid">
                 <label>
                   <span>區名稱</span>
@@ -534,10 +536,10 @@
                   <button id="districtSubmitBtn" type="submit">建立區</button>
                 </div>
               </form>
-            </details>
+              </details>
 
-            <details class="editor-details">
-              <summary>建立大家</summary>
+              <details class="editor-details">
+                <summary>建立大家</summary>
               <form id="bigFamilyForm" class="form-grid">
                 <label>
                   <span>所屬區</span>
@@ -555,10 +557,10 @@
                   <button id="bigFamilySubmitBtn" type="submit">建立大家</button>
                 </div>
               </form>
-            </details>
+              </details>
 
-            <details class="editor-details">
-              <summary>建立小家</summary>
+              <details class="editor-details">
+                <summary>建立小家</summary>
               <form id="smallGroupForm" class="form-grid">
                 <label>
                   <span>所屬區</span>
@@ -580,8 +582,9 @@
                   <button id="smallGroupSubmitBtn" type="submit">建立小家</button>
                 </div>
               </form>
-            </details>
-          </div>
+              </details>
+            </div>
+          </details>
 
           <div class="org-management-grid">
             <section id="districtSection" class="card-subsection org-section-card">
@@ -722,7 +725,20 @@
           </section>
 
           <section class="card-subsection">
-            <h3>目前邀請碼</h3>
+            <div class="section-toolbar">
+              <div>
+                <h3>目前邀請碼</h3>
+              </div>
+              <label class="search-field invite-sort-field">
+                <span>排序</span>
+                <select id="inviteSortSelect">
+                  <option value="created_desc">建立時間：新到舊</option>
+                  <option value="created_asc">建立時間：舊到新</option>
+                  <option value="role">職分高低</option>
+                  <option value="unused">未使用優先</option>
+                </select>
+              </label>
+            </div>
             <div id="inviteTableBody" class="invite-card-list">
               <div class="empty-state-card">尚未載入邀請碼資料。</div>
             </div>
@@ -733,6 +749,6 @@
       <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
     </div>
 
-    <script type="module" src="./attendance-ui/main.js?v=20260429-ui-v18"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260505-bugfix-v19"></script>
   </body>
 </html>

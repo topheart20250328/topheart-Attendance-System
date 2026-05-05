@@ -5,7 +5,29 @@
 -- 3. Replace placeholder values before running
 
 -- =========================================================
--- 0. 既有資料庫升級：新增備註是否自動帶到下週
+-- 0A. 既有資料庫升級：組織手動排序
+-- 已經跑過新版 setup_supabase.sql 的全新資料庫不需要再跑。
+-- =========================================================
+alter table public.districts
+add column if not exists display_order integer not null default 0;
+
+alter table public.big_families
+add column if not exists display_order integer not null default 0;
+
+alter table public.small_groups
+add column if not exists display_order integer not null default 0;
+
+create index if not exists idx_districts_display_order
+on public.districts (display_order, name);
+
+create index if not exists idx_big_families_display_order
+on public.big_families (district_id, display_order, name);
+
+create index if not exists idx_small_groups_display_order
+on public.small_groups (district_id, big_family_id, display_order, name);
+
+-- =========================================================
+-- 0B. 既有資料庫升級：新增備註是否自動帶到下週
 -- 已經跑過新版 setup_supabase.sql 的全新資料庫不需要再跑。
 -- =========================================================
 alter table public.members

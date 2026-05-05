@@ -199,13 +199,7 @@ Deno.serve(async (request) => {
       });
     }
 
-    if (matchedMember) {
-      if (!isLoginEnabledMember(matchedMember)) {
-        return redirectWithHash(redirectTo, {
-          auth_error: "此 LINE 帳號已綁定，但沒有登入權限。",
-        });
-      }
-
+    if (matchedMember && isLoginEnabledMember(matchedMember)) {
       await adminClient
         .from("members")
         .update({ last_line_login_at: new Date().toISOString() })
