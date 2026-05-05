@@ -4523,11 +4523,14 @@ async function handleCaptureOrganizationTree() {
   els.orgTreeBody.classList.add("is-exporting");
 
   try {
+    await document.fonts?.ready;
+    await waitForNextFrame();
     const width = Math.max(els.orgTreeBody.scrollWidth, els.orgTreeBody.offsetWidth);
     const height = Math.max(els.orgTreeBody.scrollHeight, els.orgTreeBody.offsetHeight);
     const dataUrl = await htmlToImage.toPng(els.orgTreeBody, {
       cacheBust: true,
       pixelRatio: 2,
+      skipAutoScale: true,
       width,
       height,
       style: {
@@ -4551,6 +4554,14 @@ async function handleCaptureOrganizationTree() {
     els.orgTreeBody.scrollTop = previousScrollTop;
     setButtonLoading(els.captureOrgTreeBtn, false);
   }
+}
+
+function waitForNextFrame() {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(resolve);
+    });
+  });
 }
 
 function renderOrganizationDirectory() {

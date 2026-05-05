@@ -3029,6 +3029,28 @@ tbody tr:last-child td {
   min-width: 0;
 }
 
+.org-tree-board.is-exporting .org-flow-members {
+  display: grid !important;
+  grid-template-columns: repeat(5, 72px);
+  align-items: start;
+  justify-content: center;
+  width: 392px !important;
+  max-width: 392px !important;
+  min-width: 392px !important;
+}
+
+.org-tree-board.is-exporting .org-member-pill {
+  width: 72px;
+  box-sizing: border-box;
+  break-inside: avoid;
+}
+
+.org-tree-board.is-exporting .org-member-pill .name-card,
+.org-tree-board.is-exporting .org-member-pill .role-pill {
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
 .org-scope-group {
   border: 1px solid var(--border);
   border-radius: 14px;
