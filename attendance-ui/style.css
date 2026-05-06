@@ -3074,6 +3074,56 @@ tbody tr:last-child td {
   white-space: nowrap;
 }
 
+.image-save-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  background: rgba(15, 23, 42, 0.52);
+}
+
+.image-save-card {
+  display: grid;
+  gap: 10px;
+  width: min(680px, 100%);
+  max-height: min(86vh, 760px);
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid rgba(217, 226, 240, 0.95);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.24);
+}
+
+.image-save-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.image-save-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.image-save-download {
+  justify-self: start;
+}
+
+.image-save-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+
 .org-scope-group {
   border: 1px solid var(--border);
   border-radius: 14px;

@@ -2341,7 +2341,35 @@ function handleOverviewHistoryRangeClick(event) {
   }
 
   state.ui.overviewHistoryRange = rangeKey;
-  renderOverviewUnits();
+  refreshRenderedOverviewHistoryPanels();
+}
+
+function refreshRenderedOverviewHistoryPanels() {
+  els.overviewUnitList
+    ?.querySelectorAll(".overview-member-details")
+    .forEach((details) => {
+      const member = findOverviewMemberByKey(details.dataset.overviewMemberKey || "");
+      const panel = details.querySelector(".overview-history-panel, .overview-history-grid");
+      if (!member || !panel) {
+        return;
+      }
+      panel.outerHTML = renderOverviewMemberHistory(member.history);
+    });
+}
+
+function findOverviewMemberByKey(memberKey) {
+  for (const unit of state.overviewData?.units || []) {
+    const details = unit.detail?.[state.ui.overviewEvent] || {};
+    for (const group of ["present", "absent", "unknown"]) {
+      const member = (details[group] || []).find(
+        (item) => getOverviewMemberKey(item) === memberKey,
+      );
+      if (member) {
+        return member;
+      }
+    }
+  }
+  return null;
 }
 
 function renderAttendanceOverview() {
@@ -2515,14 +2543,14 @@ function renderOverviewStatusGroup(label, members, unitType = "") {
 function renderOverviewUnitHistory(history, currentStats, memberCount) {
   const ranges = getOverviewHistoryRangeDefinitions();
   return `
-    <section class="overview-status-group overview-rate-group">
-      <div class="overview-status-head">
+    <details class="overview-status-group overview-rate-group" open>
+      <summary class="overview-status-head">
         <strong>整體出席率</strong>
-      </div>
+      </summary>
       <div class="overview-unit-history-grid">
         ${ranges.map((range) => renderOverviewUnitHistoryCard(range, history?.[range.key])).join("")}
       </div>
-    </section>
+    </details>
   `;
 }
 
@@ -4547,11 +4575,7 @@ async function handleCaptureOrganizationTree() {
   const previousScrollLeft = els.orgTreeBody.scrollLeft;
   const previousScrollTop = els.orgTreeBody.scrollTop;
   const fileName = `topheart-organization-tree-${formatDate(new Date())}.png`;
-  const useMobileFallback = shouldUseMobileImageFallback();
-  const fallbackWindow = useMobileFallback ? window.open("", "_blank") : null;
-  if (fallbackWindow) {
-    fallbackWindow.document.write("<p style=\"font-family: sans-serif; padding: 16px;\">正在產生組織樹圖片...</p>");
-  }
+  const useMobileExport = shouldUseMobileImageFallback();
   setButtonLoading(els.captureOrgTreeBtn, true, "產生中...");
   els.orgTreeBody.classList.add("is-exporting");
 
@@ -4562,7 +4586,7 @@ async function handleCaptureOrganizationTree() {
     const height = Math.max(els.orgTreeBody.scrollHeight, els.orgTreeBody.offsetHeight);
     const dataUrl = await htmlToImage.toPng(els.orgTreeBody, {
       cacheBust: true,
-      pixelRatio: 2,
+      pixelRatio: useMobileExport ? 1 : 2,
       skipAutoScale: true,
       width,
       height,
@@ -4573,11 +4597,10 @@ async function handleCaptureOrganizationTree() {
         background: "#ffffff",
       },
     });
-    await saveOrganizationTreeImage(dataUrl, fileName, fallbackWindow);
+    await saveOrganizationTreeImage(dataUrl, fileName);
     showToast("已產生組織樹截圖。");
   } catch (error) {
     console.error(error);
-    fallbackWindow?.close();
     showToast("產生截圖失敗，請稍後再試。");
   } finally {
     els.orgTreeBody.classList.remove("is-exporting");
@@ -4587,12 +4610,11 @@ async function handleCaptureOrganizationTree() {
   }
 }
 
-async function saveOrganizationTreeImage(dataUrl, fileName, fallbackWindow = null) {
+async function saveOrganizationTreeImage(dataUrl, fileName) {
   const blob = dataUrlToBlob(dataUrl);
   const file = new File([blob], fileName, { type: "image/png" });
 
   if (navigator.canShare?.({ files: [file] })) {
-    fallbackWindow?.close();
     await navigator.share({
       files: [file],
       title: "組織樹狀圖",
@@ -4602,30 +4624,8 @@ async function saveOrganizationTreeImage(dataUrl, fileName, fallbackWindow = nul
   }
 
   const objectUrl = URL.createObjectURL(blob);
-  if (fallbackWindow) {
-    fallbackWindow.document.open();
-    fallbackWindow.document.write(`
-      <!doctype html>
-      <html lang="zh-Hant">
-        <head>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <title>組織樹狀圖</title>
-          <style>
-            body { margin: 0; padding: 16px; font-family: sans-serif; background: #f8fbff; color: #1e293b; }
-            img { display: block; width: 100%; height: auto; border-radius: 12px; background: #fff; }
-            a { display: inline-block; margin: 0 0 12px; padding: 10px 14px; border-radius: 999px; background: #2b6ff3; color: #fff; text-decoration: none; font-weight: 700; }
-            p { font-size: 14px; line-height: 1.6; color: #64748b; }
-          </style>
-        </head>
-        <body>
-          <a href="${objectUrl}" download="${escapeHtml(fileName)}">下載圖片</a>
-          <p>若 LINE 或 Safari 沒有自動儲存，請長按圖片後選擇「加入照片」或「儲存影像」。</p>
-          <img src="${objectUrl}" alt="組織樹狀圖" />
-        </body>
-      </html>
-    `);
-    fallbackWindow.document.close();
+  if (shouldUseMobileImageFallback()) {
+    showImageSavePanel(objectUrl, fileName);
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120000);
     return;
   }
@@ -4637,6 +4637,28 @@ async function saveOrganizationTreeImage(dataUrl, fileName, fallbackWindow = nul
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+function showImageSavePanel(imageUrl, fileName) {
+  const existing = document.querySelector(".image-save-panel");
+  existing?.remove();
+  const panel = document.createElement("div");
+  panel.className = "image-save-panel";
+  panel.innerHTML = `
+    <div class="image-save-card" role="dialog" aria-modal="true" aria-label="組織樹截圖">
+      <div class="image-save-head">
+        <strong>組織樹截圖已產生</strong>
+        <button type="button" class="secondary image-save-close">關閉</button>
+      </div>
+      <p>若 iPhone、LINE 或 Safari 沒有自動儲存，請長按圖片後選擇「加入照片」或「儲存影像」。</p>
+      <a class="button-link image-save-download" href="${imageUrl}" download="${escapeHtml(fileName)}">下載圖片</a>
+      <img src="${imageUrl}" alt="組織樹狀圖" />
+    </div>
+  `;
+  panel.querySelector(".image-save-close")?.addEventListener("click", () => {
+    panel.remove();
+  });
+  document.body.appendChild(panel);
 }
 
 function dataUrlToBlob(dataUrl) {

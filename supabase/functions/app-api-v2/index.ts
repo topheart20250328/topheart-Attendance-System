@@ -585,7 +585,7 @@ async function handleDashboard(
     roster: members.map((member) => ({
       ...member,
       note: getFirstRecordValue(recordMap, member.id, "note", member.note || ""),
-      note_carry_forward: member.note_carry_forward !== false,
+      note_carry_forward: Boolean(member.note && member.note_carry_forward === true),
       note_priority_high: Boolean(
         getFirstRecordValue(recordMap, member.id, "note_priority_high", member.note_priority_high),
       ),
@@ -630,11 +630,12 @@ async function handleSaveAttendance(
     const note = normalizeNote(entry?.note);
     const notePriorityHigh = Boolean(note && entry?.note_priority_high);
     if (canEditNote(viewer, target)) {
+      const noteCarryForward = Boolean(note && entry?.note_carry_forward === true);
       noteUpdates.push({
         member_id: memberId,
-        note: entry?.note_carry_forward === false ? "" : note,
-        note_carry_forward: entry?.note_carry_forward !== false,
-        note_priority_high: entry?.note_carry_forward === false ? false : notePriorityHigh,
+        note: noteCarryForward ? note : "",
+        note_carry_forward: noteCarryForward,
+        note_priority_high: noteCarryForward ? notePriorityHigh : false,
       });
     }
 
