@@ -1246,7 +1246,7 @@ function enrichRosterMember(member) {
     ...member,
     is_self: Boolean(state.currentMember && member.id === state.currentMember.id),
     note: member.note || "",
-    note_carry_forward: member.note_carry_forward !== false,
+    note_carry_forward: member.note_carry_forward === true,
     note_priority_high: Boolean(member.note && member.note_priority_high),
     attendance: {
       sunday_service: member.attendance?.sunday_service || "unknown",
@@ -1271,7 +1271,7 @@ function serializeAttendanceMember(member) {
     sunday_service: getAttendanceStatus(member, "sunday_service"),
     small_group_fellowship: getAttendanceStatus(member, "small_group_fellowship"),
     note: String(member.note || "").trim(),
-    note_carry_forward: member.note_carry_forward !== false,
+    note_carry_forward: member.note_carry_forward === true,
     note_priority_high: Boolean(String(member.note || "").trim() && member.note_priority_high),
   });
 }
@@ -1428,6 +1428,7 @@ function renderWeekSummary() {
   const visibleCount = state.roster.length;
   const pendingCount = state.roster.filter(hasPendingAttendance).length;
   const completedCount = Math.max(visibleCount - pendingCount, 0);
+  const completedRate = formatPercent(completedCount, visibleCount);
   const sundayPresentCount = countStatus("sunday_service", "present");
   const fellowshipPresentCount = countStatus(
     "small_group_fellowship",
@@ -1441,10 +1442,10 @@ function renderWeekSummary() {
       <span class="info-label">總人數</span>
       <strong>${visibleCount}</strong>
     </div>
-    ${renderNonZeroSummaryItem("完成/待確認", [
-      { label: "完成", value: completedCount },
-      { label: "待確認", value: pendingCount },
-    ])}
+    <div class="summary-item attendance-completion-summary">
+      <span class="info-label">完成率</span>
+      <strong>${completedCount} / ${completedRate}</strong>
+    </div>
     <div class="summary-item">
       <span class="info-label">主日</span>
       <strong>${sundayPresentCount} / ${formatPercent(
@@ -1527,7 +1528,6 @@ function formatAnalyticsBreakdown(stats) {
   if (stats.confirmed_count) {
     return formatNonZeroParts([
       { label: "出席", value: stats.present_count || 0 },
-      { label: "已填", value: stats.confirmed_count || 0 },
     ]);
   }
 
@@ -1570,7 +1570,7 @@ function renderAttendanceRows() {
         : "";
       lastGroupLabel = groupLabel;
       const noteValue = escapeHtml(member.note || "");
-      const noteCarryChecked = member.note_carry_forward !== false ? "checked" : "";
+      const noteCarryChecked = member.note_carry_forward === true ? "checked" : "";
       const notePriorityChecked = member.note_priority_high ? "checked" : "";
       const notePriorityDisabled = member.note.trim() && member.can_edit_note ? "" : "disabled";
       const readonlyBadge = member.can_edit_attendance
@@ -2050,7 +2050,7 @@ async function handleSaveAttendance() {
         "small_group_fellowship",
       ),
       note: getSelectedNote(member.id),
-      note_carry_forward: member.note_carry_forward !== false,
+      note_carry_forward: member.note_carry_forward === true,
       note_priority_high: Boolean(member.note.trim() && member.note_priority_high),
     }));
 
@@ -2332,6 +2332,8 @@ function handleOverviewHistoryRangeClick(event) {
   if (!button) {
     return;
   }
+  event.preventDefault();
+  event.stopPropagation();
 
   const rangeKey = button.dataset.overviewHistoryRange;
   if (!getOverviewHistoryRangeDefinitions().some((range) => range.key === rangeKey)) {
@@ -2447,10 +2449,9 @@ function renderOverviewUnitCard(unit) {
   const breakdown = formatNonZeroParts([
     { label: "出席", value: presentCount },
     { label: "未出席", value: absentCount },
-    { label: "已填", value: confirmedCount },
     { label: "待確認", value: unknownCount },
   ], " 人");
-  const parentLabel = unit.parent_name ? `所屬 ${unit.parent_name}` : "";
+  const parentLabel = unit.parent_name || "";
   const unitKey = getOverviewUnitKey(unit);
   const shouldOpen = state.ui.overviewOpenUnitKey === unitKey;
 
@@ -2474,7 +2475,6 @@ function renderOverviewUnitCard(unit) {
       <div class="overview-mini-stats">
         ${presentCount ? `<span class="status-chip success">出席 ${presentCount} 人</span>` : ""}
         ${absentCount ? `<span class="status-chip warning">未出席 ${absentCount} 人</span>` : ""}
-        ${confirmedCount ? `<span class="status-chip neutral">已填 ${confirmedCount} 人</span>` : ""}
         ${unknownCount ? `<span class="status-chip neutral">待確認 ${unknownCount} 人</span>` : ""}
         <span class="status-chip neutral">填寫率 ${escapeHtml(completionRate)}</span>
         <span class="status-chip neutral">共 ${memberCount} 人</span>
@@ -2518,8 +2518,6 @@ function renderOverviewUnitHistory(history, currentStats, memberCount) {
     <section class="overview-status-group overview-rate-group">
       <div class="overview-status-head">
         <strong>整體出席率</strong>
-        <span class="status-chip neutral">出席 ${escapeHtml(formatOverviewRate(currentStats, memberCount))}</span>
-        <span class="status-chip neutral">填寫 ${escapeHtml(formatCompletionRate(currentStats, memberCount))}</span>
       </div>
       <div class="overview-unit-history-grid">
         ${ranges.map((range) => renderOverviewUnitHistoryCard(range, history?.[range.key])).join("")}
@@ -2531,11 +2529,13 @@ function renderOverviewUnitHistory(history, currentStats, memberCount) {
 function renderOverviewUnitHistoryCard(range, data) {
   const eventType = state.ui.overviewEvent;
   const stats = data?.[eventType] || createEmptyEventStats();
+  const missingCount = getMissingCount(stats);
+  const completionText = `填寫率 ${formatCompletionRate(stats)}${missingCount ? ` (未填${missingCount}筆)` : ""}`;
   return `
     <div class="overview-history-event">
       <span class="info-label">${escapeHtml(range.label)}</span>
       <strong>${escapeHtml(formatAnalyticsRate(stats))}</strong>
-      <span class="summary-subtext">${escapeHtml(`填寫率 ${formatCompletionRate(stats)}`)}</span>
+      <span class="summary-subtext">${escapeHtml(completionText)}</span>
       <span class="summary-subtext">${escapeHtml(formatDetailedAnalyticsBreakdown(stats))}</span>
     </div>
   `;
@@ -2714,9 +2714,16 @@ function formatDetailedAnalyticsBreakdown(stats) {
   return formatNonZeroParts([
     { label: "出席", value: stats.present_count || 0 },
     { label: "缺席", value: stats.absent_count || 0 },
-    { label: "已填", value: stats.confirmed_count || 0 },
-    { label: "待確認", value: stats.unknown_count || 0 },
   ]) || "尚無資料";
+}
+
+function getMissingCount(stats) {
+  const expectedCount = Number(stats?.expected_count || 0);
+  const confirmedCount = Number(stats?.confirmed_count || 0);
+  if (expectedCount) {
+    return Math.max(0, expectedCount - confirmedCount);
+  }
+  return Number(stats?.unknown_count || 0);
 }
 
 function createEmptyEventStats() {
@@ -4539,6 +4546,12 @@ async function handleCaptureOrganizationTree() {
 
   const previousScrollLeft = els.orgTreeBody.scrollLeft;
   const previousScrollTop = els.orgTreeBody.scrollTop;
+  const fileName = `topheart-organization-tree-${formatDate(new Date())}.png`;
+  const useMobileFallback = shouldUseMobileImageFallback();
+  const fallbackWindow = useMobileFallback ? window.open("", "_blank") : null;
+  if (fallbackWindow) {
+    fallbackWindow.document.write("<p style=\"font-family: sans-serif; padding: 16px;\">正在產生組織樹圖片...</p>");
+  }
   setButtonLoading(els.captureOrgTreeBtn, true, "產生中...");
   els.orgTreeBody.classList.add("is-exporting");
 
@@ -4560,13 +4573,11 @@ async function handleCaptureOrganizationTree() {
         background: "#ffffff",
       },
     });
-    const link = document.createElement("a");
-    link.download = `topheart-organization-tree-${formatDate(new Date())}.png`;
-    link.href = dataUrl;
-    link.click();
+    await saveOrganizationTreeImage(dataUrl, fileName, fallbackWindow);
     showToast("已產生組織樹截圖。");
   } catch (error) {
     console.error(error);
+    fallbackWindow?.close();
     showToast("產生截圖失敗，請稍後再試。");
   } finally {
     els.orgTreeBody.classList.remove("is-exporting");
@@ -4574,6 +4585,75 @@ async function handleCaptureOrganizationTree() {
     els.orgTreeBody.scrollTop = previousScrollTop;
     setButtonLoading(els.captureOrgTreeBtn, false);
   }
+}
+
+async function saveOrganizationTreeImage(dataUrl, fileName, fallbackWindow = null) {
+  const blob = dataUrlToBlob(dataUrl);
+  const file = new File([blob], fileName, { type: "image/png" });
+
+  if (navigator.canShare?.({ files: [file] })) {
+    fallbackWindow?.close();
+    await navigator.share({
+      files: [file],
+      title: "組織樹狀圖",
+      text: "topheart 組織樹狀圖",
+    });
+    return;
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
+  if (fallbackWindow) {
+    fallbackWindow.document.open();
+    fallbackWindow.document.write(`
+      <!doctype html>
+      <html lang="zh-Hant">
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <title>組織樹狀圖</title>
+          <style>
+            body { margin: 0; padding: 16px; font-family: sans-serif; background: #f8fbff; color: #1e293b; }
+            img { display: block; width: 100%; height: auto; border-radius: 12px; background: #fff; }
+            a { display: inline-block; margin: 0 0 12px; padding: 10px 14px; border-radius: 999px; background: #2b6ff3; color: #fff; text-decoration: none; font-weight: 700; }
+            p { font-size: 14px; line-height: 1.6; color: #64748b; }
+          </style>
+        </head>
+        <body>
+          <a href="${objectUrl}" download="${escapeHtml(fileName)}">下載圖片</a>
+          <p>若 LINE 或 Safari 沒有自動儲存，請長按圖片後選擇「加入照片」或「儲存影像」。</p>
+          <img src="${objectUrl}" alt="組織樹狀圖" />
+        </body>
+      </html>
+    `);
+    fallbackWindow.document.close();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120000);
+    return;
+  }
+
+  const link = document.createElement("a");
+  link.download = fileName;
+  link.href = objectUrl;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+function dataUrlToBlob(dataUrl) {
+  const [header, data] = dataUrl.split(",");
+  const mimeMatch = header.match(/data:(.*?);base64/);
+  const mime = mimeMatch?.[1] || "image/png";
+  const binary = window.atob(data);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return new Blob([bytes], { type: mime });
+}
+
+function shouldUseMobileImageFallback() {
+  const ua = navigator.userAgent || "";
+  return /iPad|iPhone|iPod/.test(ua) || /Line\//i.test(ua);
 }
 
 function waitForNextFrame() {

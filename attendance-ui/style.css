@@ -1079,6 +1079,9 @@ body.is-authenticated #invitesView {
 }
 
 #attendanceView .summary-item {
+  display: grid;
+  place-items: center;
+  text-align: center;
   min-width: 0;
   padding: 6px 8px;
   border-radius: 10px;
@@ -1088,6 +1091,10 @@ body.is-authenticated #invitesView {
   margin-top: 2px;
   font-size: 0.9rem;
   line-height: 1.1;
+}
+
+#attendanceView .summary-item .info-label {
+  text-align: center;
 }
 
 #attendanceView .summary-details {
@@ -2930,7 +2937,8 @@ tbody tr:last-child td {
   display: inline-grid;
   place-items: center;
   gap: 3px;
-  min-width: 72px;
+  width: 78px;
+  min-width: 78px;
   padding: 4px 5px;
   border-radius: 12px;
   border: 1px solid rgba(217, 226, 240, 0.9);
@@ -2941,20 +2949,35 @@ tbody tr:last-child td {
 }
 
 .org-member-pill .name-card {
+  box-sizing: border-box;
   justify-content: center;
   width: 100%;
+  min-width: 0;
   padding: 0.1rem 0.38rem;
   font-size: 0.78rem;
   font-weight: 900;
   line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .org-member-pill .role-pill {
+  box-sizing: border-box;
   justify-content: center;
   width: 100%;
+  min-width: 0;
   padding: 0.08rem 0.34rem;
   font-size: 0.66rem;
   line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.org-member-pill .role-pill.role-trainee_small_group_leader {
+  padding-inline: 0.12rem;
+  font-size: 0.58rem;
 }
 
 .org-member-pill.is-inactive {
@@ -3031,16 +3054,16 @@ tbody tr:last-child td {
 
 .org-tree-board.is-exporting .org-flow-members {
   display: grid !important;
-  grid-template-columns: repeat(5, 72px);
+  grid-template-columns: repeat(5, 78px);
   align-items: start;
   justify-content: center;
-  width: 392px !important;
-  max-width: 392px !important;
-  min-width: 392px !important;
+  width: 422px !important;
+  max-width: 422px !important;
+  min-width: 422px !important;
 }
 
 .org-tree-board.is-exporting .org-member-pill {
-  width: 72px;
+  width: 78px;
   box-sizing: border-box;
   break-inside: avoid;
 }
