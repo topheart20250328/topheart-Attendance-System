@@ -470,7 +470,22 @@ async function handleBindInvite(
     return jsonResponse({ error: "此人員角色不開放登入。" }, 409);
   }
 
+  const nowIso = new Date().toISOString();
+
   if (inviteRow.used_at) {
+    if (
+      inviteRow.used_by_line_user_id === pendingContext.pending.line_user_id &&
+      inviteMember.line_user_id === pendingContext.pending.line_user_id
+    ) {
+      return await issueSessionForInviteMember(
+        adminClient,
+        inviteRow.member_id,
+        pendingContext.pending.line_user_id,
+        pendingContext.pending.id,
+        nowIso,
+      );
+    }
+
     return jsonResponse({ error: "此邀請碼已被使用。" }, 409);
   }
 
@@ -496,10 +511,19 @@ async function handleBindInvite(
 
     const { error: clearOldBindingError } = await adminClient
       .from("members")
-      .update({ line_user_id: null })
+      .update({ line_user_id: null, last_line_login_at: null })
       .eq("id", existingByLineUserId.id);
     if (clearOldBindingError) {
       return jsonResponse({ error: clearOldBindingError.message }, 500);
+    }
+
+    const { error: revokeOldSessionsError } = await adminClient
+      .from("app_sessions")
+      .update({ revoked_at: nowIso })
+      .eq("line_user_id", pendingContext.pending.line_user_id)
+      .is("revoked_at", null);
+    if (revokeOldSessionsError) {
+      return jsonResponse({ error: revokeOldSessionsError.message }, 500);
     }
   }
 
@@ -510,7 +534,6 @@ async function handleBindInvite(
     return jsonResponse({ error: "此人員已綁定其他 LINE 帳號。" }, 409);
   }
 
-  const nowIso = new Date().toISOString();
   const { data: updatedMember, error: updateMemberError } = await adminClient
     .from("members")
     .update({
@@ -566,6 +589,53 @@ async function handleBindInvite(
     status: "authenticated",
     app_token: session.appToken,
     current_member: updatedMemberDirectory,
+  });
+}
+
+async function issueSessionForInviteMember(
+  adminClient: ReturnType<typeof createAdminClient>,
+  memberId: number,
+  lineUserId: string,
+  pendingId: string,
+  nowIso: string,
+) {
+  const { error: memberUpdateError } = await adminClient
+    .from("members")
+    .update({ last_line_login_at: nowIso })
+    .eq("id", memberId);
+
+  if (memberUpdateError) {
+    return jsonResponse({ error: memberUpdateError.message }, 500);
+  }
+
+  const { data: memberDirectory, error: memberDirectoryError } = await adminClient
+    .from("member_directory")
+    .select("*")
+    .eq("id", memberId)
+    .single();
+
+  if (memberDirectoryError) {
+    return jsonResponse({ error: memberDirectoryError.message }, 500);
+  }
+
+  const { error: consumePendingError } = await adminClient
+    .from("line_pending_logins")
+    .update({ consumed_at: nowIso })
+    .eq("id", pendingId);
+
+  if (consumePendingError) {
+    return jsonResponse({ error: consumePendingError.message }, 500);
+  }
+
+  const session = await issueAppSession(adminClient, {
+    id: memberId,
+    line_user_id: lineUserId,
+  });
+
+  return jsonResponse({
+    status: "authenticated",
+    app_token: session.appToken,
+    current_member: memberDirectory,
   });
 }
 

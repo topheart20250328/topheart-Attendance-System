@@ -44,6 +44,22 @@ type LineUserInfoResponse = {
   email?: string;
 };
 
+function getPendingAuthNotice(member: {
+  role: string;
+  is_admin: boolean;
+  is_active: boolean;
+} | null) {
+  if (!member) {
+    return "請輸入邀請碼完成第一次 LINE 綁定。";
+  }
+
+  if (!member.is_active) {
+    return "此 LINE 帳號目前綁定在已停用人員，請輸入正確領袖邀請碼完成轉綁。";
+  }
+
+  return "此 LINE 帳號已綁定，但目前沒有登入權限，請輸入正確領袖邀請碼完成轉綁。";
+}
+
 async function exchangeCodeForToken(args: {
   code: string;
   codeVerifier: string;
@@ -240,6 +256,7 @@ Deno.serve(async (request) => {
 
     return redirectWithHash(redirectTo, {
       pending_token: pendingToken,
+      auth_notice: getPendingAuthNotice(matchedMember),
     });
   } catch (error) {
     console.error(error);

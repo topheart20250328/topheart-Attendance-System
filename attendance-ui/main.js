@@ -277,6 +277,7 @@ const state = {
   },
   appToken: null,
   pendingToken: null,
+  authNotice: "",
   currentMember: null,
   pendingProfile: null,
   currentWeek: null,
@@ -611,6 +612,7 @@ function handleAuthReturnFromHash() {
   if (appToken) {
     state.appToken = appToken;
     state.pendingToken = null;
+    state.authNotice = "";
     saveStoredValue(STORAGE_KEYS.appToken, appToken);
     saveStoredValue(STORAGE_KEYS.pendingToken, "");
     needsCleanup = true;
@@ -620,15 +622,19 @@ function handleAuthReturnFromHash() {
   if (pendingToken) {
     state.pendingToken = pendingToken;
     state.appToken = null;
+    state.authNotice =
+      hashParams.get("auth_notice") ||
+      "請輸入邀請碼完成 LINE 帳號綁定。若你正在使用 iPhone 桌面捷徑，也可以在此畫面重新按 LINE 登入刷新驗證。";
     saveStoredValue(STORAGE_KEYS.pendingToken, pendingToken);
     saveStoredValue(STORAGE_KEYS.appToken, "");
+    showToast(state.authNotice, 7000);
     needsCleanup = true;
   }
 
   const authError =
     hashParams.get("auth_error") || searchParams.get("error_description");
   if (authError) {
-    showToast(decodeURIComponent(authError.replaceAll("+", " ")));
+    showToast(decodeURIComponent(authError.replaceAll("+", " ")), 7000);
     needsCleanup = true;
   }
 
@@ -654,14 +660,14 @@ function setHidden(element, shouldHide) {
   element.classList.toggle("hidden", shouldHide);
 }
 
-function showToast(message) {
+function showToast(message, durationMs = 4200) {
   els.toast.textContent = message;
   setHidden(els.toast, false);
 
   window.clearTimeout(state.toastTimer);
   state.toastTimer = window.setTimeout(() => {
     setHidden(els.toast, true);
-  }, 4200);
+  }, durationMs);
 }
 
 async function handleSaveConfig(event) {
@@ -695,6 +701,7 @@ async function handleClearConfig() {
   state.config.projectUrl = DEFAULT_PROJECT_URL;
   state.appToken = null;
   state.pendingToken = null;
+  state.authNotice = "";
   state.currentMember = null;
   state.pendingProfile = null;
   state.currentWeek = null;
@@ -776,6 +783,7 @@ async function handleSignOut() {
 
   state.appToken = null;
   state.pendingToken = null;
+  state.authNotice = "";
   state.ui.activeTab = TABS.attendance;
   state.ui.manageAll = false;
   state.ui.settingsOpen = false;
@@ -848,6 +856,7 @@ async function refreshSessionState() {
       const previousMemberId = state.currentMember?.id || null;
       state.currentMember = data.current_member;
       state.pendingProfile = null;
+      state.authNotice = "";
       state.ui.activeTab = TABS.attendance;
       if (previousMemberId !== state.currentMember?.id) {
         state.ui.manageAll = false;
@@ -868,7 +877,7 @@ async function refreshSessionState() {
       state.currentWeek = null;
       state.attendanceAnalytics = emptyAttendanceAnalytics();
       state.adminData = emptyAdminData();
-    state.ui.manageAll = false;
+      state.ui.manageAll = false;
       renderLayout();
       return;
     }
@@ -879,6 +888,7 @@ async function refreshSessionState() {
 
   state.appToken = null;
   state.pendingToken = null;
+  state.authNotice = "";
   state.currentMember = null;
   state.pendingProfile = null;
   state.currentWeek = null;
@@ -896,7 +906,7 @@ function renderLayout() {
   document.body.classList.toggle("is-authenticated", isAuthenticated);
 
   setHidden(els.setupCard, true);
-  setHidden(els.loginCard, isAuthenticated || isPending);
+  setHidden(els.loginCard, isAuthenticated);
   setHidden(els.loginSettingsBtn, true);
   setHidden(els.bindCard, !isPending);
   setHidden(els.userBar, !isAuthenticated);
@@ -913,8 +923,9 @@ function renderLayout() {
     setHidden(els.orgsView, true);
     setHidden(els.invitesView, true);
     setBadge(els.sessionBadge, isPending ? "待綁定" : "尚未登入", isPending ? "warning" : "neutral");
-    els.authSummary.textContent =
-      "請使用 LINE 登入。若這是第一次登入，系統會在下一步引導你輸入邀請碼。";
+    els.authSummary.textContent = isPending
+      ? state.authNotice || "目前已有 LINE 驗證，請輸入邀請碼完成綁定；若此畫面停留太久或你換了瀏覽器，請重新按 LINE 登入。"
+      : "請使用 LINE 登入。若這是第一次登入，系統會在下一步引導你輸入邀請碼。";
     syncSignInLink();
     renderPendingProfile();
     return;
@@ -6046,10 +6057,27 @@ async function apiRequest(action, options = {}) {
       }
     }
 
-    throw new Error(data?.error || `Request failed with status ${response.status}.`);
+    const errorMessage = data?.error || `Request failed with status ${response.status}.`;
+    throw new Error(getFriendlyApiErrorMessage(errorMessage));
   }
 
   return data;
+}
+
+function getFriendlyApiErrorMessage(message) {
+  if (message === "Pending LINE login is missing or expired.") {
+    return "LINE 登入驗證已逾時，或驗證結果停在另一個瀏覽器。請重新按「使用 LINE 登入」後再輸入邀請碼。";
+  }
+
+  if (message === "此邀請碼已被使用。") {
+    return "此邀請碼已被使用。若你剛完成綁定但沒有進入系統，請重新按「使用 LINE 登入」取得新的登入狀態。";
+  }
+
+  if (message === "此人員角色不開放登入。") {
+    return "此邀請碼對應的人員目前沒有登入權限，請確認邀請碼是否發給正確的領袖帳號。";
+  }
+
+  return message;
 }
 
 function getMondayIso(source) {

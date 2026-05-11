@@ -414,3 +414,77 @@ order by d.name, bf.name, sg.name, m.role, m.full_name, ar.event_type;
 --   limit 1
 -- )
 -- and used_at is null;
+
+
+-- =========================================================
+-- U. LINE 登入卡住診斷：找出綁在不可登入人員上的 LINE
+-- 這段只查詢，不會改資料。
+-- =========================================================
+select
+  id,
+  full_name,
+  role,
+  is_admin,
+  is_active,
+  line_user_id,
+  last_line_login_at
+from public.members
+where line_user_id is not null
+  and not (
+    is_active
+    and (
+      is_admin
+      or role in (
+        'preacher',
+        'district_leader',
+        'big_family_leader',
+        'small_group_leader',
+        'trainee_small_group_leader'
+      )
+    )
+  )
+order by last_line_login_at desc nulls last, id;
+
+
+-- =========================================================
+-- V. LINE 登入卡住修復：只清除不可登入/停用人員的 LINE 綁定
+-- 執行前請先跑 U 段確認清單；此段不會清除正常可登入領袖的綁定。
+-- =========================================================
+with blocked_bindings as (
+  select id, line_user_id
+  from public.members
+  where line_user_id is not null
+    and not (
+      is_active
+      and (
+        is_admin
+        or role in (
+          'preacher',
+          'district_leader',
+          'big_family_leader',
+          'small_group_leader',
+          'trainee_small_group_leader'
+        )
+      )
+    )
+),
+revoked_sessions as (
+  update public.app_sessions s
+  set revoked_at = now()
+  from blocked_bindings b
+  where s.line_user_id = b.line_user_id
+    and s.revoked_at is null
+  returning s.id
+),
+cleared_members as (
+  update public.members m
+  set line_user_id = null,
+      last_line_login_at = null
+  from blocked_bindings b
+  where m.id = b.id
+  returning m.id
+)
+select
+  (select count(*) from blocked_bindings)::int as blocked_bindings_found,
+  (select count(*) from revoked_sessions)::int as sessions_revoked,
+  (select count(*) from cleared_members)::int as member_bindings_cleared;
