@@ -1089,12 +1089,15 @@ body.is-authenticated #invitesView {
 
 #attendanceView .summary-item strong {
   margin-top: 2px;
-  font-size: 0.9rem;
+  font-size: clamp(0.78rem, 2.35vw, 0.9rem);
   line-height: 1.1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 #attendanceView .summary-item .info-label {
   text-align: center;
+  white-space: nowrap;
 }
 
 #attendanceView .summary-details {
@@ -3848,7 +3851,7 @@ body.is-authenticated .toast {
   }
 
   #attendanceView .summary-item strong {
-    font-size: 0.92rem;
+    font-size: clamp(0.72rem, 3.2vw, 0.82rem);
   }
 
   #attendanceView .attendance-card {
@@ -4556,6 +4559,14 @@ body.is-authenticated .toast {
   #attendanceView .week-status-chip {
     font-size: 0.62rem;
     padding-inline: 0.24rem;
+  }
+
+  #attendanceView .summary-item {
+    padding-inline: 3px;
+  }
+
+  #attendanceView .summary-item strong {
+    font-size: 0.7rem;
   }
 
   #attendanceView .attendance-card {

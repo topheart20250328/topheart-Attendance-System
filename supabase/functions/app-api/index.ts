@@ -1858,6 +1858,18 @@ async function handleResetMemberLineBinding(
     }
   }
 
+  const inviteResetQuery = adminClient
+    .from("login_invites")
+    .update({ used_at: null, used_by_line_user_id: null })
+    .eq("member_id", memberId)
+    .not("used_at", "is", null);
+  const { error: inviteError } = targetMember.line_user_id
+    ? await inviteResetQuery.eq("used_by_line_user_id", targetMember.line_user_id)
+    : await inviteResetQuery;
+  if (inviteError) {
+    return jsonResponse({ error: inviteError.message }, 500);
+  }
+
   return jsonResponse({ status: "ok" });
 }
 
