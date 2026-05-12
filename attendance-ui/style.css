@@ -2536,11 +2536,17 @@ tbody tr:last-child td {
   background: var(--surface-alt);
 }
 
-.overview-status-head,
-.overview-member-row {
+.overview-status-head {
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
+  gap: 5px;
+}
+
+.overview-member-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 5px;
 }
 
@@ -4345,7 +4351,7 @@ body.is-authenticated .toast {
   }
 
   #overviewView .overview-status-head {
-    justify-content: space-between;
+    justify-content: flex-start;
   }
 
   #overviewView .overview-member-list {
