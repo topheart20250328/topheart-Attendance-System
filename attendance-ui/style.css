@@ -2200,6 +2200,29 @@ tbody tr:last-child td {
   line-height: 1;
 }
 
+.overview-filter-row {
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.overview-filter-row .search-field {
+  min-width: 132px;
+}
+
+.overview-filter-row .overview-search-field {
+  flex: 1 1 220px;
+}
+
+.overview-filter-row input,
+.overview-filter-row select {
+  min-height: 34px;
+}
+
+.overview-filter-row + .list-count-chip {
+  margin-bottom: 6px;
+}
+
 #overviewView.card {
   padding: clamp(10px, 2vw, 16px);
 }
@@ -2293,6 +2316,43 @@ tbody tr:last-child td {
   gap: 7px;
 }
 
+.overview-level-section {
+  display: grid;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.overview-level-section-district {
+  border-color: rgba(43, 111, 243, 0.22);
+  background: linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%);
+}
+
+.overview-level-section-big_family {
+  border-color: rgba(94, 62, 165, 0.2);
+  background: linear-gradient(180deg, #ffffff 0%, #fbf8ff 100%);
+}
+
+.overview-level-section-small_group {
+  border-color: rgba(23, 96, 124, 0.2);
+  background: linear-gradient(180deg, #ffffff 0%, #f5fbff 100%);
+}
+
+.overview-level-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 2px;
+}
+
+.overview-level-cards {
+  display: grid;
+  gap: 7px;
+}
+
 #overviewView.is-loading .overview-unit-list {
   opacity: 0.58;
   pointer-events: none;
@@ -2319,9 +2379,30 @@ tbody tr:last-child td {
 
 .overview-unit-details {
   border: 1px solid var(--border);
+  border-left-width: 5px;
   border-radius: 12px;
   background: #fff;
   box-shadow: none;
+}
+
+.overview-unit-details.overview-level-district {
+  border-color: rgba(43, 111, 243, 0.26);
+  background: linear-gradient(180deg, #ffffff 0%, #f3f7ff 100%);
+}
+
+.overview-unit-details.overview-level-big_family {
+  border-color: rgba(94, 62, 165, 0.24);
+  background: linear-gradient(180deg, #ffffff 0%, #f6f0ff 100%);
+}
+
+.overview-unit-details.overview-level-small_group {
+  border-color: rgba(23, 96, 124, 0.24);
+  background: linear-gradient(180deg, #ffffff 0%, #eefaff 100%);
+}
+
+.overview-unit-details.is-zero-completion {
+  border-color: rgba(220, 38, 38, 0.34);
+  background: linear-gradient(180deg, #ffffff 0%, #fff5f5 100%);
 }
 
 .overview-unit-details summary {
@@ -2348,6 +2429,39 @@ tbody tr:last-child td {
   font-weight: 800;
 }
 
+.overview-unit-title-row {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.overview-level-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.4em;
+  padding: 0.14rem 0.46rem;
+  border-radius: 999px;
+  background: #edf3ff;
+  color: #1e3a8a;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.overview-level-section-big_family .overview-level-badge,
+.overview-level-big_family .overview-level-badge {
+  background: #ede6ff;
+  color: #5e3ea5;
+}
+
+.overview-level-section-small_group .overview-level-badge,
+.overview-level-small_group .overview-level-badge {
+  background: #e6f7ff;
+  color: #17607c;
+}
+
 .overview-unit-stat {
   min-width: 112px;
   text-align: right;
@@ -2357,6 +2471,23 @@ tbody tr:last-child td {
   color: #1e3a8a;
   font-size: 0.9rem;
   font-weight: 800;
+}
+
+.overview-completion-text.success {
+  color: var(--success);
+}
+
+.overview-completion-text.warning {
+  color: var(--warning);
+}
+
+.overview-completion-text.danger {
+  color: var(--danger);
+}
+
+.status-chip.danger {
+  background: #fee2e2;
+  color: var(--danger);
 }
 
 .overview-mini-stats {
@@ -4074,6 +4205,24 @@ body.is-authenticated .toast {
     font-size: 0.76rem;
   }
 
+  #overviewView .overview-filter-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+    margin-bottom: 5px;
+  }
+
+  #overviewView .overview-filter-row .overview-search-field {
+    grid-column: 1 / -1;
+  }
+
+  #overviewView .overview-filter-row input,
+  #overviewView .overview-filter-row select {
+    min-height: 30px;
+    padding: 0.28rem 0.36rem;
+    font-size: 0.78rem;
+  }
+
   #overviewView .overview-week-scroller {
     gap: 4px;
     margin: 4px 0 6px;
@@ -4106,6 +4255,16 @@ body.is-authenticated .toast {
     gap: 5px;
   }
 
+  #overviewView .overview-level-section {
+    gap: 5px;
+    padding: 6px;
+    border-radius: 11px;
+  }
+
+  #overviewView .overview-level-heading {
+    gap: 4px;
+  }
+
   #overviewView .overview-unit-details {
     border-radius: 10px;
   }
@@ -4117,6 +4276,11 @@ body.is-authenticated .toast {
 
   #overviewView .overview-unit-title {
     font-size: 0.92rem;
+  }
+
+  #overviewView .overview-level-badge {
+    padding: 0.1rem 0.34rem;
+    font-size: 0.66rem;
   }
 
   #overviewView .overview-unit-main .small-text,

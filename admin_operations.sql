@@ -69,6 +69,29 @@ left join public.districts d on d.id = coalesce(m.district_id, sg.district_id)
 left join public.big_families bf on bf.id = coalesce(m.big_family_id, sg.big_family_id);
 
 -- =========================================================
+-- 0C. 既有資料庫升級：出席總覽與大量人員查詢索引
+-- 已經跑過新版 setup_supabase.sql 的全新資料庫不需要再跑。
+-- =========================================================
+create index if not exists idx_members_active_district_lookup
+on public.members (district_id, role, full_name)
+where is_active;
+
+create index if not exists idx_members_active_big_family_lookup
+on public.members (big_family_id, role, full_name)
+where is_active;
+
+create index if not exists idx_members_active_small_group_lookup
+on public.members (small_group_id, role, full_name)
+where is_active;
+
+create index if not exists idx_members_active_name_lookup
+on public.members (full_name)
+where is_active;
+
+create index if not exists idx_attendance_records_week_member_event
+on public.attendance_records (attendance_week_id, member_id, event_type);
+
+-- =========================================================
 -- A. 第一次登入後，查看待綁定的 LINE 身分
 -- =========================================================
 select

@@ -26,6 +26,16 @@ type Scope = {
   small_group_id: number | null;
 };
 
+type OverviewRequestOptions = {
+  includeDetail: boolean;
+  includeHistory: boolean;
+  unitType: string;
+  eventType: string;
+  completionFilter: string;
+  search: string;
+  sort: string;
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, content-type, x-client-info, apikey",
@@ -1004,22 +1014,51 @@ async function handleAttendanceOverview(
   }
 
   const selectedWeekStart = getMondayIso(url.searchParams.get("week_start") || new Date());
+  const overviewOptions = getOverviewRequestOptions(url);
   const week = await ensureWeek(db, selectedWeekStart);
   const members = await loadOverviewMembers(db, viewer);
   const memberIds = members.map((member) => member.id);
   const records = await loadRecords(db, week.id, memberIds);
   const recordMap = new Map(records.map((record) => [`${record.member_id}:${record.event_type}`, record]));
-  const historyMap = await loadMemberHistory(db, memberIds, selectedWeekStart);
-  const units = await buildUnits(db, viewer, members, recordMap, historyMap);
+  const historyMap = overviewOptions.includeHistory
+    ? await loadMemberHistory(db, memberIds, selectedWeekStart)
+    : createEmptyHistoryMap(memberIds, selectedWeekStart);
+  const units = filterOverviewUnits(
+    await buildUnits(db, viewer, members, recordMap, historyMap, overviewOptions),
+    overviewOptions,
+  );
 
   return {
     scope_label: getScopeLabel(viewer),
     selected_week_start: selectedWeekStart,
+    detail_mode: overviewOptions.includeDetail ? "full" : "summary",
     weeks: recentWeeks(selectedWeekStart, 26).map((weekStart) => ({
       week_start_date: weekStart,
       label: weekStart,
     })),
     units,
+  };
+}
+
+function getOverviewRequestOptions(url: URL): OverviewRequestOptions {
+  const detailMode = url.searchParams.get("detail") || "full";
+  const eventType = url.searchParams.get("event_type") || "sunday_service";
+  const unitType = url.searchParams.get("unit_type") || "";
+  const completionFilter = url.searchParams.get("completion") || "";
+  const sort = url.searchParams.get("sort") || "organization";
+  const includeDetail = detailMode !== "summary";
+  return {
+    includeDetail,
+    includeHistory: includeDetail || url.searchParams.get("include_history") === "true",
+    unitType: ["", "district", "big_family", "small_group"].includes(unitType) ? unitType : "",
+    eventType: ["sunday_service", "small_group_fellowship"].includes(eventType) ? eventType : "sunday_service",
+    completionFilter: ["", "zero", "incomplete", "low", "complete"].includes(completionFilter)
+      ? completionFilter
+      : "",
+    search: String(url.searchParams.get("search") || "").trim().toLowerCase(),
+    sort: ["organization", "completion_asc", "unknown_desc", "size_desc"].includes(sort)
+      ? sort
+      : "organization",
   };
 }
 
@@ -1156,12 +1195,17 @@ async function loadMemberHistory(
   return historyMap;
 }
 
+function createEmptyHistoryMap(memberIds: number[], anchorWeekStart: string) {
+  return new Map(memberIds.map((memberId) => [memberId, createEmptyHistorySummary(anchorWeekStart)]));
+}
+
 async function buildUnits(
   db: ReturnType<typeof createAdminClient>,
   viewer: MemberRow,
   members: MemberRow[],
   recordMap: Map<string, any>,
   historyMap: Map<number, Record<string, any>>,
+  options: OverviewRequestOptions,
 ) {
   const units = [];
   const includeDistrict = viewer.is_admin || viewer.role === "preacher";
@@ -1170,7 +1214,7 @@ async function buildUnits(
   if (includeDistrict) {
     const districtIds = uniqueIds(members.map((member) => member.district_id));
     for (const district of (await loadByIds(db, "districts", districtIds)).sort(compareOrganizationRows)) {
-      units.push(unit("district", district.id, district.name, null, members.filter((member) => member.district_id === district.id), recordMap, historyMap));
+      units.push(unit("district", district.id, district.name, null, members.filter((member) => member.district_id === district.id), recordMap, historyMap, options));
     }
   }
 
@@ -1187,7 +1231,7 @@ async function buildUnits(
     const bigIds = uniqueIds(members.map((member) => member.big_family_id));
     for (const big of (await loadByIds(db, "big_families", bigIds)).sort(compareOrganizationRows)) {
       const parentName = districtsById.get(big.district_id)?.name || null;
-      units.push(unit("big_family", big.id, big.name, parentName, members.filter((member) => member.big_family_id === big.id), recordMap, historyMap));
+      units.push(unit("big_family", big.id, big.name, parentName, members.filter((member) => member.big_family_id === big.id), recordMap, historyMap, options));
     }
   }
 
@@ -1197,7 +1241,7 @@ async function buildUnits(
       bigFamiliesById.get(small.big_family_id)?.name,
       districtsById.get(small.district_id)?.name,
     ].filter(Boolean);
-    units.push(unit("small_group", small.id, small.name, parents.join(" / ") || null, members.filter((member) => member.small_group_id === small.id), recordMap, historyMap));
+    units.push(unit("small_group", small.id, small.name, parents.join(" / ") || null, members.filter((member) => member.small_group_id === small.id), recordMap, historyMap, options));
   }
 
   return units.filter((item) => item.member_count > 0);
@@ -1241,8 +1285,9 @@ function unit(
   members: MemberRow[],
   recordMap: Map<string, any>,
   historyMap: Map<number, Record<string, any>>,
+  options: OverviewRequestOptions,
 ) {
-  return {
+  const result: Record<string, any> = {
     type,
     level: type,
     id,
@@ -1253,11 +1298,110 @@ function unit(
       sunday_service: stats(members, recordMap, "sunday_service"),
       small_group_fellowship: stats(members, recordMap, "small_group_fellowship"),
     },
-    history: aggregateUnitHistory(members, historyMap),
-    detail: {
+  };
+
+  if (options.includeHistory) {
+    result.history = aggregateUnitHistory(members, historyMap);
+  }
+  if (options.includeDetail) {
+    result.detail = {
       sunday_service: detail(members, recordMap, "sunday_service", historyMap),
       small_group_fellowship: detail(members, recordMap, "small_group_fellowship", historyMap),
-    },
+    };
+  }
+  return result;
+}
+
+function filterOverviewUnits(units: any[], options: OverviewRequestOptions) {
+  const filtered = units.filter((overviewUnit) => {
+    if (options.unitType && overviewUnit.type !== options.unitType) {
+      return false;
+    }
+    if (!matchesOverviewCompletion(overviewUnit, options)) {
+      return false;
+    }
+    if (!options.search) {
+      return true;
+    }
+    return getOverviewUnitSearchText(overviewUnit, options).includes(options.search);
+  });
+
+  if (options.sort === "organization") {
+    return filtered;
+  }
+  return [...filtered].sort((left, right) => compareOverviewUnitSummary(left, right, options));
+}
+
+function matchesOverviewCompletion(overviewUnit: any, options: OverviewRequestOptions) {
+  if (!options.completionFilter) {
+    return true;
+  }
+  const metrics = getOverviewStatsMetrics(overviewUnit.stats?.[options.eventType], overviewUnit.member_count);
+  if (!metrics.expectedCount) {
+    return false;
+  }
+  if (options.completionFilter === "zero") {
+    return metrics.confirmedCount === 0;
+  }
+  if (options.completionFilter === "incomplete") {
+    return metrics.confirmedCount < metrics.expectedCount;
+  }
+  if (options.completionFilter === "low") {
+    return metrics.completionRatio < 0.5;
+  }
+  if (options.completionFilter === "complete") {
+    return metrics.confirmedCount >= metrics.expectedCount;
+  }
+  return true;
+}
+
+function getOverviewUnitSearchText(overviewUnit: any, options: OverviewRequestOptions) {
+  const detail = overviewUnit.detail?.[options.eventType] || {};
+  const memberText = ["present", "absent", "unknown"]
+    .flatMap((key) => detail[key] || [])
+    .map((member) => `${member.full_name || ""} ${member.role || ""}`);
+  return [
+    overviewUnit.name,
+    overviewUnit.parent_name,
+    overviewUnit.type,
+    ...memberText,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function compareOverviewUnitSummary(left: any, right: any, options: OverviewRequestOptions) {
+  const leftMetrics = getOverviewStatsMetrics(left.stats?.[options.eventType], left.member_count);
+  const rightMetrics = getOverviewStatsMetrics(right.stats?.[options.eventType], right.member_count);
+  if (options.sort === "completion_asc") {
+    const diff = leftMetrics.completionRatio - rightMetrics.completionRatio;
+    if (diff) {
+      return diff;
+    }
+  } else if (options.sort === "unknown_desc") {
+    const diff = rightMetrics.unknownCount - leftMetrics.unknownCount;
+    if (diff) {
+      return diff;
+    }
+  } else if (options.sort === "size_desc") {
+    const diff = Number(right.member_count || 0) - Number(left.member_count || 0);
+    if (diff) {
+      return diff;
+    }
+  }
+  return String(left.name || "").localeCompare(String(right.name || ""), "zh-Hant");
+}
+
+function getOverviewStatsMetrics(statsRow: any, memberCount: number) {
+  const expectedCount = Number(statsRow?.expected_count ?? memberCount);
+  const confirmedCount = Number(statsRow?.confirmed_count || 0);
+  const unknownCount = Math.max(0, Number(statsRow?.unknown_count ?? (expectedCount - confirmedCount)));
+  return {
+    expectedCount,
+    confirmedCount,
+    unknownCount,
+    completionRatio: expectedCount ? confirmedCount / expectedCount : 0,
   };
 }
 

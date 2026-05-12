@@ -31,6 +31,10 @@ const ORG_SUFFIXES = {
   small_group: "小家",
 };
 
+const OVERVIEW_LEVEL_ORDER = ["district", "big_family", "small_group"];
+const OVERVIEW_COMPLETION_FILTERS = ["", "zero", "incomplete", "low", "complete"];
+const OVERVIEW_SORT_OPTIONS = ["organization", "completion_asc", "unknown_desc", "size_desc"];
+
 const GENDER_LABELS = {
   brother: "弟兄",
   sister: "姊妹",
@@ -164,6 +168,10 @@ const els = {
   overviewEventTabs: document.querySelector("#overviewEventTabs"),
   overviewEventButtons: document.querySelectorAll("[data-overview-event]"),
   overviewUnitTypeSelect: document.querySelector("#overviewUnitTypeSelect"),
+  overviewSearchInput: document.querySelector("#overviewSearchInput"),
+  overviewCompletionFilter: document.querySelector("#overviewCompletionFilter"),
+  overviewSortSelect: document.querySelector("#overviewSortSelect"),
+  overviewFilterSummary: document.querySelector("#overviewFilterSummary"),
   overviewWeekScroller: document.querySelector("#overviewWeekScroller"),
   overviewScopeSummary: document.querySelector("#overviewScopeSummary"),
   overviewUnitList: document.querySelector("#overviewUnitList"),
@@ -295,6 +303,9 @@ const state = {
     overviewWeekStart: "",
     overviewLoading: false,
     overviewUnitType: "",
+    overviewSearch: "",
+    overviewCompletionFilter: "",
+    overviewSort: "organization",
     overviewHistoryRange: "month",
     settingsOpen: false,
     manageAll: false,
@@ -387,6 +398,9 @@ function bindEvents() {
   els.overviewUnitTypeSelect?.addEventListener("change", (event) =>
     switchOverviewUnitType(event.target.value || ""),
   );
+  els.overviewSearchInput?.addEventListener("input", handleOverviewFilters);
+  els.overviewCompletionFilter?.addEventListener("change", handleOverviewFilters);
+  els.overviewSortSelect?.addEventListener("change", handleOverviewFilters);
   els.overviewWeekScroller?.addEventListener("click", handleOverviewWeekClick);
   els.overviewWeekScroller?.addEventListener("change", handleOverviewDateChange);
   els.overviewUnitList?.addEventListener("click", handleOverviewHistoryRangeClick);
@@ -471,11 +485,19 @@ function hydrateLocalState() {
   const uiPreferences = loadUiPreferences();
   state.ui.layoutSize = uiPreferences.layoutSize;
   state.ui.overviewUnitType = uiPreferences.overviewUnitType;
+  state.ui.overviewCompletionFilter = uiPreferences.overviewCompletionFilter;
+  state.ui.overviewSort = uiPreferences.overviewSort;
   state.ui.inviteSort = uiPreferences.inviteSort;
   state.ui.orgTreeMode = uiPreferences.orgTreeMode;
   els.projectUrlInput.value = state.config.projectUrl || "";
   if (els.overviewUnitTypeSelect) {
     els.overviewUnitTypeSelect.value = state.ui.overviewUnitType;
+  }
+  if (els.overviewCompletionFilter) {
+    els.overviewCompletionFilter.value = state.ui.overviewCompletionFilter;
+  }
+  if (els.overviewSortSelect) {
+    els.overviewSortSelect.value = state.ui.overviewSort;
   }
   if (els.inviteSortSelect) {
     els.inviteSortSelect.value = state.ui.inviteSort;
@@ -510,6 +532,12 @@ function loadUiPreferences() {
       overviewUnitType: ["", "district", "big_family", "small_group"].includes(value.overviewUnitType)
         ? value.overviewUnitType
         : "",
+      overviewCompletionFilter: OVERVIEW_COMPLETION_FILTERS.includes(value.overviewCompletionFilter)
+        ? value.overviewCompletionFilter
+        : "",
+      overviewSort: OVERVIEW_SORT_OPTIONS.includes(value.overviewSort)
+        ? value.overviewSort
+        : "organization",
       inviteSort: INVITE_SORT_OPTIONS.includes(value.inviteSort)
         ? value.inviteSort
         : "created_desc",
@@ -521,6 +549,8 @@ function loadUiPreferences() {
     return {
       layoutSize: "medium",
       overviewUnitType: "",
+      overviewCompletionFilter: "",
+      overviewSort: "organization",
       inviteSort: "created_desc",
       orgTreeMode: "compact",
     };
@@ -533,6 +563,8 @@ function saveUiPreferences() {
     JSON.stringify({
       layoutSize: state.ui.layoutSize,
       overviewUnitType: state.ui.overviewUnitType,
+      overviewCompletionFilter: state.ui.overviewCompletionFilter,
+      overviewSort: state.ui.overviewSort,
       inviteSort: state.ui.inviteSort,
       orgTreeMode: state.ui.orgTreeMode,
     }),
@@ -2270,6 +2302,18 @@ function switchOverviewUnitType(unitType) {
   renderAttendanceOverview();
 }
 
+function handleOverviewFilters() {
+  state.ui.overviewSearch = els.overviewSearchInput?.value.trim() || "";
+  state.ui.overviewCompletionFilter = OVERVIEW_COMPLETION_FILTERS.includes(els.overviewCompletionFilter?.value)
+    ? els.overviewCompletionFilter.value
+    : "";
+  state.ui.overviewSort = OVERVIEW_SORT_OPTIONS.includes(els.overviewSortSelect?.value)
+    ? els.overviewSortSelect.value
+    : "organization";
+  saveUiPreferences();
+  renderOverviewUnits();
+}
+
 function handleOverviewWeekClick(event) {
   const dateButton = event.target.closest("[data-overview-date-button]");
   if (dateButton) {
@@ -2398,6 +2442,15 @@ function renderAttendanceOverview() {
   if (els.overviewUnitTypeSelect) {
     els.overviewUnitTypeSelect.value = state.ui.overviewUnitType;
   }
+  if (els.overviewSearchInput && els.overviewSearchInput.value !== state.ui.overviewSearch) {
+    els.overviewSearchInput.value = state.ui.overviewSearch;
+  }
+  if (els.overviewCompletionFilter) {
+    els.overviewCompletionFilter.value = state.ui.overviewCompletionFilter;
+  }
+  if (els.overviewSortSelect) {
+    els.overviewSortSelect.value = state.ui.overviewSort;
+  }
 
   if (!state.overviewData) {
     if (els.overviewScopeSummary) {
@@ -2407,6 +2460,11 @@ function renderAttendanceOverview() {
     }
     if (els.overviewUnitList) {
       els.overviewUnitList.innerHTML = "";
+    }
+    if (els.overviewFilterSummary) {
+      els.overviewFilterSummary.textContent = canUseOverview()
+        ? "尚未載入出席總覽"
+        : "此職分無法使用出席總覽";
     }
     return;
   }
@@ -2462,16 +2520,41 @@ function renderOverviewUnits() {
     return;
   }
 
-  const units = (state.overviewData.units || []).filter((unit) =>
-    state.ui.overviewUnitType ? unit.type === state.ui.overviewUnitType : true,
-  );
+  const allUnits = state.overviewData.units || [];
+  const units = getFilteredOverviewUnits(allUnits);
+  renderOverviewFilterSummary(units.length, allUnits.length);
   if (!units.length) {
     els.overviewUnitList.innerHTML =
       '<div class="empty-state-card">目前沒有符合篩選的出席單位。</div>';
     return;
   }
 
-  els.overviewUnitList.innerHTML = units.map(renderOverviewUnitCard).join("");
+  if (state.ui.overviewUnitType) {
+    els.overviewUnitList.innerHTML = units.map(renderOverviewUnitCard).join("");
+    return;
+  }
+
+  els.overviewUnitList.innerHTML = OVERVIEW_LEVEL_ORDER
+    .map((level) => {
+      const sectionUnits = units.filter((unit) => (unit.level || unit.type) === level);
+      if (!sectionUnits.length) {
+        return "";
+      }
+      const sectionCount = sectionUnits.reduce((total, unit) => total + Number(unit.member_count || 0), 0);
+      return `
+        <section class="overview-level-section overview-level-section-${escapeHtml(level)}">
+          <div class="overview-level-heading">
+            <span class="overview-level-badge">${escapeHtml(getOverviewLevelLabel(level))}</span>
+            <strong>${escapeHtml(getOverviewLevelHeading(level))}</strong>
+            <span class="muted small-text">${sectionUnits.length} 個單位 / ${sectionCount} 人</span>
+          </div>
+          <div class="overview-level-cards">
+            ${sectionUnits.map(renderOverviewUnitCard).join("")}
+          </div>
+        </section>
+      `;
+    })
+    .join("");
 }
 
 function renderOverviewUnitCard(unit) {
@@ -2485,6 +2568,7 @@ function renderOverviewUnitCard(unit) {
   const expectedCount = Number(stats.expected_count ?? memberCount);
   const unknownCount = Math.max(0, Number(stats.unknown_count ?? (expectedCount - confirmedCount)));
   const completionRate = formatCompletionRate(stats, memberCount);
+  const completionState = getOverviewCompletionState(stats, memberCount);
   const breakdown = formatNonZeroParts([
     { label: "出席", value: presentCount },
     { label: "未出席", value: absentCount },
@@ -2492,22 +2576,28 @@ function renderOverviewUnitCard(unit) {
   ], " 人");
   const parentLabel = unit.parent_name || "";
   const unitKey = getOverviewUnitKey(unit);
+  const level = unit.level || unit.type;
   const shouldOpen = state.ui.overviewOpenUnitKey === unitKey;
 
   return `
     <details
-      class="overview-unit-details overview-level-${escapeHtml(unit.level || unit.type)}"
+      class="overview-unit-details overview-level-${escapeHtml(level)}${completionState.isZero ? " is-zero-completion" : ""}"
       data-overview-unit-key="${escapeHtml(unitKey)}"
       ${shouldOpen ? "open" : ""}
     >
       <summary>
         <span class="overview-unit-main">
-          <span class="overview-unit-title">${escapeHtml(unit.name)}</span>
+          <span class="overview-unit-title-row">
+            <span class="overview-level-badge">${escapeHtml(getOverviewLevelLabel(level))}</span>
+            <span class="overview-unit-title">${escapeHtml(unit.name)}</span>
+          </span>
           ${parentLabel ? `<span class="muted small-text">${escapeHtml(parentLabel)}</span>` : ""}
         </span>
         <span class="overview-unit-stat">
-          <strong>${escapeHtml(formatOverviewRate(stats, memberCount))}</strong>
-          <span class="summary-subtext">${escapeHtml(`填寫率 ${completionRate}`)}</span>
+          <strong>${escapeHtml(formatOverviewHeadline(stats, memberCount))}</strong>
+          <span class="summary-subtext overview-completion-text ${escapeHtml(completionState.tone)}">
+            ${escapeHtml(completionState.label)}
+          </span>
           ${breakdown ? `<span class="summary-subtext">${escapeHtml(breakdown)}</span>` : ""}
         </span>
       </summary>
@@ -2515,7 +2605,7 @@ function renderOverviewUnitCard(unit) {
         ${presentCount ? `<span class="status-chip success">出席 ${presentCount} 人</span>` : ""}
         ${absentCount ? `<span class="status-chip warning">未出席 ${absentCount} 人</span>` : ""}
         ${unknownCount ? `<span class="status-chip neutral">待確認 ${unknownCount} 人</span>` : ""}
-        <span class="status-chip neutral">填寫率 ${escapeHtml(completionRate)}</span>
+        <span class="status-chip ${escapeHtml(completionState.chipClass)}">填寫率 ${escapeHtml(completionRate)}</span>
         <span class="status-chip neutral">共 ${memberCount} 人</span>
       </div>
       <div class="overview-detail-grid">
@@ -2526,6 +2616,188 @@ function renderOverviewUnitCard(unit) {
       </div>
     </details>
   `;
+}
+
+function getFilteredOverviewUnits(allUnits) {
+  const eventType = state.ui.overviewEvent;
+  const searchTerm = state.ui.overviewSearch.trim().toLowerCase();
+  const filteredUnits = allUnits.filter((unit) => {
+    if (state.ui.overviewUnitType && unit.type !== state.ui.overviewUnitType) {
+      return false;
+    }
+    if (!matchesOverviewCompletionFilter(unit, eventType)) {
+      return false;
+    }
+    if (!searchTerm) {
+      return true;
+    }
+    return getOverviewSearchText(unit, eventType).includes(searchTerm);
+  });
+
+  if (state.ui.overviewSort === "organization") {
+    return filteredUnits;
+  }
+
+  return [...filteredUnits].sort((left, right) => compareOverviewUnits(left, right, eventType));
+}
+
+function renderOverviewFilterSummary(visibleCount, totalCount) {
+  if (!els.overviewFilterSummary) {
+    return;
+  }
+  const filters = [];
+  if (state.ui.overviewUnitType) {
+    filters.push(getOverviewLevelLabel(state.ui.overviewUnitType));
+  }
+  if (state.ui.overviewSearch) {
+    filters.push(`搜尋「${state.ui.overviewSearch}」`);
+  }
+  if (state.ui.overviewCompletionFilter) {
+    filters.push(getOverviewCompletionFilterLabel(state.ui.overviewCompletionFilter));
+  }
+  els.overviewFilterSummary.textContent = filters.length
+    ? `顯示 ${visibleCount} / ${totalCount} 個單位（${filters.join("、")}）`
+    : `顯示 ${visibleCount} 個單位`;
+}
+
+function matchesOverviewCompletionFilter(unit, eventType) {
+  const filter = state.ui.overviewCompletionFilter;
+  if (!filter) {
+    return true;
+  }
+  const stats = unit.stats?.[eventType] || createEmptyEventStats();
+  const memberCount = Number(unit.member_count || 0);
+  const { expectedCount, confirmedCount, completionRatio } = getOverviewCompletionMetrics(stats, memberCount);
+  if (!expectedCount) {
+    return false;
+  }
+  if (filter === "zero") {
+    return confirmedCount === 0;
+  }
+  if (filter === "incomplete") {
+    return confirmedCount < expectedCount;
+  }
+  if (filter === "low") {
+    return completionRatio < 0.5;
+  }
+  if (filter === "complete") {
+    return confirmedCount >= expectedCount;
+  }
+  return true;
+}
+
+function compareOverviewUnits(left, right, eventType) {
+  const leftMetrics = getOverviewCompletionMetrics(left.stats?.[eventType], Number(left.member_count || 0));
+  const rightMetrics = getOverviewCompletionMetrics(right.stats?.[eventType], Number(right.member_count || 0));
+  if (state.ui.overviewSort === "completion_asc") {
+    const diff = leftMetrics.completionRatio - rightMetrics.completionRatio;
+    if (diff) {
+      return diff;
+    }
+  } else if (state.ui.overviewSort === "unknown_desc") {
+    const diff = rightMetrics.unknownCount - leftMetrics.unknownCount;
+    if (diff) {
+      return diff;
+    }
+  } else if (state.ui.overviewSort === "size_desc") {
+    const diff = Number(right.member_count || 0) - Number(left.member_count || 0);
+    if (diff) {
+      return diff;
+    }
+  }
+  return compareOverviewUnitIdentity(left, right);
+}
+
+function compareOverviewUnitIdentity(left, right) {
+  const levelDiff = OVERVIEW_LEVEL_ORDER.indexOf(left.level || left.type) -
+    OVERVIEW_LEVEL_ORDER.indexOf(right.level || right.type);
+  if (levelDiff) {
+    return levelDiff;
+  }
+  return String(left.name || "").localeCompare(String(right.name || ""), "zh-Hant");
+}
+
+function getOverviewSearchText(unit, eventType) {
+  const detail = unit.detail?.[eventType] || {};
+  const memberNames = ["present", "absent", "unknown"]
+    .flatMap((key) => detail[key] || [])
+    .map((member) => `${member.full_name || ""} ${getRoleLabel(member.role)}`);
+  return [
+    unit.name,
+    unit.parent_name,
+    getOverviewLevelLabel(unit.level || unit.type),
+    ...memberNames,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function getOverviewCompletionMetrics(stats, memberCount = 0) {
+  const expectedCount = Number(stats?.expected_count ?? memberCount);
+  const confirmedCount = Number(stats?.confirmed_count || 0);
+  const unknownCount = Math.max(0, Number(stats?.unknown_count ?? (expectedCount - confirmedCount)));
+  return {
+    expectedCount,
+    confirmedCount,
+    unknownCount,
+    completionRatio: expectedCount ? confirmedCount / expectedCount : 0,
+  };
+}
+
+function getOverviewCompletionState(stats, memberCount = 0) {
+  const { expectedCount, confirmedCount } = getOverviewCompletionMetrics(stats, memberCount);
+  if (!expectedCount) {
+    return { label: "尚無資料", tone: "neutral", chipClass: "neutral", isZero: false };
+  }
+  if (!confirmedCount) {
+    return { label: "填寫率 0% · 尚未填寫", tone: "danger", chipClass: "danger", isZero: true };
+  }
+  if (confirmedCount < expectedCount) {
+    return { label: `填寫率 ${formatPercent(confirmedCount, expectedCount)}`, tone: "warning", chipClass: "warning", isZero: false };
+  }
+  return { label: "填寫完成", tone: "success", chipClass: "success", isZero: false };
+}
+
+function formatOverviewHeadline(stats, memberCount = 0) {
+  const { expectedCount, confirmedCount } = getOverviewCompletionMetrics(stats, memberCount);
+  if (expectedCount && !confirmedCount) {
+    return "尚未填寫";
+  }
+  return formatOverviewRate(stats, memberCount);
+}
+
+function getOverviewLevelLabel(level) {
+  return ORG_SUFFIXES[level] || "單位";
+}
+
+function getOverviewLevelHeading(level) {
+  if (level === "district") {
+    return "區";
+  }
+  if (level === "big_family") {
+    return "大家";
+  }
+  if (level === "small_group") {
+    return "小家";
+  }
+  return "其他單位";
+}
+
+function getOverviewCompletionFilterLabel(filter) {
+  if (filter === "zero") {
+    return "尚未填寫";
+  }
+  if (filter === "incomplete") {
+    return "未完成";
+  }
+  if (filter === "low") {
+    return "低於 50%";
+  }
+  if (filter === "complete") {
+    return "已完成";
+  }
+  return "全部";
 }
 
 function getOverviewUnitKey(unit) {

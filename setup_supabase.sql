@@ -246,8 +246,21 @@ create index idx_members_line_user_id on public.members (line_user_id);
 create index idx_members_district_role on public.members (district_id, role);
 create index idx_members_big_family_role on public.members (big_family_id, role);
 create index idx_members_small_group_role on public.members (small_group_id, role);
+create index idx_members_active_district_lookup on public.members (district_id, role, full_name)
+where is_active;
+create index idx_members_active_big_family_lookup on public.members (big_family_id, role, full_name)
+where is_active;
+create index idx_members_active_small_group_lookup on public.members (small_group_id, role, full_name)
+where is_active;
+create index idx_members_active_name_lookup on public.members (full_name)
+where is_active;
 create index idx_attendance_records_week_event on public.attendance_records (attendance_week_id, event_type);
 create index idx_attendance_records_member_week on public.attendance_records (member_id, attendance_week_id);
+create index idx_attendance_records_week_member_event on public.attendance_records (
+  attendance_week_id,
+  member_id,
+  event_type
+);
 create index idx_audit_logs_actor_created on public.audit_logs (actor_member_id, created_at desc);
 create index idx_audit_logs_target on public.audit_logs (target_table, target_id, created_at desc);
 create index idx_login_invites_code on public.login_invites (invite_code);
