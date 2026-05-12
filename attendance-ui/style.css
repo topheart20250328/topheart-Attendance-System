@@ -1089,7 +1089,7 @@ body.is-authenticated #invitesView {
 
 #attendanceView .summary-item strong {
   margin-top: 2px;
-  font-size: clamp(0.78rem, 2.35vw, 0.9rem);
+  font-size: clamp(0.98rem, 2.7vw, 1.18rem);
   line-height: 1.1;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -2219,10 +2219,6 @@ tbody tr:last-child td {
   min-height: 34px;
 }
 
-.overview-filter-row + .list-count-chip {
-  margin-bottom: 6px;
-}
-
 #overviewView.card {
   padding: clamp(10px, 2vw, 16px);
 }
@@ -2434,32 +2430,6 @@ tbody tr:last-child td {
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-}
-
-.overview-level-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 2.4em;
-  padding: 0.14rem 0.46rem;
-  border-radius: 999px;
-  background: #edf3ff;
-  color: #1e3a8a;
-  font-size: 0.72rem;
-  font-weight: 900;
-  line-height: 1.2;
-}
-
-.overview-level-section-big_family .overview-level-badge,
-.overview-level-big_family .overview-level-badge {
-  background: #ede6ff;
-  color: #5e3ea5;
-}
-
-.overview-level-section-small_group .overview-level-badge,
-.overview-level-small_group .overview-level-badge {
-  background: #e6f7ff;
-  color: #17607c;
 }
 
 .overview-unit-stat {
@@ -3982,7 +3952,7 @@ body.is-authenticated .toast {
   }
 
   #attendanceView .summary-item strong {
-    font-size: clamp(0.72rem, 3.2vw, 0.82rem);
+    font-size: clamp(0.9rem, 3.6vw, 1.05rem);
   }
 
   #attendanceView .attendance-card {
@@ -4276,11 +4246,6 @@ body.is-authenticated .toast {
 
   #overviewView .overview-unit-title {
     font-size: 0.92rem;
-  }
-
-  #overviewView .overview-level-badge {
-    padding: 0.1rem 0.34rem;
-    font-size: 0.66rem;
   }
 
   #overviewView .overview-unit-main .small-text,
@@ -4730,7 +4695,7 @@ body.is-authenticated .toast {
   }
 
   #attendanceView .summary-item strong {
-    font-size: 0.7rem;
+    font-size: 0.82rem;
   }
 
   #attendanceView .attendance-card {
