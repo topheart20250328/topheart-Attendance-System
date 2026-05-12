@@ -2546,8 +2546,27 @@ tbody tr:last-child td {
 .overview-member-row {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 5px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.overview-member-row::-webkit-scrollbar {
+  display: none;
+}
+
+.overview-member-row > * {
+  flex: 0 0 auto;
+}
+
+.overview-member-row .name-card {
+  max-width: min(42%, 10rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .overview-status-details {
