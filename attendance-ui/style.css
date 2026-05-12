@@ -2339,9 +2339,44 @@ tbody tr:last-child td {
 .overview-level-heading {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
   padding: 0 2px;
+  min-width: 0;
+}
+
+.overview-level-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.4em;
+  padding: 0.14rem 0.46rem;
+  border-radius: 999px;
+  background: #edf3ff;
+  color: #1e3a8a;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.overview-level-section-big_family .overview-level-badge {
+  background: #ede6ff;
+  color: #5e3ea5;
+}
+
+.overview-level-section-small_group .overview-level-badge {
+  background: #e6f7ff;
+  color: #17607c;
+}
+
+.overview-level-count {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 .overview-level-cards {
@@ -2402,9 +2437,9 @@ tbody tr:last-child td {
 }
 
 .overview-unit-details summary {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   padding: 8px 10px;
   cursor: pointer;
@@ -2419,28 +2454,46 @@ tbody tr:last-child td {
 .overview-unit-stat {
   display: grid;
   gap: 2px;
+  min-width: 0;
 }
 
 .overview-unit-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 800;
 }
 
 .overview-unit-title-row {
   display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
+  min-width: 0;
 }
 
 .overview-unit-stat {
-  min-width: 112px;
+  min-width: max-content;
   text-align: right;
+  white-space: nowrap;
 }
 
 .overview-unit-stat .summary-subtext {
   color: #1e3a8a;
   font-size: 0.9rem;
   font-weight: 800;
+  white-space: nowrap;
+}
+
+.overview-unit-main .small-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-breakdown-text {
+  font-size: 0.78rem;
 }
 
 .overview-completion-text.success {
@@ -2487,7 +2540,7 @@ tbody tr:last-child td {
 .overview-member-row {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 5px;
 }
 
@@ -2507,6 +2560,7 @@ tbody tr:last-child td {
 .overview-status-details > summary::after {
   content: "展開";
   margin-left: auto;
+  flex: 0 0 auto;
   color: #36528b;
   font-size: 0.72rem;
   font-weight: 800;
@@ -4235,6 +4289,15 @@ body.is-authenticated .toast {
     gap: 4px;
   }
 
+  #overviewView .overview-level-badge {
+    padding: 0.1rem 0.36rem;
+    font-size: 0.66rem;
+  }
+
+  #overviewView .overview-level-count {
+    font-size: 0.7rem;
+  }
+
   #overviewView .overview-unit-details {
     border-radius: 10px;
   }
@@ -4255,11 +4318,15 @@ body.is-authenticated .toast {
   }
 
   #overviewView .overview-unit-stat {
-    min-width: 92px;
+    min-width: max-content;
   }
 
   #overviewView .overview-unit-stat strong {
     font-size: 0.92rem;
+  }
+
+  #overviewView .overview-breakdown-text {
+    font-size: 0.68rem;
   }
 
   #overviewView .overview-mini-stats {

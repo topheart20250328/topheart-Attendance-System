@@ -2498,7 +2498,8 @@ function renderOverviewUnits() {
       return `
         <section class="overview-level-section overview-level-section-${escapeHtml(level)}">
           <div class="overview-level-heading">
-            <strong>${sectionUnits.length} 個${escapeHtml(getOverviewLevelLabel(level))} / ${sectionCount} 人</strong>
+            <span class="overview-level-badge">${escapeHtml(getOverviewLevelLabel(level))}</span>
+            <span class="overview-level-count">${sectionUnits.length} 個${escapeHtml(getOverviewLevelLabel(level))} / ${sectionCount} 人</span>
           </div>
           <div class="overview-level-cards">
             ${sectionUnits.map(renderOverviewUnitCard).join("")}
@@ -2549,7 +2550,7 @@ function renderOverviewUnitCard(unit) {
           <span class="summary-subtext overview-completion-text ${escapeHtml(completionState.tone)}">
             ${escapeHtml(completionState.label)}
           </span>
-          ${breakdown ? `<span class="summary-subtext">${escapeHtml(breakdown)}</span>` : ""}
+          ${breakdown ? `<span class="summary-subtext overview-breakdown-text">${escapeHtml(breakdown)}</span>` : ""}
         </span>
       </summary>
       <div class="overview-mini-stats">
@@ -2648,9 +2649,8 @@ function renderOverviewStatusGroup(label, members, unitType = "") {
   if (!sortedMembers.length) {
     return "";
   }
-  const shouldCollapse = unitType === "district" || unitType === "big_family";
   return `
-    <details class="overview-status-group overview-status-details" ${shouldCollapse ? "" : "open"}>
+    <details class="overview-status-group overview-status-details">
       <summary class="overview-status-head">
         <strong>${escapeHtml(label)}</strong>
         <span class="status-chip neutral">${sortedMembers.length}</span>
@@ -2665,7 +2665,7 @@ function renderOverviewStatusGroup(label, members, unitType = "") {
 function renderOverviewUnitHistory(history, currentStats, memberCount) {
   const ranges = getOverviewHistoryRangeDefinitions();
   return `
-    <details class="overview-status-group overview-rate-group" open>
+    <details class="overview-status-group overview-status-details overview-rate-group">
       <summary class="overview-status-head">
         <strong>整體出席率</strong>
       </summary>
