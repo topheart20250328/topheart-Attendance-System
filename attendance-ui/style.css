@@ -2436,7 +2436,7 @@ tbody tr:last-child td {
   background: linear-gradient(180deg, #ffffff 0%, #fff5f5 100%);
 }
 
-.overview-unit-details summary {
+.overview-unit-details > summary {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -2446,7 +2446,7 @@ tbody tr:last-child td {
   list-style: none;
 }
 
-.overview-unit-details summary::-webkit-details-marker {
+.overview-unit-details > summary::-webkit-details-marker {
   display: none;
 }
 
@@ -4327,7 +4327,7 @@ body.is-authenticated .toast {
     border-radius: 10px;
   }
 
-  #overviewView .overview-unit-details summary {
+  #overviewView .overview-unit-details > summary {
     gap: 6px;
     padding: 6px 7px;
   }
