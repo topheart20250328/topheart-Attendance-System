@@ -949,8 +949,10 @@ async function refreshSessionState() {
       return;
     }
   } catch (error) {
-    console.error(error);
-    showToast(error.message || "讀取登入狀態失敗。");
+    if (!isUnauthorizedApiError(error)) {
+      console.error(error);
+      showToast(error.message || "讀取登入狀態失敗。");
+    }
   }
 
   state.appToken = null;
@@ -6572,23 +6574,23 @@ async function apiRequest(action, options = {}) {
 
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    if (
-      (response.status === 401 || response.status === 403) &&
-      !suppressUnauthorizedToast
-    ) {
-      if (authMode === "app") {
+    if (response.status === 401 || response.status === 403) {
+      if (authMode === "app" || (authMode === "auto" && state.appToken)) {
         state.appToken = null;
         saveStoredValue(STORAGE_KEYS.appToken, "");
       }
 
-      if (authMode === "pending") {
+      if (authMode === "pending" || (authMode === "auto" && state.pendingToken)) {
         state.pendingToken = null;
         saveStoredValue(STORAGE_KEYS.pendingToken, "");
       }
     }
 
     const errorMessage = data?.error || `Request failed with status ${response.status}.`;
-    throw new Error(getFriendlyApiErrorMessage(errorMessage));
+    const error = new Error(getFriendlyApiErrorMessage(errorMessage));
+    error.status = response.status;
+    error.suppressed = suppressUnauthorizedToast;
+    throw error;
   }
 
   return data;
@@ -6597,6 +6599,10 @@ async function apiRequest(action, options = {}) {
 function isMissingActionError(error) {
   const message = String(error?.message || "");
   return message.includes("Unknown action") || message.includes("404");
+}
+
+function isUnauthorizedApiError(error) {
+  return error?.status === 401 || error?.status === 403;
 }
 
 function getFriendlyApiErrorMessage(message) {
