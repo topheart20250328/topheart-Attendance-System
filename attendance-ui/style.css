@@ -3004,13 +3004,14 @@ tbody tr:last-child td {
   justify-items: center;
   align-items: start;
   gap: 16px;
-  width: max-content;
-  max-width: none;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .org-flow-row {
   justify-self: center;
-  min-width: max-content;
+  width: min(100%, 1080px);
+  min-width: min(100%, 680px);
   padding: 10px;
   border: 1px solid rgba(217, 226, 240, 0.86);
   border-radius: 18px;
@@ -3029,6 +3030,7 @@ tbody tr:last-child td {
   justify-content: center;
   align-items: flex-start;
   gap: 14px;
+  width: 100%;
   padding-top: 16px;
 }
 
@@ -3095,15 +3097,41 @@ tbody tr:last-child td {
   text-align: center;
 }
 
-.org-collapse-btn {
-  min-height: 24px;
-  padding: 0.1rem 0.48rem;
-  border: 1px solid rgba(43, 111, 243, 0.2);
+.org-flow-node.is-clickable {
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
+}
+
+.org-flow-node.is-clickable:hover {
+  border-color: rgba(43, 111, 243, 0.42);
+  box-shadow: 0 8px 18px rgba(43, 111, 243, 0.12);
+}
+
+.org-flow-node.is-clickable::after {
+  content: "";
+  width: 32px;
+  height: 3px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.78);
-  color: inherit;
-  font-size: 0.72rem;
-  box-shadow: none;
+  background: currentColor;
+  opacity: 0.28;
+}
+
+.org-flow-node.is-collapsed {
+  background: linear-gradient(180deg, #eef4ff 0%, #dbeafe 100%);
+  border-color: rgba(43, 111, 243, 0.42);
+  box-shadow: inset 0 0 0 1px rgba(43, 111, 243, 0.08);
+}
+
+.org-flow-node.is-collapsed::after {
+  opacity: 0.62;
+}
+
+.org-collapse-btn {
+  display: none;
 }
 
 .org-flow-row.is-collapsed > .org-flow-children,
@@ -3142,14 +3170,14 @@ tbody tr:last-child td {
 
 .org-flow-members {
   position: relative;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
   justify-content: center;
   gap: 5px;
-  width: max-content;
-  min-width: 148px;
-  max-width: 420px;
+  width: 96px;
+  min-width: 96px;
+  max-width: 96px;
   min-height: 34px;
   padding: 6px;
   border: 1px dashed rgba(148, 163, 184, 0.36);
@@ -3161,8 +3189,8 @@ tbody tr:last-child td {
   display: inline-grid;
   place-items: center;
   gap: 3px;
-  width: 78px;
-  min-width: 78px;
+  width: 82px;
+  min-width: 82px;
   padding: 4px 5px;
   border-radius: 12px;
   border: 1px solid rgba(217, 226, 240, 0.9);
@@ -3223,12 +3251,14 @@ tbody tr:last-child td {
 
 .org-tree-board.is-vertical-tree {
   overflow-x: visible;
+  justify-items: stretch;
 }
 
 .org-tree-board.is-vertical-tree .org-flow-row,
 .org-tree-board.is-vertical-tree .org-flow-branch {
   display: grid;
   grid-template-columns: 1fr;
+  justify-items: stretch;
   gap: 8px;
   width: auto;
   min-width: 0;
@@ -3257,6 +3287,7 @@ tbody tr:last-child td {
 
 .org-tree-board.is-vertical-tree .org-flow-node {
   flex-direction: row;
+  align-items: center;
   justify-content: flex-start;
   min-height: 32px;
   padding: 6px 9px;
@@ -3265,6 +3296,7 @@ tbody tr:last-child td {
 
 .org-tree-board.is-vertical-tree .org-flow-members {
   width: auto;
+  min-width: 0;
   max-width: none;
   justify-content: flex-start;
 }
@@ -3287,16 +3319,16 @@ tbody tr:last-child td {
 
 .org-tree-board.is-exporting .org-flow-members {
   display: grid !important;
-  grid-template-columns: repeat(5, 78px);
+  grid-template-columns: 82px;
   align-items: start;
   justify-content: center;
-  width: 422px !important;
-  max-width: 422px !important;
-  min-width: 422px !important;
+  width: 96px !important;
+  max-width: 96px !important;
+  min-width: 96px !important;
 }
 
 .org-tree-board.is-exporting .org-member-pill {
-  width: 78px;
+  width: 82px;
   box-sizing: border-box;
   break-inside: avoid;
 }

@@ -381,10 +381,7 @@ async function createMemberFromBody(
     return { status: 403, body: { error: "No permission to create this role." } };
   }
   const districtPastorDistrictIds = normalizeDistrictIds(body?.district_ids);
-  if (role === "district_pastor" && !districtPastorDistrictIds.length) {
-    return { status: 400, body: { error: "District pastor requires at least one district." } };
-  }
-  if (role === "district_pastor" && !districtPastorDistrictIds.every((id) => canManageDistrict(viewer, id))) {
+  if (isMultiDistrictRole(role) && !districtPastorDistrictIds.every((id) => canManageDistrict(viewer, id))) {
     return { status: 403, body: { error: "No permission to assign one or more districts." } };
   }
 
@@ -476,10 +473,7 @@ async function handleUpdateMember(
     return json({ error: "No permission to edit this district." }, 403);
   }
   const districtPastorDistrictIds = normalizeDistrictIds(body?.district_ids);
-  if (targetRole === "district_pastor" && !districtPastorDistrictIds.length) {
-    return json({ error: "District pastor requires at least one district." }, 400);
-  }
-  if (targetRole === "district_pastor" && !districtPastorDistrictIds.every((id) => canManageDistrict(viewer, id))) {
+  if (isMultiDistrictRole(targetRole) && !districtPastorDistrictIds.every((id) => canManageDistrict(viewer, id))) {
     return json({ error: "No permission to assign one or more districts." }, 403);
   }
 
@@ -725,7 +719,7 @@ async function syncDistrictPastorDistricts(
   if (deleteError) {
     throw new Error(deleteError.message);
   }
-  if (role !== "district_pastor" || !districtIds.length) {
+  if (!isMultiDistrictRole(role) || !districtIds.length) {
     return;
   }
   const { error } = await db
@@ -734,6 +728,10 @@ async function syncDistrictPastorDistricts(
   if (error) {
     throw new Error(error.message);
   }
+}
+
+function isMultiDistrictRole(role: string) {
+  return PREACHER_ROLES.has(role) || DISTRICT_PASTOR_ROLES.has(role);
 }
 
 async function handleDashboard(

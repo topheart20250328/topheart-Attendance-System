@@ -286,6 +286,10 @@ Deno.serve(async (request) => {
       return await handleDeleteMember(adminClient, request);
     }
 
+    if (request.method === "POST" && action === "purge-member") {
+      return await handlePurgeMember(adminClient, request);
+    }
+
     if (request.method === "POST" && action === "create-invite") {
       return await handleCreateInvite(adminClient, request);
     }
@@ -1473,11 +1477,8 @@ async function handleCreateMember(
     return jsonResponse({ error: "No permission to create this role." }, 403);
   }
   const districtPastorDistrictIds = normalizeDistrictIds(body?.district_ids);
-  if (role === "district_pastor" && !districtPastorDistrictIds.length) {
-    return jsonResponse({ error: "District pastor requires at least one district." }, 400);
-  }
   if (
-    role === "district_pastor" &&
+    isMultiDistrictRole(role) &&
     !districtPastorDistrictIds.every((id) => canManageDistrict(sessionContext.member, id))
   ) {
     return jsonResponse({ error: "No permission to assign one or more districts." }, 403);
@@ -1600,11 +1601,8 @@ async function handleUpdateMember(
     return jsonResponse({ error: "No permission to edit this district." }, 403);
   }
   const districtPastorDistrictIds = normalizeDistrictIds(body?.district_ids);
-  if (targetRole === "district_pastor" && !districtPastorDistrictIds.length) {
-    return jsonResponse({ error: "District pastor requires at least one district." }, 400);
-  }
   if (
-    targetRole === "district_pastor" &&
+    isMultiDistrictRole(targetRole) &&
     !districtPastorDistrictIds.every((id) => canManageDistrict(sessionContext.member, id))
   ) {
     return jsonResponse({ error: "No permission to assign one or more districts." }, 403);
@@ -1738,6 +1736,74 @@ async function handleDeleteMember(
   return jsonResponse({
     status: "ok",
     message: `已停用並封存 ${targetMember.full_name}，歷史點名紀錄已保留。`,
+  });
+}
+
+async function handlePurgeMember(
+  adminClient: ReturnType<typeof createAdminClient>,
+  request: Request,
+) {
+  const sessionContext = await getSessionContext(adminClient, request.headers);
+  if (!sessionContext) {
+    return jsonResponse({ error: "Unauthorized." }, 401);
+  }
+
+  if (!canUseAdminPanel(sessionContext.member)) {
+    return jsonResponse({ error: "Forbidden." }, 403);
+  }
+
+  const body = await request.json().catch(() => null);
+  const memberId = toPositiveInt(body?.member_id);
+  if (!memberId) {
+    return jsonResponse({ error: "member_id is required." }, 400);
+  }
+
+  if (memberId === sessionContext.member.id) {
+    return jsonResponse({ error: "不能完全刪除目前登入中的自己。" }, 409);
+  }
+
+  const { data: targetMember, error: targetMemberError } = await adminClient
+    .from("member_directory")
+    .select("*")
+    .eq("id", memberId)
+    .maybeSingle();
+
+  if (targetMemberError) {
+    return jsonResponse({ error: targetMemberError.message }, 500);
+  }
+
+  if (!targetMember) {
+    return jsonResponse({ error: "Member not found." }, 404);
+  }
+
+  if (targetMember.is_active) {
+    return jsonResponse({ error: "Only archived members can be permanently deleted." }, 409);
+  }
+
+  if (!canDeleteMember(sessionContext.member, targetMember)) {
+    return jsonResponse({ error: "No permission to delete this member." }, 403);
+  }
+
+  await writeAuditLog(adminClient, sessionContext.member, "purge_member", "members", targetMember.id, {
+    full_name: targetMember.full_name,
+    role: targetMember.role,
+    district_id: targetMember.district_id,
+    big_family_id: targetMember.big_family_id,
+    small_group_id: targetMember.small_group_id,
+  });
+
+  const { error: deleteError } = await adminClient
+    .from("members")
+    .delete()
+    .eq("id", targetMember.id);
+
+  if (deleteError) {
+    return jsonResponse({ error: deleteError.message }, 500);
+  }
+
+  return jsonResponse({
+    status: "ok",
+    message: "人員與相關資料已完全刪除。",
   });
 }
 
@@ -3072,7 +3138,7 @@ async function syncDistrictPastorDistricts(
   if (deleteError) {
     throw new Error(deleteError.message);
   }
-  if (role !== "district_pastor" || !districtIds.length) {
+  if (!isMultiDistrictRole(role) || !districtIds.length) {
     return;
   }
   const { error } = await adminClient
@@ -3081,6 +3147,10 @@ async function syncDistrictPastorDistricts(
   if (error) {
     throw new Error(error.message);
   }
+}
+
+function isMultiDistrictRole(role: string) {
+  return PREACHER_ROLES.has(role) || DISTRICT_PASTOR_ROLES.has(role);
 }
 
 async function loadManagedDistricts(
@@ -3915,8 +3985,11 @@ function normalizeRole(value: unknown) {
   const normalized = String(value || "").trim();
   return [
     "preacher",
+    "trainee_preacher",
+    "district_pastor",
     "district_leader",
     "big_family_leader",
+    "trainee_big_family_leader",
     "small_group_leader",
     "trainee_small_group_leader",
     "member",
