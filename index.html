@@ -29,7 +29,7 @@
       content="牧區點名・出席｜LINE 登入"
     />
     <title>topheart 牧區點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260513-tree-org-role-v30" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260513-org-ui-role-v31" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -652,76 +652,72 @@
           <div class="section-toolbar">
             <div>
               <h3>建立組織</h3>
-              <p class="muted">新增區、大家或小家，建立後會同步出現在上方組織編輯與樹狀圖。</p>
             </div>
           </div>
-          <details class="editor-details create-org-panel" open>
-            <summary>建立表單</summary>
-            <div class="org-grid">
-              <details id="districtDetails" class="editor-details hidden">
-                <summary>建立區</summary>
-                <form id="districtForm" class="form-grid">
-                  <label>
-                    <span>區名稱</span>
-                    <input id="districtNameInput" type="text" placeholder="例如：社青（系統會加上「區」）" required />
-                  </label>
-                  <label>
-                    <span>說明</span>
-                    <input id="districtDescriptionInput" type="text" placeholder="可留空" />
-                  </label>
-                  <div class="button-row">
-                    <button id="districtSubmitBtn" type="submit">建立區</button>
-                  </div>
-                </form>
-              </details>
+          <div class="org-grid create-org-grid">
+            <details id="districtDetails" class="editor-details hidden">
+              <summary>建立區</summary>
+              <form id="districtForm" class="form-grid">
+                <label>
+                  <span>區名稱</span>
+                  <input id="districtNameInput" type="text" placeholder="例如：社青（系統會加上「區」）" required />
+                </label>
+                <label>
+                  <span>說明</span>
+                  <input id="districtDescriptionInput" type="text" placeholder="可留空" />
+                </label>
+                <div class="button-row">
+                  <button id="districtSubmitBtn" type="submit">建立區</button>
+                </div>
+              </form>
+            </details>
 
-              <details class="editor-details">
-                <summary>建立大家</summary>
-                <form id="bigFamilyForm" class="form-grid">
-                  <label>
-                    <span>所屬區</span>
-                    <select id="bigFamilyDistrictSelect" required></select>
-                  </label>
-                  <label>
-                    <span>大家名稱</span>
-                    <input id="bigFamilyNameInput" type="text" placeholder="例如：恩典（系統會加上「大家」）" required />
-                  </label>
-                  <label>
-                    <span>說明</span>
-                    <input id="bigFamilyDescriptionInput" type="text" placeholder="可留空" />
-                  </label>
-                  <div class="button-row">
-                    <button id="bigFamilySubmitBtn" type="submit">建立大家</button>
-                  </div>
-                </form>
-              </details>
+            <details class="editor-details">
+              <summary>建立大家</summary>
+              <form id="bigFamilyForm" class="form-grid">
+                <label>
+                  <span>所屬區</span>
+                  <select id="bigFamilyDistrictSelect" required></select>
+                </label>
+                <label>
+                  <span>大家名稱</span>
+                  <input id="bigFamilyNameInput" type="text" placeholder="例如：恩典（系統會加上「大家」）" required />
+                </label>
+                <label>
+                  <span>說明</span>
+                  <input id="bigFamilyDescriptionInput" type="text" placeholder="可留空" />
+                </label>
+                <div class="button-row">
+                  <button id="bigFamilySubmitBtn" type="submit">建立大家</button>
+                </div>
+              </form>
+            </details>
 
-              <details class="editor-details">
-                <summary>建立小家</summary>
-                <form id="smallGroupForm" class="form-grid">
-                  <label>
-                    <span>所屬區</span>
-                    <select id="smallGroupDistrictSelect" required></select>
-                  </label>
-                  <label>
-                    <span>所屬大家（可留空）</span>
-                    <select id="smallGroupBigFamilySelect"></select>
-                  </label>
-                  <label>
-                    <span>小家名稱</span>
-                    <input id="smallGroupNameInput" type="text" placeholder="例如：喜樂（系統會加上「小家」）" required />
-                  </label>
-                  <label>
-                    <span>說明</span>
-                    <input id="smallGroupDescriptionInput" type="text" placeholder="可留空" />
-                  </label>
-                  <div class="button-row">
-                    <button id="smallGroupSubmitBtn" type="submit">建立小家</button>
-                  </div>
-                </form>
-              </details>
-            </div>
-          </details>
+            <details class="editor-details">
+              <summary>建立小家</summary>
+              <form id="smallGroupForm" class="form-grid">
+                <label>
+                  <span>所屬區</span>
+                  <select id="smallGroupDistrictSelect" required></select>
+                </label>
+                <label>
+                  <span>所屬大家（可留空）</span>
+                  <select id="smallGroupBigFamilySelect"></select>
+                </label>
+                <label>
+                  <span>小家名稱</span>
+                  <input id="smallGroupNameInput" type="text" placeholder="例如：喜樂（系統會加上「小家」）" required />
+                </label>
+                <label>
+                  <span>說明</span>
+                  <input id="smallGroupDescriptionInput" type="text" placeholder="可留空" />
+                </label>
+                <div class="button-row">
+                  <button id="smallGroupSubmitBtn" type="submit">建立小家</button>
+                </div>
+              </form>
+            </details>
+          </div>
         </section>
       </section>
 
@@ -809,6 +805,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js" defer></script>
-    <script type="module" src="./attendance-ui/main.js?v=20260513-tree-org-role-v30"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260513-org-ui-role-v31"></script>
   </body>
 </html>

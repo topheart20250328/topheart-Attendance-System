@@ -69,8 +69,11 @@ add constraint members_scope_matches_role check (
     and big_family_id is null
     and small_group_id is null
   )
+  or role::text in ('preacher', 'trainee_preacher')
   or (
-    role::text in ('preacher', 'trainee_preacher', 'district_pastor')
+    role::text = 'district_pastor'
+    and big_family_id is null
+    and small_group_id is null
   )
   or (
     role::text in ('big_family_leader', 'trainee_big_family_leader')

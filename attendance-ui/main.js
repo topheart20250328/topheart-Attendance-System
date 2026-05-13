@@ -3071,7 +3071,7 @@ function renderPeopleTable(editableMembers) {
   const archivedRows = rows.filter((member) => member.is_active === false);
   if (els.peopleSummary) {
     els.peopleSummary.textContent = editableMembers.length
-      ? `目前顯示 ${rows.length} 位（啟用 ${activeRows.length} 位 / 封存 ${archivedRows.length} 位），可管理總數 ${editableMembers.length} 位`
+      ? `目前 ${rows.length} 位（啟用 ${activeRows.length} 位 / 封存 ${archivedRows.length} 位），總數 ${editableMembers.length} 位`
       : "目前沒有可編輯的人員資料";
   }
 
@@ -4167,20 +4167,20 @@ function populateDistrictOptions(member) {
   const includeDistrictId =
     state.ui.editorMode === "edit" ? Number(member?.district_id || 0) : 0;
   const selectedRole = member?.role || els.memberRoleSelect.value;
-  const isMultiDistrict = isMultiDistrictRole(selectedRole);
-  els.memberDistrictSelect.multiple = isMultiDistrict;
+  const useMultiDistrictSelect = usesMultiDistrictSelect(selectedRole);
+  els.memberDistrictSelect.multiple = useMultiDistrictSelect;
   const districtOptions = getSelectableDistricts(includeDistrictId).map((district) => ({
     value: String(district.id),
     label: getOrganizationDisplayName(district.name, district.is_active),
   }));
   fillSelect(els.memberDistrictSelect, districtOptions, {
     placeholder: districtOptions.length ? "可留空（無區）" : "可留空（無區）",
-    keepEmptyOption: !isMultiDistrict,
+    keepEmptyOption: !useMultiDistrictSelect,
   });
 
   if (state.currentMember?.is_admin) {
     els.memberDistrictSelect.disabled = false;
-    if (isMultiDistrict) {
+    if (useMultiDistrictSelect) {
       setSelectedDistrictIds(member ? getDistrictPastorDistrictIds(member) : []);
     } else if (member?.district_id) {
       els.memberDistrictSelect.value = String(member.district_id);
@@ -4188,7 +4188,7 @@ function populateDistrictOptions(member) {
   } else {
     els.memberDistrictSelect.disabled = DISTRICT_LEADER_ROLES.includes(state.currentMember?.role);
     if (DISTRICT_PASTOR_ROLES.includes(state.currentMember?.role)) {
-      if (isMultiDistrict) {
+      if (useMultiDistrictSelect) {
         setSelectedDistrictIds(getDistrictPastorDistrictIds(member));
       } else {
         const allowedDistrictIds = getDistrictPastorDistrictIds(state.currentMember);
@@ -4203,6 +4203,10 @@ function populateDistrictOptions(member) {
 
 function isMultiDistrictRole(role) {
   return PREACHER_ROLES.includes(role) || DISTRICT_PASTOR_ROLES.includes(role);
+}
+
+function usesMultiDistrictSelect(role) {
+  return DISTRICT_PASTOR_ROLES.includes(role);
 }
 
 function setSelectedDistrictIds(ids) {
@@ -4320,20 +4324,23 @@ function syncMemberFormScope() {
   const needsBigFamily =
     MEMBER_ROLES.includes(role)
       ? isEditMode
-      : BIG_FAMILY_LEADER_ROLES.includes(role)
-        ? !isCreateMode
-        : SMALL_GROUP_LEADER_ROLES.includes(role)
-          ? true
-          : false;
+      : PREACHER_ROLES.includes(role)
+        ? true
+        : BIG_FAMILY_LEADER_ROLES.includes(role)
+          ? !isCreateMode
+          : SMALL_GROUP_LEADER_ROLES.includes(role)
+            ? true
+            : false;
   const showSmallGroupField =
+    PREACHER_ROLES.includes(role) ||
     MEMBER_ROLES.includes(role) ||
     (SMALL_GROUP_LEADER_ROLES.includes(role) && !isCreateMode);
   const showDistrictField =
-    isMultiDistrictRole(role) ||
+    usesMultiDistrictSelect(role) ||
     (!(role === "district_leader" && isCreateMode) &&
       (!MEMBER_ROLES.includes(role) || isEditMode));
   const districtRequired =
-    isMultiDistrictRole(role)
+    usesMultiDistrictSelect(role) || PREACHER_ROLES.includes(role)
       ? false
       : isCreateMode && (BIG_FAMILY_LEADER_ROLES.includes(role) || SMALL_GROUP_LEADER_ROLES.includes(role));
 
@@ -4344,9 +4351,13 @@ function syncMemberFormScope() {
   setHidden(els.memberIsAdminWrap, !canEditAdminPermission);
 
   els.memberDistrictSelect.required = districtRequired;
-  els.memberDistrictSelect.multiple = isMultiDistrictRole(role);
-  els.memberDistrictLabel.querySelector("span").textContent = isMultiDistrictRole(role) ? "管理區域（可複選）" : "所屬區";
-  if (isMultiDistrictRole(role) && editingMember) {
+  els.memberDistrictSelect.multiple = usesMultiDistrictSelect(role);
+  els.memberDistrictLabel.querySelector("span").textContent = usesMultiDistrictSelect(role)
+    ? "管理區域（可複選）"
+    : PREACHER_ROLES.includes(role)
+      ? "所屬區（可留空）"
+      : "所屬區";
+  if (usesMultiDistrictSelect(role) && editingMember) {
     setSelectedDistrictIds(getDistrictPastorDistrictIds(editingMember));
   }
   els.memberBigFamilySelect.required = false;
@@ -4361,9 +4372,9 @@ function syncMemberFormScope() {
 
   const hints = {
     preacher: isCreateMode
-      ? "傳道人可不指定管理區域；若有需要，也可複選特定區作為紀錄。"
-      : "傳道人可不指定管理區域；若有需要，也可複選特定區作為紀錄。",
-    trainee_preacher: "實習傳道人與傳道人同權限；可不指定管理區域，也可複選特定區作為紀錄。",
+      ? "傳道人可放在未設定區，也可指定區、大家或小家作為所屬。"
+      : "傳道人可放在未設定區，也可指定區、大家或小家作為所屬。",
+    trainee_preacher: "實習傳道人與傳道人同權限；可放在未設定區，也可指定區、大家或小家作為所屬。",
     district_pastor: "區牧可管理多個指定區；若暫時不指定，可保持空白不要選任何區。",
     district_leader: isCreateMode
       ? "新增區長時，系統會自動建立「姓名區」。"
@@ -4402,10 +4413,12 @@ async function handleSaveMember(event) {
     role: els.memberRoleSelect.value,
     gender: els.memberGenderSelect.value || null,
     note: els.memberNoteInput.value.trim(),
-    district_id: isMultiDistrictRole(els.memberRoleSelect.value)
+    district_id: usesMultiDistrictSelect(els.memberRoleSelect.value)
       ? null
       : Number(els.memberDistrictSelect.value || 0) || null,
-    district_ids: getSelectedDistrictIds(),
+    district_ids: usesMultiDistrictSelect(els.memberRoleSelect.value)
+      ? getSelectedDistrictIds()
+      : [],
     big_family_id: Number(els.memberBigFamilySelect.value || 0) || null,
     small_group_id: Number(els.memberSmallGroupSelect.value || 0) || null,
     is_admin: els.memberIsAdminInput.checked,
@@ -4764,13 +4777,14 @@ function renderOrganizationTreeDistrict(district) {
   );
   const nodeKey = getOrganizationTreeKey("district", district.id);
   const isCollapsed = state.ui.orgTreeCollapsedKeys.has(nodeKey);
+  const childCount = bigFamilies.length + directSmallGroups.length + (directMembers.length ? 1 : 0);
 
   return `
     <article class="org-flow-row ${district.is_active ? "" : "is-archived"} ${isCollapsed ? "is-collapsed" : ""}">
       <div class="org-flow-column org-flow-column-district">
         ${renderOrganizationFlowNode("district", district.name, { isActive: district.is_active, nodeKey, isCollapsed })}
       </div>
-      <div class="org-flow-branches org-flow-children">
+      <div class="org-flow-branches org-flow-children ${getOrganizationTreeChildrenClass(childCount)}">
         ${bigFamilies.map((bigFamily) => renderOrganizationTreeBigFamily(bigFamily)).join("")}
         ${directSmallGroups.map((smallGroup) => renderOrganizationTreeSmallGroup(smallGroup)).join("")}
         ${directMembers.length ? renderOrganizationTreeMemberBucket("直屬人員", directMembers) : ""}
@@ -4794,13 +4808,14 @@ function renderOrganizationTreeBigFamily(bigFamily) {
   );
   const nodeKey = getOrganizationTreeKey("big_family", bigFamily.id);
   const isCollapsed = state.ui.orgTreeCollapsedKeys.has(nodeKey);
+  const childCount = smallGroups.length + (directMembers.length ? 1 : 0);
 
   return `
     <div class="org-flow-branch ${bigFamily.is_active ? "" : "is-archived"} ${isCollapsed ? "is-collapsed" : ""}">
       <div class="org-flow-column org-flow-column-big">
         ${renderOrganizationFlowNode("big_family", bigFamily.name, { isActive: bigFamily.is_active, nodeKey, isCollapsed })}
       </div>
-      <div class="org-flow-branches org-flow-small-branches org-flow-children">
+      <div class="org-flow-branches org-flow-small-branches org-flow-children ${getOrganizationTreeChildrenClass(childCount)}">
         ${smallGroups.map((smallGroup) => renderOrganizationTreeSmallGroup(smallGroup)).join("")}
         ${directMembers.length ? renderOrganizationTreeMemberBucket("直屬人員", directMembers) : ""}
         ${smallGroups.length || directMembers.length ? "" : '<div class="org-flow-empty">尚未建立小家</div>'}
@@ -4884,6 +4899,13 @@ function getOrganizationTreeKey(type, id) {
   return `${type}:${id}`;
 }
 
+function getOrganizationTreeChildrenClass(childCount) {
+  if (childCount <= 0) {
+    return "has-no-children";
+  }
+  return childCount === 1 ? "has-single-child" : "has-multiple-children";
+}
+
 function handleOrganizationTreeClick(event) {
   if (orgTreeDrag.suppressClick) {
     event.preventDefault();
@@ -4922,7 +4944,12 @@ function toggleOrganizationTreeKey(key) {
 }
 
 function handleOrganizationTreePointerDown(event) {
-  if (!els.orgTreeBody || event.button !== 0 || event.pointerType === "touch") {
+  if (
+    !els.orgTreeBody ||
+    event.button !== 0 ||
+    event.pointerType === "touch" ||
+    event.target.closest(".org-flow-node[data-org-tree-key]")
+  ) {
     return;
   }
 
