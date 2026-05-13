@@ -4751,9 +4751,17 @@ body.is-authenticated .toast {
     grid-template-columns: 1fr;
   }
 
-  #attendanceView .attendance-desktop-toolbar .toolbar-group:last-child #refreshBtn {
+  #attendanceView #refreshBtn {
+    display: flex;
     width: 100%;
+    max-width: 100%;
     justify-self: stretch;
+  }
+
+  #attendanceView .attendance-desktop-toolbar .toolbar-group:nth-of-type(2) {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
   }
 
   #attendanceView .week-label {
