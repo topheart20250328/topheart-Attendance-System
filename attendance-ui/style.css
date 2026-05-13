@@ -3089,6 +3089,7 @@ tbody tr:last-child td {
   color: #1e3a8a;
   box-shadow: 0 6px 14px rgba(43, 111, 243, 0.08);
   text-align: center;
+  box-sizing: border-box;
 }
 
 .org-flow-node.is-clickable {
@@ -3110,10 +3111,11 @@ tbody tr:last-child td {
 }
 
 .org-flow-node.is-collapsed {
-  background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
-  border-color: rgba(148, 163, 184, 0.58);
-  color: #475569;
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.04);
+  background: linear-gradient(180deg, #ffffff 0%, #f5f8ff 100%);
+  border-color: rgba(43, 111, 243, 0.18);
+  border-left-color: rgba(43, 111, 243, 0.52);
+  color: #1e3a8a;
+  box-shadow: 0 3px 9px rgba(15, 23, 42, 0.035);
 }
 
 .org-flow-node.is-collapsed::after {
@@ -3173,6 +3175,70 @@ tbody tr:last-child td {
   border: 1px dashed rgba(148, 163, 184, 0.36);
   border-radius: 12px;
   background: rgba(248, 250, 252, 0.78);
+}
+
+.org-tree-board.is-compact-tree {
+  justify-items: center;
+}
+
+.org-tree-board.is-compact-tree .org-flow-row,
+.org-tree-board.is-compact-tree .org-flow-branch {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 16px;
+  width: max-content;
+  max-width: none;
+}
+
+.org-tree-board.is-compact-tree .org-flow-row {
+  justify-self: center;
+  min-width: max-content;
+}
+
+.org-tree-board.is-compact-tree .org-flow-branches {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 14px;
+  width: max-content;
+  padding-top: 16px;
+  padding-left: 0;
+}
+
+.org-tree-board.is-compact-tree .org-flow-row > .org-flow-branches::before,
+.org-tree-board.is-compact-tree .org-flow-branch > .org-flow-branches::before,
+.org-tree-board.is-compact-tree .org-flow-small-branch > .org-flow-members::before {
+  top: 0;
+  left: 50%;
+  width: 2px;
+  height: 16px;
+  background: linear-gradient(180deg, rgba(43, 111, 243, 0.42), rgba(43, 111, 243, 0.1));
+}
+
+.org-tree-board.is-compact-tree .org-flow-branches::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(43, 111, 243, 0.08), rgba(43, 111, 243, 0.34), rgba(43, 111, 243, 0.08));
+}
+
+.org-tree-board.is-compact-tree .org-flow-branches > .org-flow-branch:not(:last-child)::after {
+  content: none;
+}
+
+.org-tree-board.is-compact-tree .org-flow-branch::before {
+  top: 0;
+  left: 50%;
+  width: 2px;
+  height: 16px;
+  background: linear-gradient(180deg, rgba(43, 111, 243, 0.36), rgba(43, 111, 243, 0.08));
 }
 
 .org-member-pill {
@@ -3267,6 +3333,7 @@ tbody tr:last-child td {
   padding-top: 0;
   padding-left: 12px;
   border-left: 2px solid rgba(43, 111, 243, 0.16);
+  width: auto;
 }
 
 .org-tree-board.is-vertical-tree .org-flow-row > .org-flow-branches::before,
@@ -3281,6 +3348,7 @@ tbody tr:last-child td {
   flex-direction: row;
   align-items: center;
   justify-content: flex-start;
+  width: 100%;
   min-height: 32px;
   padding: 6px 9px;
   text-align: left;

@@ -3468,13 +3468,6 @@ async function handleDeleteMember(button, memberId, memberName) {
 }
 
 async function handlePurgeMember(button, memberId, memberName) {
-  if (
-    !window.confirm(
-      `確定要完全刪除「${memberName}」嗎？此操作會刪除該人員、點名紀錄、邀請碼與登入資料，且無法復原。`,
-    )
-  ) {
-    return;
-  }
   const confirmName = window.prompt(`請輸入「${memberName}」確認完全刪除。`);
   if (confirmName !== memberName) {
     showToast("已取消完全刪除。");
@@ -4861,7 +4854,7 @@ function renderOrganizationFlowNode(type, name, { isActive = true, nodeKey = "",
   return `
     <div
       class="org-flow-node org-flow-node-${escapeHtml(type)} ${isActive ? "" : "is-archived"} ${isCollapsed ? "is-collapsed" : ""} ${canCollapse ? "is-clickable" : ""}"
-      ${canCollapse ? `data-org-tree-key="${escapeHtml(nodeKey)}" role="button" tabindex="0" aria-expanded="${isCollapsed ? "false" : "true"}"` : ""}
+      ${canCollapse ? `data-org-tree-key="${escapeHtml(nodeKey)}" title="點擊可${isCollapsed ? "展開" : "收合"}" role="button" tabindex="0" aria-expanded="${isCollapsed ? "false" : "true"}"` : ""}
     >
       <strong>${escapeHtml(name)}</strong>
     </div>
