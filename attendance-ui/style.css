@@ -2834,11 +2834,12 @@ tbody tr:last-child td {
   }
 
   #overviewView .overview-detail-grid {
-    grid-template-columns: minmax(240px, 1.1fr) repeat(3, minmax(190px, 1fr));
+    grid-template-columns: repeat(3, minmax(260px, 1fr));
     align-items: start;
   }
 
   #overviewView .overview-rate-group {
+    grid-column: 1 / -1;
     border: 1px solid rgba(43, 111, 243, 0.2);
     background:
       radial-gradient(circle at top left, rgba(43, 111, 243, 0.12), transparent 44%),
@@ -2848,7 +2849,9 @@ tbody tr:last-child td {
   #overviewView .overview-rate-hero {
     display: grid;
     gap: 4px;
-    padding: 6px 6px 8px;
+    grid-template-columns: auto minmax(120px, auto) minmax(0, 1fr);
+    align-items: center;
+    padding: 4px 6px 8px;
   }
 
   #overviewView .overview-rate-hero strong {
@@ -2878,7 +2881,7 @@ tbody tr:last-child td {
   }
 
   #overviewView .overview-status-details[open] .overview-member-list {
-    max-height: 360px;
+    max-height: 430px;
     overflow: auto;
     padding-right: 2px;
   }
@@ -2893,6 +2896,21 @@ tbody tr:last-child td {
 
   #overviewView .overview-member-row {
     overflow-x: visible;
+  }
+
+  #overviewView .overview-member-row .name-card {
+    max-width: 13rem;
+  }
+
+  #overviewView .overview-member-details[open] > summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  #overviewView .overview-member-details[open] .overview-alert-panel,
+  #overviewView .overview-member-details[open] .overview-history-panel {
+    padding-inline: 9px;
   }
 
   #peopleView .management-layout {
@@ -2914,8 +2932,43 @@ tbody tr:last-child td {
   }
 
   #orgsView .org-management-grid {
-    grid-template-columns: minmax(0, 0.75fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: repeat(3, minmax(300px, 1fr));
     align-items: start;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  #orgsView .org-management-panel {
+    padding: 16px;
+  }
+
+  #orgsView .org-section-card {
+    padding: 14px;
+  }
+
+  #orgsView .org-card {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  #orgsView .org-card-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 10px;
+  }
+
+  #orgsView .org-card .row-actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  #orgsView .org-card-chips,
+  #orgsView .org-card-description,
+  #orgsView .org-card-hint,
+  #orgsView .org-card-subline {
+    justify-content: flex-start;
+    text-align: left;
   }
 
   #orgsView .org-tree-panel,

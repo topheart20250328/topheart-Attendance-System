@@ -4941,9 +4941,15 @@ function syncOrganizationTreeConnectors() {
       return;
     }
 
+    const firstNode = children[0].querySelector(".org-flow-node");
+    const lastNode = children[children.length - 1].querySelector(".org-flow-node");
+    if (!firstNode || !lastNode) {
+      return;
+    }
+
     const containerRect = branches.getBoundingClientRect();
-    const firstRect = children[0].getBoundingClientRect();
-    const lastRect = children[children.length - 1].getBoundingClientRect();
+    const firstRect = firstNode.getBoundingClientRect();
+    const lastRect = lastNode.getBoundingClientRect();
     const left = firstRect.left - containerRect.left + firstRect.width / 2;
     const right = containerRect.right - lastRect.left - lastRect.width / 2;
     branches.style.setProperty("--connector-left", `${Math.max(0, left)}px`);
