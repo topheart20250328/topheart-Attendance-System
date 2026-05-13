@@ -86,7 +86,8 @@ add constraint members_scope_matches_role check (
 
 drop view if exists public.member_directory;
 
-create view public.member_directory as
+create view public.member_directory
+with (security_invoker = true) as
 select
   m.id,
   m.full_name,

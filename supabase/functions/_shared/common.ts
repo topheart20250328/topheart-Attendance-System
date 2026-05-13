@@ -171,6 +171,11 @@ export function base64UrlEncode(value: Uint8Array) {
 }
 
 export function extractBearerToken(headers: Headers) {
+  const appToken = headers.get("X-App-Token")?.trim();
+  if (appToken) {
+    return appToken;
+  }
+
   const authorization = headers.get("Authorization");
   if (!authorization) {
     return null;

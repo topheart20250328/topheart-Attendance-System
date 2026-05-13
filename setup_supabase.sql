@@ -353,7 +353,8 @@ before update on public.app_sessions
 for each row
 execute function public.set_updated_at();
 
-create view public.member_directory as
+create view public.member_directory
+with (security_invoker = true) as
 select
   m.id,
   m.full_name,

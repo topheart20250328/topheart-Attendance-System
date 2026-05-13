@@ -6554,7 +6554,7 @@ async function apiRequest(action, options = {}) {
   };
 
   if ((authMode === "app" || authMode === "auto") && state.appToken) {
-    headers.Authorization = `Bearer ${state.appToken}`;
+    headers["X-App-Token"] = state.appToken;
   }
 
   if (

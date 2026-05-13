@@ -190,7 +190,9 @@ function json(body: unknown, status = 200) {
 }
 
 async function getViewer(db: ReturnType<typeof createAdminClient>, headers: Headers) {
-  const token = headers.get("Authorization")?.replace(/^Bearer\s+/i, "").trim();
+  const token =
+    headers.get("X-App-Token")?.trim() ||
+    headers.get("Authorization")?.replace(/^Bearer\s+/i, "").trim();
   if (!token) {
     return null;
   }
