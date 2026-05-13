@@ -1482,11 +1482,11 @@ function renderAttendanceHeader() {
         <span class="info-label">管轄範圍</span>
         <span class="info-value">${escapeHtml(scope || "未設定")}</span>
       </div>
-      <div class="info-item">
+      <div class="info-item attendance-scope-mode-info">
         <span class="info-label">顯示範圍</span>
         <span class="info-value">${escapeHtml(getAttendanceScopeModeLabel())}</span>
       </div>
-      <div class="info-item">
+      <div class="info-item attendance-week-info">
         <span class="info-label">週次</span>
         <span class="info-value">${escapeHtml(getDisplayedWeekLabel())}</span>
       </div>
@@ -1514,8 +1514,6 @@ function renderWeekSummary() {
     "small_group_fellowship",
     "present",
   );
-  const recentThreeMonths = state.attendanceAnalytics.recentThreeMonths;
-  const yearToDate = state.attendanceAnalytics.yearToDate;
 
   els.weekSummary.innerHTML = `
     <div class="summary-item">
@@ -1540,21 +1538,6 @@ function renderWeekSummary() {
         visibleCount,
       )}</strong>
     </div>
-    <details class="summary-details">
-      <summary>歷史出席率</summary>
-      <div class="summary-details-grid">
-        ${renderAnalyticsSummaryCard("近三個月主日", recentThreeMonths.sunday_service)}
-        ${renderAnalyticsSummaryCard(
-          "近三個月小家",
-          recentThreeMonths.small_group_fellowship,
-        )}
-        ${renderAnalyticsSummaryCard("今年主日", yearToDate.sunday_service)}
-        ${renderAnalyticsSummaryCard(
-          "今年小家",
-          yearToDate.small_group_fellowship,
-        )}
-      </div>
-    </details>
   `;
 }
 
@@ -2584,7 +2567,6 @@ function renderOverviewUnitCard(unit) {
   const confirmedCount = Number(stats.confirmed_count || presentCount + absentCount);
   const expectedCount = Number(stats.expected_count ?? memberCount);
   const unknownCount = Math.max(0, Number(stats.unknown_count ?? (expectedCount - confirmedCount)));
-  const completionRate = formatCompletionRate(stats, memberCount);
   const completionState = getOverviewCompletionState(stats, memberCount);
   const breakdown = formatNonZeroParts([
     { label: "出席", value: presentCount },
@@ -2617,13 +2599,6 @@ function renderOverviewUnitCard(unit) {
           ${breakdown ? `<span class="summary-subtext overview-breakdown-text">${escapeHtml(breakdown)}</span>` : ""}
         </span>
       </summary>
-      <div class="overview-mini-stats">
-        ${presentCount ? `<span class="status-chip success">出席 ${presentCount} 人</span>` : ""}
-        ${absentCount ? `<span class="status-chip warning">未出席 ${absentCount} 人</span>` : ""}
-        ${unknownCount ? `<span class="status-chip neutral">待確認 ${unknownCount} 人</span>` : ""}
-        <span class="status-chip ${escapeHtml(completionState.chipClass)}">填寫率 ${escapeHtml(completionRate)}</span>
-        <span class="status-chip neutral">共 ${memberCount} 人</span>
-      </div>
       <div class="overview-detail-grid">
         ${renderOverviewUnitHistory(unit.history, stats, memberCount)}
         ${renderOverviewStatusGroup("出席", detail.present || [], unit.type)}
@@ -2728,15 +2703,19 @@ function renderOverviewStatusGroup(label, members, unitType = "") {
 
 function renderOverviewUnitHistory(history, currentStats, memberCount) {
   const ranges = getOverviewHistoryRangeDefinitions();
+  const currentRate = formatOverviewRate(currentStats, memberCount);
+  const completionState = getOverviewCompletionState(currentStats, memberCount);
   return `
-    <details class="overview-status-group overview-status-details overview-rate-group">
-      <summary class="overview-status-head">
-        <strong>整體出席率</strong>
-      </summary>
+    <section class="overview-status-group overview-rate-group">
+      <div class="overview-rate-hero">
+        <span class="info-label">整體出席率</span>
+        <strong>${escapeHtml(currentRate)}</strong>
+        <span class="summary-subtext ${escapeHtml(completionState.tone)}">${escapeHtml(completionState.label)}</span>
+      </div>
       <div class="overview-unit-history-grid">
         ${ranges.map((range) => renderOverviewUnitHistoryCard(range, history?.[range.key])).join("")}
       </div>
-    </details>
+    </section>
   `;
 }
 
@@ -4787,6 +4766,7 @@ function renderOrganizationTree() {
   els.orgTreeBody.innerHTML = districts
     .map((district) => renderOrganizationTreeDistrict(district))
     .join("");
+  syncOrganizationTreeConnectors();
 }
 
 function renderOrganizationTreeDistrict(district) {
@@ -4940,6 +4920,35 @@ function getOrganizationTreeChildrenClass(childCount) {
     return "has-no-children";
   }
   return childCount === 1 ? "has-single-child" : "has-multiple-children";
+}
+
+function syncOrganizationTreeConnectors() {
+  if (!els.orgTreeBody || state.ui.orgTreeMode === "vertical") {
+    return;
+  }
+
+  els.orgTreeBody.querySelectorAll(".org-flow-branches").forEach((branches) => {
+    const children = Array.from(branches.children).filter((child) =>
+      child.classList.contains("org-flow-branch"),
+    );
+    branches.classList.toggle("has-single-child", children.length === 1);
+    branches.classList.toggle("has-multiple-children", children.length > 1);
+    branches.classList.toggle("has-measured-connector", children.length > 1);
+
+    if (children.length <= 1) {
+      branches.style.removeProperty("--connector-left");
+      branches.style.removeProperty("--connector-right");
+      return;
+    }
+
+    const containerRect = branches.getBoundingClientRect();
+    const firstRect = children[0].getBoundingClientRect();
+    const lastRect = children[children.length - 1].getBoundingClientRect();
+    const left = firstRect.left - containerRect.left + firstRect.width / 2;
+    const right = containerRect.right - lastRect.left - lastRect.width / 2;
+    branches.style.setProperty("--connector-left", `${Math.max(0, left)}px`);
+    branches.style.setProperty("--connector-right", `${Math.max(0, right)}px`);
+  });
 }
 
 function handleOrganizationTreeClick(event) {

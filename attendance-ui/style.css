@@ -2807,6 +2807,128 @@ tbody tr:last-child td {
   line-height: 1.3;
 }
 
+@media (min-width: 961px) {
+  #attendanceView .attendance-scope-mode-info,
+  #attendanceView .attendance-week-info {
+    display: none;
+  }
+
+  #attendanceView .info-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  #attendanceView .attendance-member-name.name-card {
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    box-shadow: none;
+  }
+
+  #attendanceView .roster-list {
+    gap: 8px;
+  }
+
+  #attendanceView .attendance-card {
+    grid-template-columns: minmax(150px, 0.75fr) minmax(340px, 1.45fr) minmax(110px, 0.42fr);
+  }
+
+  #overviewView .overview-detail-grid {
+    grid-template-columns: minmax(240px, 1.1fr) repeat(3, minmax(190px, 1fr));
+    align-items: start;
+  }
+
+  #overviewView .overview-rate-group {
+    border: 1px solid rgba(43, 111, 243, 0.2);
+    background:
+      radial-gradient(circle at top left, rgba(43, 111, 243, 0.12), transparent 44%),
+      linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
+  }
+
+  #overviewView .overview-rate-hero {
+    display: grid;
+    gap: 4px;
+    padding: 6px 6px 8px;
+  }
+
+  #overviewView .overview-rate-hero strong {
+    color: #1e3a8a;
+    font-size: clamp(1.45rem, 2.4vw, 2.1rem);
+    line-height: 1;
+  }
+
+  #overviewView .overview-rate-hero .summary-subtext {
+    font-weight: 900;
+  }
+
+  #overviewView .overview-rate-hero .summary-subtext.success {
+    color: var(--success);
+  }
+
+  #overviewView .overview-rate-hero .summary-subtext.warning {
+    color: var(--warning);
+  }
+
+  #overviewView .overview-rate-hero .summary-subtext.danger {
+    color: var(--danger);
+  }
+
+  #overviewView .overview-status-group {
+    align-self: stretch;
+  }
+
+  #overviewView .overview-status-details[open] .overview-member-list {
+    max-height: 360px;
+    overflow: auto;
+    padding-right: 2px;
+  }
+
+  #overviewView .overview-status-details[open] > summary {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding-bottom: 4px;
+    background: var(--surface-alt);
+  }
+
+  #overviewView .overview-member-row {
+    overflow-x: visible;
+  }
+
+  #peopleView .management-layout {
+    grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.85fr);
+    align-items: start;
+  }
+
+  #peopleView .management-editor,
+  #orgEditorCard {
+    position: sticky;
+    top: 12px;
+  }
+
+  #peopleView .people-card-list,
+  #orgsView .org-card-list {
+    max-height: min(68vh, 760px);
+    overflow: auto;
+    padding-right: 3px;
+  }
+
+  #orgsView .org-management-grid {
+    grid-template-columns: minmax(0, 0.75fr) minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  #orgsView .org-tree-panel,
+  #orgsView .org-management-panel,
+  #orgsView .org-create-panel {
+    margin-top: 18px;
+  }
+
+  #orgsView .org-create-panel .create-org-grid {
+    grid-template-columns: repeat(3, minmax(220px, 1fr));
+  }
+}
+
 .overview-member-list {
   display: grid;
   gap: 5px;
@@ -3282,16 +3404,15 @@ tbody tr:last-child td {
   content: "";
   position: absolute;
   top: 0;
-  left: 66px;
-  right: 66px;
+  left: var(--connector-left, 66px);
+  right: var(--connector-right, 66px);
   height: 2px;
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(43, 111, 243, 0.08), rgba(43, 111, 243, 0.34), rgba(43, 111, 243, 0.08));
 }
 
 .org-tree-board.is-compact-tree .org-flow-branches.has-single-child::after,
-.org-tree-board.is-compact-tree .org-flow-branches.has-no-children::after,
-.org-tree-board.is-compact-tree .org-flow-branches.has-direct-small-groups::after {
+.org-tree-board.is-compact-tree .org-flow-branches.has-no-children::after {
   content: none;
 }
 
