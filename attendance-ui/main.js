@@ -268,10 +268,12 @@ const els = {
   smallGroupNameInput: document.querySelector("#smallGroupNameInput"),
   smallGroupDescriptionInput: document.querySelector("#smallGroupDescriptionInput"),
   smallGroupSubmitBtn: document.querySelector("#smallGroupSubmitBtn"),
+  orgTreePanel: document.querySelector("#orgTreePanel"),
   orgTreeBody: document.querySelector("#orgTreeBody"),
   orgTreeCompactBtn: document.querySelector("#orgTreeCompactBtn"),
   orgTreeVerticalBtn: document.querySelector("#orgTreeVerticalBtn"),
   captureOrgTreeBtn: document.querySelector("#captureOrgTreeBtn"),
+  toggleOrgTreePanelBtn: document.querySelector("#toggleOrgTreePanelBtn"),
   districtSection: document.querySelector("#districtSection"),
   districtSummary: document.querySelector("#districtSummary"),
   districtTableBody: document.querySelector("#districtTableBody"),
@@ -344,6 +346,7 @@ const state = {
     editingOrgId: null,
     orgFocusTarget: null,
     orgTreeMode: "compact",
+    orgTreePanelCollapsed: false,
     orgTreeCollapsedKeys: new Set(),
     peopleSearch: "",
     peopleRole: "",
@@ -364,6 +367,16 @@ const tabSwipe = {
   startX: 0,
   startY: 0,
   target: null,
+};
+
+const orgTreeDrag = {
+  pointerId: null,
+  startX: 0,
+  startY: 0,
+  scrollLeft: 0,
+  scrollTop: 0,
+  isDragging: false,
+  suppressClick: false,
 };
 
 boot()
@@ -491,7 +504,12 @@ function bindEvents() {
   els.orgTreeVerticalBtn?.addEventListener("click", () => switchOrganizationTreeMode("vertical"));
   els.orgTreeBody?.addEventListener("click", handleOrganizationTreeClick);
   els.orgTreeBody?.addEventListener("keydown", handleOrganizationTreeKeydown);
+  els.orgTreeBody?.addEventListener("pointerdown", handleOrganizationTreePointerDown);
+  els.orgTreeBody?.addEventListener("pointermove", handleOrganizationTreePointerMove);
+  els.orgTreeBody?.addEventListener("pointerup", handleOrganizationTreePointerUp);
+  els.orgTreeBody?.addEventListener("pointercancel", handleOrganizationTreePointerUp);
   els.captureOrgTreeBtn?.addEventListener("click", handleCaptureOrganizationTree);
+  els.toggleOrgTreePanelBtn?.addEventListener("click", toggleOrganizationTreePanel);
   els.closeOrgEditorBtn.addEventListener("click", closeOrgEditor);
   els.orgEditorForm.addEventListener("submit", handleSaveOrganization);
   els.orgDistrictSelect.addEventListener("change", syncOrgEditorBigFamilyOptions);
@@ -4713,6 +4731,7 @@ function renderOrganizationTree() {
   }
 
   syncOrganizationTreeControls();
+  syncOrganizationTreePanel();
   els.orgTreeBody.classList.toggle("is-compact-tree", state.ui.orgTreeMode !== "vertical");
   els.orgTreeBody.classList.toggle("is-vertical-tree", state.ui.orgTreeMode === "vertical");
 
@@ -4866,6 +4885,11 @@ function getOrganizationTreeKey(type, id) {
 }
 
 function handleOrganizationTreeClick(event) {
+  if (orgTreeDrag.suppressClick) {
+    event.preventDefault();
+    orgTreeDrag.suppressClick = false;
+    return;
+  }
   const node = event.target.closest(".org-flow-node[data-org-tree-key]");
   if (!node) {
     return;
@@ -4897,6 +4921,51 @@ function toggleOrganizationTreeKey(key) {
   renderOrganizationTree();
 }
 
+function handleOrganizationTreePointerDown(event) {
+  if (!els.orgTreeBody || event.button !== 0 || event.pointerType === "touch") {
+    return;
+  }
+
+  orgTreeDrag.pointerId = event.pointerId;
+  orgTreeDrag.startX = event.clientX;
+  orgTreeDrag.startY = event.clientY;
+  orgTreeDrag.scrollLeft = els.orgTreeBody.scrollLeft;
+  orgTreeDrag.scrollTop = els.orgTreeBody.scrollTop;
+  orgTreeDrag.isDragging = false;
+  orgTreeDrag.suppressClick = false;
+  els.orgTreeBody.setPointerCapture?.(event.pointerId);
+}
+
+function handleOrganizationTreePointerMove(event) {
+  if (!els.orgTreeBody || orgTreeDrag.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const deltaX = event.clientX - orgTreeDrag.startX;
+  const deltaY = event.clientY - orgTreeDrag.startY;
+  if (!orgTreeDrag.isDragging && Math.hypot(deltaX, deltaY) < 6) {
+    return;
+  }
+
+  orgTreeDrag.isDragging = true;
+  orgTreeDrag.suppressClick = true;
+  els.orgTreeBody.classList.add("is-dragging");
+  els.orgTreeBody.scrollLeft = orgTreeDrag.scrollLeft - deltaX;
+  els.orgTreeBody.scrollTop = orgTreeDrag.scrollTop - deltaY;
+  event.preventDefault();
+}
+
+function handleOrganizationTreePointerUp(event) {
+  if (!els.orgTreeBody || orgTreeDrag.pointerId !== event.pointerId) {
+    return;
+  }
+
+  els.orgTreeBody.releasePointerCapture?.(event.pointerId);
+  els.orgTreeBody.classList.remove("is-dragging");
+  orgTreeDrag.pointerId = null;
+  orgTreeDrag.isDragging = false;
+}
+
 function switchOrganizationTreeMode(mode) {
   if (!ORG_TREE_MODES.includes(mode) || state.ui.orgTreeMode === mode) {
     return;
@@ -4911,6 +4980,20 @@ function syncOrganizationTreeControls() {
   const isVertical = state.ui.orgTreeMode === "vertical";
   els.orgTreeCompactBtn?.classList.toggle("is-active", !isVertical);
   els.orgTreeVerticalBtn?.classList.toggle("is-active", isVertical);
+}
+
+function toggleOrganizationTreePanel() {
+  state.ui.orgTreePanelCollapsed = !state.ui.orgTreePanelCollapsed;
+  syncOrganizationTreePanel();
+}
+
+function syncOrganizationTreePanel() {
+  const isCollapsed = Boolean(state.ui.orgTreePanelCollapsed);
+  els.orgTreePanel?.classList.toggle("is-tree-hidden", isCollapsed);
+  if (els.toggleOrgTreePanelBtn) {
+    els.toggleOrgTreePanelBtn.textContent = isCollapsed ? "顯示樹狀圖" : "隱藏樹狀圖";
+    els.toggleOrgTreePanelBtn.setAttribute("aria-expanded", String(!isCollapsed));
+  }
 }
 
 async function handleCaptureOrganizationTree() {
