@@ -227,6 +227,8 @@ const els = {
   memberBigFamilySelect: document.querySelector("#memberBigFamilySelect"),
   memberSmallGroupLabel: document.querySelector("#memberSmallGroupLabel"),
   memberSmallGroupSelect: document.querySelector("#memberSmallGroupSelect"),
+  memberManagedDistrictWrap: document.querySelector("#memberManagedDistrictWrap"),
+  memberManagedDistrictList: document.querySelector("#memberManagedDistrictList"),
   memberActiveLabel: document.querySelector("#memberActiveLabel"),
   memberActiveSelect: document.querySelector("#memberActiveSelect"),
   memberIsAdminWrap: document.querySelector("#memberIsAdminWrap"),
@@ -4131,7 +4133,9 @@ function getSelectableDistricts(includeDistrictId = 0) {
 
 function getSelectableBigFamilies(districtId, includeBigFamilyId = 0) {
   return state.adminData.bigFamilies.filter((bigFamily) => {
-    const matchesDistrict = districtId ? bigFamily.district_id === districtId : true;
+    const matchesDistrict = districtId
+      ? bigFamily.district_id === districtId
+      : bigFamily.id === includeBigFamilyId;
     return matchesDistrict && (bigFamily.is_active || bigFamily.id === includeBigFamilyId);
   });
 }
@@ -4143,22 +4147,13 @@ function getSelectableSmallGroups({
   includeSmallGroupId = 0,
 }) {
   return state.adminData.smallGroups.filter((smallGroup) => {
-    if (!districtId && !bigFamilyId && !MEMBER_ROLES.includes(role) && !PREACHER_ROLES.includes(role)) {
+    if (!districtId && !bigFamilyId) {
       return smallGroup.id === includeSmallGroupId;
     }
 
-    const matchesScope =
-      MEMBER_ROLES.includes(role) || PREACHER_ROLES.includes(role)
-        ? bigFamilyId
-          ? smallGroup.big_family_id === bigFamilyId
-          : districtId
-            ? smallGroup.district_id === districtId
-            : true
-        : bigFamilyId
-          ? smallGroup.big_family_id === bigFamilyId
-          : districtId
-            ? smallGroup.district_id === districtId
-            : true;
+    const matchesScope = bigFamilyId
+      ? smallGroup.big_family_id === bigFamilyId
+      : smallGroup.district_id === districtId && !smallGroup.big_family_id;
     return matchesScope && (smallGroup.is_active || smallGroup.id === includeSmallGroupId);
   });
 }
@@ -4166,34 +4161,26 @@ function getSelectableSmallGroups({
 function populateDistrictOptions(member) {
   const includeDistrictId =
     state.ui.editorMode === "edit" ? Number(member?.district_id || 0) : 0;
-  const selectedRole = member?.role || els.memberRoleSelect.value;
-  const useMultiDistrictSelect = usesMultiDistrictSelect(selectedRole);
-  els.memberDistrictSelect.multiple = useMultiDistrictSelect;
+  els.memberDistrictSelect.multiple = false;
   const districtOptions = getSelectableDistricts(includeDistrictId).map((district) => ({
     value: String(district.id),
     label: getOrganizationDisplayName(district.name, district.is_active),
   }));
   fillSelect(els.memberDistrictSelect, districtOptions, {
     placeholder: districtOptions.length ? "可留空（無區）" : "可留空（無區）",
-    keepEmptyOption: !useMultiDistrictSelect,
+    keepEmptyOption: true,
   });
 
   if (state.currentMember?.is_admin) {
     els.memberDistrictSelect.disabled = false;
-    if (useMultiDistrictSelect) {
-      setSelectedDistrictIds(member ? getDistrictPastorDistrictIds(member) : []);
-    } else if (member?.district_id) {
+    if (member?.district_id) {
       els.memberDistrictSelect.value = String(member.district_id);
     }
   } else {
     els.memberDistrictSelect.disabled = DISTRICT_LEADER_ROLES.includes(state.currentMember?.role);
     if (DISTRICT_PASTOR_ROLES.includes(state.currentMember?.role)) {
-      if (useMultiDistrictSelect) {
-        setSelectedDistrictIds(getDistrictPastorDistrictIds(member));
-      } else {
-        const allowedDistrictIds = getDistrictPastorDistrictIds(state.currentMember);
-        els.memberDistrictSelect.value = allowedDistrictIds[0] ? String(allowedDistrictIds[0]) : "";
-      }
+      const allowedDistrictIds = getDistrictPastorDistrictIds(state.currentMember);
+      els.memberDistrictSelect.value = allowedDistrictIds[0] ? String(allowedDistrictIds[0]) : "";
     } else {
       const districtId = String(state.currentMember?.district_id || "");
       els.memberDistrictSelect.value = districtId;
@@ -4206,20 +4193,57 @@ function isMultiDistrictRole(role) {
 }
 
 function usesMultiDistrictSelect(role) {
-  return DISTRICT_PASTOR_ROLES.includes(role);
+  return isMultiDistrictRole(role);
 }
 
 function setSelectedDistrictIds(ids) {
   const selected = new Set((ids || []).map((id) => String(id)));
-  Array.from(els.memberDistrictSelect.options).forEach((option) => {
-    option.selected = selected.has(option.value);
-  });
+  els.memberManagedDistrictList
+    ?.querySelectorAll('input[type="checkbox"][data-district-id]')
+    .forEach((input) => {
+      input.checked = selected.has(input.dataset.districtId);
+    });
 }
 
 function getSelectedDistrictIds() {
-  return Array.from(els.memberDistrictSelect.selectedOptions || [])
-    .map((option) => Number(option.value || 0))
+  return Array.from(
+    els.memberManagedDistrictList?.querySelectorAll('input[type="checkbox"][data-district-id]:checked') || [],
+  )
+    .map((input) => Number(input.dataset.districtId || 0))
     .filter((value) => Number.isInteger(value) && value > 0);
+}
+
+function renderManagedDistrictOptions(member = null) {
+  if (!els.memberManagedDistrictList) {
+    return;
+  }
+
+  const role = els.memberRoleSelect.value || "";
+  const memberKey = String(member?.id || "new");
+  const shouldPreserveSelection =
+    els.memberManagedDistrictList.dataset.role === role &&
+    els.memberManagedDistrictList.dataset.memberKey === memberKey;
+  const selectedIds = shouldPreserveSelection
+    ? getSelectedDistrictIds()
+    : member
+      ? getDistrictPastorDistrictIds(member)
+      : [];
+  const districtOptions = getSelectableDistricts();
+  els.memberManagedDistrictList.innerHTML = districtOptions.length
+    ? districtOptions
+      .map(
+        (district) => `
+          <label class="checkbox-row district-check-row">
+            <input type="checkbox" data-district-id="${district.id}" />
+            <span>${escapeHtml(getOrganizationDisplayName(district.name, district.is_active))}</span>
+          </label>
+        `,
+      )
+      .join("")
+    : '<p class="muted">目前沒有可選區域。</p>';
+  els.memberManagedDistrictList.dataset.role = role;
+  els.memberManagedDistrictList.dataset.memberKey = memberKey;
+  setSelectedDistrictIds(selectedIds);
 }
 
 function syncEditorBigFamilyOptions(member = null) {
@@ -4336,30 +4360,28 @@ function syncMemberFormScope() {
     MEMBER_ROLES.includes(role) ||
     (SMALL_GROUP_LEADER_ROLES.includes(role) && !isCreateMode);
   const showDistrictField =
-    usesMultiDistrictSelect(role) ||
+    !DISTRICT_PASTOR_ROLES.includes(role) &&
     (!(role === "district_leader" && isCreateMode) &&
       (!MEMBER_ROLES.includes(role) || isEditMode));
+  const showManagedDistricts = usesMultiDistrictSelect(role);
   const districtRequired =
-    usesMultiDistrictSelect(role) || PREACHER_ROLES.includes(role)
+    PREACHER_ROLES.includes(role)
       ? false
       : isCreateMode && (BIG_FAMILY_LEADER_ROLES.includes(role) || SMALL_GROUP_LEADER_ROLES.includes(role));
 
   setHidden(els.memberDistrictLabel, !showDistrictField);
   setHidden(els.memberBigFamilyLabel, !needsBigFamily);
   setHidden(els.memberSmallGroupLabel, !showSmallGroupField);
+  setHidden(els.memberManagedDistrictWrap, !showManagedDistricts);
   const canEditAdminPermission = Boolean(state.currentMember?.is_admin && isEditMode);
   setHidden(els.memberIsAdminWrap, !canEditAdminPermission);
 
   els.memberDistrictSelect.required = districtRequired;
-  els.memberDistrictSelect.multiple = usesMultiDistrictSelect(role);
-  els.memberDistrictLabel.querySelector("span").textContent = usesMultiDistrictSelect(role)
-    ? "管理區域（可複選）"
-    : PREACHER_ROLES.includes(role)
+  els.memberDistrictSelect.multiple = false;
+  els.memberDistrictLabel.querySelector("span").textContent = PREACHER_ROLES.includes(role)
       ? "所屬區（可留空）"
       : "所屬區";
-  if (usesMultiDistrictSelect(role) && editingMember) {
-    setSelectedDistrictIds(getDistrictPastorDistrictIds(editingMember));
-  }
+  renderManagedDistrictOptions(editingMember);
   els.memberBigFamilySelect.required = false;
   els.memberSmallGroupSelect.required =
     isCreateMode && MEMBER_ROLES.includes(role);
@@ -4408,19 +4430,25 @@ async function handleSaveMember(event) {
     return;
   }
 
+  const role = els.memberRoleSelect.value;
+  const usesManagedDistricts = usesMultiDistrictSelect(role);
   const body = {
     full_name: els.memberNameInput.value.trim(),
-    role: els.memberRoleSelect.value,
+    role,
     gender: els.memberGenderSelect.value || null,
     note: els.memberNoteInput.value.trim(),
-    district_id: usesMultiDistrictSelect(els.memberRoleSelect.value)
+    district_id: usesManagedDistricts
       ? null
       : Number(els.memberDistrictSelect.value || 0) || null,
-    district_ids: usesMultiDistrictSelect(els.memberRoleSelect.value)
+    district_ids: usesManagedDistricts
       ? getSelectedDistrictIds()
       : [],
-    big_family_id: Number(els.memberBigFamilySelect.value || 0) || null,
-    small_group_id: Number(els.memberSmallGroupSelect.value || 0) || null,
+    big_family_id: DISTRICT_PASTOR_ROLES.includes(role)
+      ? null
+      : Number(els.memberBigFamilySelect.value || 0) || null,
+    small_group_id: DISTRICT_PASTOR_ROLES.includes(role)
+      ? null
+      : Number(els.memberSmallGroupSelect.value || 0) || null,
     is_admin: els.memberIsAdminInput.checked,
     is_active: els.memberActiveSelect.value === "true",
   };
@@ -4778,13 +4806,19 @@ function renderOrganizationTreeDistrict(district) {
   const nodeKey = getOrganizationTreeKey("district", district.id);
   const isCollapsed = state.ui.orgTreeCollapsedKeys.has(nodeKey);
   const childCount = bigFamilies.length + directSmallGroups.length + (directMembers.length ? 1 : 0);
+  const childClass = [
+    getOrganizationTreeChildrenClass(childCount),
+    directSmallGroups.length ? "has-direct-small-groups" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return `
     <article class="org-flow-row ${district.is_active ? "" : "is-archived"} ${isCollapsed ? "is-collapsed" : ""}">
       <div class="org-flow-column org-flow-column-district">
         ${renderOrganizationFlowNode("district", district.name, { isActive: district.is_active, nodeKey, isCollapsed })}
       </div>
-      <div class="org-flow-branches org-flow-children ${getOrganizationTreeChildrenClass(childCount)}">
+      <div class="org-flow-branches org-flow-children ${childClass}">
         ${bigFamilies.map((bigFamily) => renderOrganizationTreeBigFamily(bigFamily)).join("")}
         ${directSmallGroups.map((smallGroup) => renderOrganizationTreeSmallGroup(smallGroup)).join("")}
         ${directMembers.length ? renderOrganizationTreeMemberBucket("直屬人員", directMembers) : ""}

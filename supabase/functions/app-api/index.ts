@@ -3523,6 +3523,26 @@ async function resolveMemberScope(
       };
     }
 
+    if (explicitBigFamilyId) {
+      const bigFamily = await fetchBigFamily(adminClient, explicitBigFamilyId);
+      if (!bigFamily || !bigFamily.district_id) {
+        return null;
+      }
+
+      assertOrganizationSelectable(
+        "big_family",
+        bigFamily,
+        options,
+        "已封存的大家不能作為新資料歸屬。",
+      );
+
+      return {
+        district_id: bigFamily.district_id,
+        big_family_id: bigFamily.id,
+        small_group_id: null,
+      };
+    }
+
     if (explicitDistrictId) {
       const district = await fetchDistrict(adminClient, explicitDistrictId);
       if (!district) {

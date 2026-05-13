@@ -1480,8 +1480,27 @@ body.is-authenticated #invitesView {
 }
 
 #memberIsAdminWrap,
+#memberManagedDistrictWrap,
 #peopleView .checkbox-field {
   gap: 6px;
+}
+
+#memberManagedDistrictWrap {
+  margin-top: 0;
+}
+
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.district-check-row {
+  min-height: 34px;
+  padding: 7px 9px;
+  border: 1px solid rgba(217, 226, 240, 0.9);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.78);
 }
 
 #peopleView .compact-panel {
@@ -3271,7 +3290,8 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-compact-tree .org-flow-branches.has-single-child::after,
-.org-tree-board.is-compact-tree .org-flow-branches.has-no-children::after {
+.org-tree-board.is-compact-tree .org-flow-branches.has-no-children::after,
+.org-tree-board.is-compact-tree .org-flow-branches.has-direct-small-groups::after {
   content: none;
 }
 

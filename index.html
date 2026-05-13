@@ -29,7 +29,7 @@
       content="牧區點名・出席｜LINE 登入"
     />
     <title>topheart 牧區點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260513-org-ui-role-v31" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260513-tree-scope-v32" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -408,6 +408,12 @@
                   <select id="memberBigFamilySelect"></select>
                 </label>
               </div>
+
+              <details id="memberManagedDistrictWrap" class="checkbox-field compact-panel hidden">
+                <summary>管理區域（可複選）</summary>
+                <p class="muted">可留空；若指定多個區，請勾選此人可管理的區域。</p>
+                <div id="memberManagedDistrictList" class="checkbox-grid"></div>
+              </details>
 
               <div class="form-columns">
                 <label id="memberSmallGroupLabel">
@@ -805,6 +811,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js" defer></script>
-    <script type="module" src="./attendance-ui/main.js?v=20260513-org-ui-role-v31"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260513-tree-scope-v32"></script>
   </body>
 </html>
