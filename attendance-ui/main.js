@@ -520,6 +520,7 @@ function bindEvents() {
   els.inviteSortSelect?.addEventListener("change", handleInviteSortChange);
   els.inviteTableBody.addEventListener("click", handleInviteTableClick);
   els.copyLatestInviteBtn.addEventListener("click", handleCopyLatestInvite);
+  window.addEventListener("resize", scheduleOrganizationTreeConnectorSync);
 
   window.addEventListener("beforeunload", (event) => {
     if (!state.dirty) {
@@ -2706,16 +2707,16 @@ function renderOverviewUnitHistory(history, currentStats, memberCount) {
   const currentRate = formatOverviewRate(currentStats, memberCount);
   const completionState = getOverviewCompletionState(currentStats, memberCount);
   return `
-    <section class="overview-status-group overview-rate-group">
-      <div class="overview-rate-hero">
+    <details class="overview-status-group overview-status-details overview-rate-group">
+      <summary class="overview-status-head overview-rate-hero">
         <span class="info-label">整體出席率</span>
         <strong>${escapeHtml(currentRate)}</strong>
         <span class="summary-subtext ${escapeHtml(completionState.tone)}">${escapeHtml(completionState.label)}</span>
-      </div>
+      </summary>
       <div class="overview-unit-history-grid">
         ${ranges.map((range) => renderOverviewUnitHistoryCard(range, history?.[range.key])).join("")}
       </div>
-    </section>
+    </details>
   `;
 }
 
@@ -4766,7 +4767,7 @@ function renderOrganizationTree() {
   els.orgTreeBody.innerHTML = districts
     .map((district) => renderOrganizationTreeDistrict(district))
     .join("");
-  syncOrganizationTreeConnectors();
+  scheduleOrganizationTreeConnectorSync();
 }
 
 function renderOrganizationTreeDistrict(district) {
@@ -4954,6 +4955,16 @@ function syncOrganizationTreeConnectors() {
     const right = containerRect.right - lastRect.left - lastRect.width / 2;
     branches.style.setProperty("--connector-left", `${Math.max(0, left)}px`);
     branches.style.setProperty("--connector-right", `${Math.max(0, right)}px`);
+  });
+}
+
+function scheduleOrganizationTreeConnectorSync() {
+  if (!els.orgTreeBody || state.ui.orgTreeMode === "vertical") {
+    return;
+  }
+  window.requestAnimationFrame(() => {
+    syncOrganizationTreeConnectors();
+    window.requestAnimationFrame(syncOrganizationTreeConnectors);
   });
 }
 

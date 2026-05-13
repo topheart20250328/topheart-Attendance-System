@@ -2849,7 +2849,7 @@ tbody tr:last-child td {
   #overviewView .overview-rate-hero {
     display: grid;
     gap: 4px;
-    grid-template-columns: auto minmax(120px, auto) minmax(0, 1fr);
+    grid-template-columns: auto minmax(120px, auto) minmax(0, 1fr) auto;
     align-items: center;
     padding: 4px 6px 8px;
   }
@@ -2874,6 +2874,10 @@ tbody tr:last-child td {
 
   #overviewView .overview-rate-hero .summary-subtext.danger {
     color: var(--danger);
+  }
+
+  #overviewView .overview-rate-group[open] .overview-unit-history-grid {
+    margin-top: 4px;
   }
 
   #overviewView .overview-status-group {
@@ -3775,6 +3779,50 @@ tbody tr:last-child td {
 #orgsView .org-card-subline {
   justify-content: center;
   text-align: center;
+}
+
+@media (min-width: 961px) {
+  #orgsView .org-management-panel {
+    padding: 16px;
+  }
+
+  #orgsView .org-management-grid {
+    grid-template-columns: repeat(3, minmax(330px, 1fr));
+    align-items: start;
+    gap: 14px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  #orgsView .org-section-card {
+    min-width: 330px;
+    padding: 14px;
+  }
+
+  #orgsView .org-card {
+    gap: 10px;
+    padding: 11px 12px;
+  }
+
+  #orgsView .org-card-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 12px;
+  }
+
+  #orgsView .org-card .row-actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  #orgsView .org-card-chips,
+  #orgsView .org-card-description,
+  #orgsView .org-card-hint,
+  #orgsView .org-card-subline {
+    justify-content: flex-start;
+    text-align: left;
+  }
 }
 
 .compact-org-list {
