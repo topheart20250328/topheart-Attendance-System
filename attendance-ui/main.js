@@ -4934,7 +4934,7 @@ function syncOrganizationTreeConnectors() {
     );
     branches.classList.toggle("has-single-child", children.length === 1);
     branches.classList.toggle("has-multiple-children", children.length > 1);
-    branches.classList.toggle("has-measured-connector", children.length > 1);
+    branches.classList.remove("has-measured-connector");
 
     if (children.length <= 1) {
       branches.style.removeProperty("--connector-left");
@@ -4951,10 +4951,15 @@ function syncOrganizationTreeConnectors() {
     const containerRect = branches.getBoundingClientRect();
     const firstRect = firstNode.getBoundingClientRect();
     const lastRect = lastNode.getBoundingClientRect();
-    const left = firstRect.left - containerRect.left + firstRect.width / 2;
-    const right = containerRect.right - lastRect.left - lastRect.width / 2;
-    branches.style.setProperty("--connector-left", `${Math.max(0, left)}px`);
-    branches.style.setProperty("--connector-right", `${Math.max(0, right)}px`);
+    const maxInset = Math.max(8, containerRect.width - 8);
+    const left = Math.min(maxInset, Math.max(8, firstRect.left - containerRect.left + firstRect.width / 2));
+    const right = Math.min(
+      maxInset,
+      Math.max(8, containerRect.right - lastRect.left - lastRect.width / 2),
+    );
+    branches.style.setProperty("--connector-left", `${left}px`);
+    branches.style.setProperty("--connector-right", `${right}px`);
+    branches.classList.add("has-measured-connector");
   });
 }
 

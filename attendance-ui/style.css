@@ -3131,11 +3131,6 @@ tbody tr:last-child td {
   margin-top: 0;
 }
 
-.overview-rate-group {
-  border-color: rgba(43, 111, 243, 0.22);
-  background: #f4f8ff;
-}
-
 .org-section-card {
   display: grid;
   gap: 14px;
@@ -3458,6 +3453,10 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-compact-tree .org-flow-branches::after {
+  content: none;
+}
+
+.org-tree-board.is-compact-tree .org-flow-branches.has-measured-connector::after {
   content: "";
   position: absolute;
   top: 0;
@@ -4839,6 +4838,19 @@ body.is-authenticated .toast {
 
   #overviewView .overview-status-head {
     justify-content: flex-start;
+  }
+
+  #overviewView .overview-rate-hero {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 5px;
+    padding: 0;
+  }
+
+  #overviewView .overview-rate-hero strong,
+  #overviewView .overview-rate-hero .summary-subtext {
+    display: none;
   }
 
   #overviewView .overview-member-list {
