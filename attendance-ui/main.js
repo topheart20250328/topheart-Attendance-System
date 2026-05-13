@@ -1123,6 +1123,9 @@ function renderActiveView() {
   setHidden(els.peopleView, state.ui.activeTab !== TABS.people || !canUseManagement());
   setHidden(els.orgsView, state.ui.activeTab !== TABS.orgs || !canUseOrganizationManagement());
   setHidden(els.invitesView, state.ui.activeTab !== TABS.invites || !canUseInvites());
+  if (state.ui.activeTab === TABS.orgs && canUseOrganizationManagement()) {
+    scheduleOrganizationTreeConnectorSync();
+  }
 }
 
 function renderPendingProfile() {
@@ -4770,6 +4773,7 @@ function renderOrganizationTree() {
   els.orgTreeBody.innerHTML = districts
     .map((district) => renderOrganizationTreeDistrict(district))
     .join("");
+  resetOrganizationTreeConnectors();
   scheduleOrganizationTreeConnectorSync();
 }
 
@@ -4927,7 +4931,12 @@ function getOrganizationTreeChildrenClass(childCount) {
 }
 
 function syncOrganizationTreeConnectors() {
-  if (!els.orgTreeBody || state.ui.orgTreeMode === "vertical") {
+  if (
+    !els.orgTreeBody ||
+    state.ui.orgTreeMode === "vertical" ||
+    els.orgTreeBody.offsetParent === null
+  ) {
+    resetOrganizationTreeConnectors();
     return;
   }
 
@@ -4948,6 +4957,11 @@ function syncOrganizationTreeConnectors() {
     const containerRect = branches.getBoundingClientRect();
     const firstRect = children[0].getBoundingClientRect();
     const lastRect = children[children.length - 1].getBoundingClientRect();
+    if (containerRect.width <= 0 || firstRect.width <= 0 || lastRect.width <= 0) {
+      branches.style.removeProperty("--connector-left");
+      branches.style.removeProperty("--connector-right");
+      return;
+    }
     const maxInset = Math.max(8, containerRect.width - 8);
     const left = Math.min(maxInset, Math.max(8, firstRect.left - containerRect.left + firstRect.width / 2));
     const right = Math.min(
@@ -4960,6 +4974,17 @@ function syncOrganizationTreeConnectors() {
   });
 }
 
+function resetOrganizationTreeConnectors() {
+  if (!els.orgTreeBody) {
+    return;
+  }
+  els.orgTreeBody.querySelectorAll(".org-flow-branches").forEach((branches) => {
+    branches.classList.remove("has-measured-connector");
+    branches.style.removeProperty("--connector-left");
+    branches.style.removeProperty("--connector-right");
+  });
+}
+
 function scheduleOrganizationTreeConnectorSync() {
   if (!els.orgTreeBody || state.ui.orgTreeMode === "vertical") {
     return;
@@ -4968,6 +4993,10 @@ function scheduleOrganizationTreeConnectorSync() {
     syncOrganizationTreeConnectors();
     window.requestAnimationFrame(syncOrganizationTreeConnectors);
   });
+  window.setTimeout(syncOrganizationTreeConnectors, 80);
+  window.setTimeout(syncOrganizationTreeConnectors, 220);
+  window.setTimeout(syncOrganizationTreeConnectors, 500);
+  document.fonts?.ready?.then(syncOrganizationTreeConnectors).catch(() => {});
 }
 
 function handleOrganizationTreeClick(event) {
