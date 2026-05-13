@@ -2854,25 +2854,26 @@ tbody tr:last-child td {
     padding: 4px 6px 8px;
   }
 
-  #overviewView .overview-rate-hero strong {
+  #overviewView .overview-rate-value {
     color: #1e3a8a;
     font-size: clamp(1.45rem, 2.4vw, 2.1rem);
+    font-weight: 900;
     line-height: 1;
   }
 
-  #overviewView .overview-rate-hero .summary-subtext {
+  #overviewView .overview-rate-completion {
     font-weight: 900;
   }
 
-  #overviewView .overview-rate-hero .summary-subtext.success {
+  #overviewView .overview-rate-completion.success {
     color: var(--success);
   }
 
-  #overviewView .overview-rate-hero .summary-subtext.warning {
+  #overviewView .overview-rate-completion.warning {
     color: var(--warning);
   }
 
-  #overviewView .overview-rate-hero .summary-subtext.danger {
+  #overviewView .overview-rate-completion.danger {
     color: var(--danger);
   }
 
@@ -3786,16 +3787,39 @@ tbody tr:last-child td {
   }
 
   #orgsView .org-management-grid {
-    grid-template-columns: repeat(3, minmax(330px, 1fr));
+    grid-template-columns: 1fr;
     align-items: start;
     gap: 14px;
-    overflow-x: auto;
+    overflow-x: visible;
     padding-bottom: 4px;
   }
 
+  #orgsView #districtSection {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
   #orgsView .org-section-card {
-    min-width: 330px;
+    min-width: 0;
     padding: 14px;
+  }
+
+  #orgsView #districtTableBody.org-card-list {
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    align-items: start;
+    gap: 14px;
+  }
+
+  #orgsView .org-scope-children {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    align-items: start;
+    gap: 10px;
+  }
+
+  #orgsView .compact-org-list {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    align-items: start;
+    gap: 8px;
   }
 
   #orgsView .org-card {
@@ -4848,8 +4872,8 @@ body.is-authenticated .toast {
     padding: 0;
   }
 
-  #overviewView .overview-rate-hero strong,
-  #overviewView .overview-rate-hero .summary-subtext {
+  #overviewView .overview-rate-value,
+  #overviewView .overview-rate-completion {
     display: none;
   }
 

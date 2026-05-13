@@ -2709,9 +2709,9 @@ function renderOverviewUnitHistory(history, currentStats, memberCount) {
   return `
     <details class="overview-status-group overview-status-details overview-rate-group">
       <summary class="overview-status-head overview-rate-hero">
-        <span class="info-label">整體出席率</span>
-        <strong>${escapeHtml(currentRate)}</strong>
-        <span class="summary-subtext ${escapeHtml(completionState.tone)}">${escapeHtml(completionState.label)}</span>
+        <strong>整體出席率</strong>
+        <span class="overview-rate-value">${escapeHtml(currentRate)}</span>
+        <span class="summary-subtext overview-rate-completion ${escapeHtml(completionState.tone)}">${escapeHtml(completionState.label)}</span>
       </summary>
       <div class="overview-unit-history-grid">
         ${ranges.map((range) => renderOverviewUnitHistoryCard(range, history?.[range.key])).join("")}
@@ -4942,15 +4942,9 @@ function syncOrganizationTreeConnectors() {
       return;
     }
 
-    const firstNode = children[0].querySelector(".org-flow-node");
-    const lastNode = children[children.length - 1].querySelector(".org-flow-node");
-    if (!firstNode || !lastNode) {
-      return;
-    }
-
     const containerRect = branches.getBoundingClientRect();
-    const firstRect = firstNode.getBoundingClientRect();
-    const lastRect = lastNode.getBoundingClientRect();
+    const firstRect = children[0].getBoundingClientRect();
+    const lastRect = children[children.length - 1].getBoundingClientRect();
     const maxInset = Math.max(8, containerRect.width - 8);
     const left = Math.min(maxInset, Math.max(8, firstRect.left - containerRect.left + firstRect.width / 2));
     const right = Math.min(
