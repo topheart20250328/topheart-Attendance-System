@@ -4621,11 +4621,11 @@ body.is-authenticated .toast {
     gap: 6px;
     width: 100%;
     max-width: 100%;
-    justify-items: center;
+    justify-items: stretch;
   }
 
   body.is-authenticated .page-shell {
-    width: calc(100vw - 8px);
+    width: min(1180px, calc(100vw - 16px));
     padding-top: max(4px, env(safe-area-inset-top));
   }
 
@@ -4711,7 +4711,7 @@ body.is-authenticated .toast {
   #attendanceView .toolbar-group {
     gap: 5px;
     width: 100%;
-    max-width: 360px;
+    max-width: none;
     margin-inline: auto;
   }
 
@@ -4752,7 +4752,7 @@ body.is-authenticated .toast {
   #attendanceView .summary-grid {
     gap: 4px;
     width: 100%;
-    max-width: 360px;
+    max-width: none;
     margin-inline: auto;
     margin-bottom: 6px;
   }
@@ -4774,7 +4774,7 @@ body.is-authenticated .toast {
     grid-template-columns: minmax(78px, 0.8fr) minmax(0, 2.15fr) minmax(46px, 0.32fr);
     gap: 4px;
     width: 100%;
-    max-width: 360px;
+    max-width: none;
     margin-inline: auto;
     padding: 5px;
   }
@@ -4782,7 +4782,7 @@ body.is-authenticated .toast {
   #attendanceView .attendance-group-header,
   #attendanceView .empty-state-card {
     width: 100%;
-    max-width: 360px;
+    max-width: none;
     margin-inline: auto;
   }
 
