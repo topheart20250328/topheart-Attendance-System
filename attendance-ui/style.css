@@ -4620,6 +4620,8 @@ body.is-authenticated .toast {
     display: grid;
     gap: 6px;
     width: 100%;
+    max-width: 100%;
+    justify-items: center;
   }
 
   body.is-authenticated .page-shell {
@@ -4708,15 +4710,18 @@ body.is-authenticated .toast {
 
   #attendanceView .toolbar-group {
     gap: 5px;
+    width: 100%;
+    max-width: 360px;
+    margin-inline: auto;
   }
 
   #attendanceView .toolbar-group:first-child {
-    grid-template-columns: 0.58fr minmax(210px, 1.9fr) 0.58fr;
+    grid-template-columns: minmax(50px, 0.62fr) minmax(0, 2fr) minmax(50px, 0.62fr);
   }
 
   #attendanceView .week-label {
     grid-column: auto;
-    grid-template-columns: minmax(138px, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     order: 0;
   }
 
@@ -4746,6 +4751,9 @@ body.is-authenticated .toast {
 
   #attendanceView .summary-grid {
     gap: 4px;
+    width: 100%;
+    max-width: 360px;
+    margin-inline: auto;
     margin-bottom: 6px;
   }
 
@@ -4765,7 +4773,17 @@ body.is-authenticated .toast {
   #attendanceView .attendance-card {
     grid-template-columns: minmax(78px, 0.8fr) minmax(0, 2.15fr) minmax(46px, 0.32fr);
     gap: 4px;
+    width: 100%;
+    max-width: 360px;
+    margin-inline: auto;
     padding: 5px;
+  }
+
+  #attendanceView .attendance-group-header,
+  #attendanceView .empty-state-card {
+    width: 100%;
+    max-width: 360px;
+    margin-inline: auto;
   }
 
   #attendanceView .row-meta {
@@ -5507,11 +5525,11 @@ body.is-authenticated .toast {
 
 @media (max-width: 380px) {
   #attendanceView .toolbar-group:first-child {
-    grid-template-columns: 0.54fr minmax(188px, 1.8fr) 0.54fr;
+    grid-template-columns: minmax(46px, 0.58fr) minmax(0, 1.9fr) minmax(46px, 0.58fr);
   }
 
   #attendanceView .week-label {
-    grid-template-columns: minmax(124px, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   #attendanceView .week-label input {
