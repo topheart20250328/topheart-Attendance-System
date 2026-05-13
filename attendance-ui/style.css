@@ -4608,6 +4608,7 @@ body.is-authenticated .toast {
 
   #attendanceView .card-header {
     display: grid;
+    width: 100%;
     margin-bottom: 6px;
   }
 
@@ -4622,6 +4623,11 @@ body.is-authenticated .toast {
     width: 100%;
     max-width: 100%;
     justify-items: stretch;
+  }
+
+  body.is-authenticated #attendanceView.card {
+    width: 100%;
+    overflow-x: hidden;
   }
 
   body.is-authenticated .page-shell {
@@ -4709,14 +4715,24 @@ body.is-authenticated .toast {
   }
 
   #attendanceView .toolbar-group {
+    display: grid;
     gap: 5px;
     width: 100%;
     max-width: none;
     margin-inline: auto;
   }
 
-  #attendanceView .toolbar-group:first-child {
+  #attendanceView .attendance-desktop-toolbar .toolbar-group:first-child {
     grid-template-columns: minmax(50px, 0.62fr) minmax(0, 2fr) minmax(50px, 0.62fr);
+  }
+
+  #attendanceView .attendance-desktop-toolbar .toolbar-group:last-child {
+    grid-template-columns: 1fr;
+  }
+
+  #attendanceView .attendance-desktop-toolbar .toolbar-group:last-child #refreshBtn {
+    width: 100%;
+    justify-self: stretch;
   }
 
   #attendanceView .week-label {
@@ -5524,7 +5540,7 @@ body.is-authenticated .toast {
 }
 
 @media (max-width: 380px) {
-  #attendanceView .toolbar-group:first-child {
+  #attendanceView .attendance-desktop-toolbar .toolbar-group:first-child {
     grid-template-columns: minmax(46px, 0.58fr) minmax(0, 1.9fr) minmax(46px, 0.58fr);
   }
 
