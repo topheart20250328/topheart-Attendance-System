@@ -4606,6 +4606,22 @@ body.is-authenticated .toast {
     display: none;
   }
 
+  #attendanceView .card-header {
+    display: grid;
+    margin-bottom: 6px;
+  }
+
+  #attendanceView .card-header > div:first-child,
+  #attendanceView .card-header #dirtyBadge {
+    display: none;
+  }
+
+  #attendanceView .attendance-desktop-toolbar {
+    display: grid;
+    gap: 6px;
+    width: 100%;
+  }
+
   body.is-authenticated .page-shell {
     width: calc(100vw - 8px);
     padding-top: max(4px, env(safe-area-inset-top));
@@ -4709,6 +4725,7 @@ body.is-authenticated .toast {
   }
 
   #attendanceView .toolbar button,
+  #attendanceView .attendance-desktop-toolbar button,
   #attendanceView .attendance-save-bar button {
     min-height: 34px;
     padding: 0.38rem 0.48rem;
