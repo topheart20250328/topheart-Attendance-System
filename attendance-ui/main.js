@@ -1495,6 +1495,7 @@ function renderAttendanceHeader() {
   `;
 
   els.attendanceSaveWeek.textContent = getDisplayedWeekLabel();
+  els.attendanceView?.classList.toggle("is-dirty", Boolean(state.dirty));
   syncWeekStatusChip();
 }
 
@@ -2707,8 +2708,9 @@ function renderOverviewUnitHistory(history, currentStats, memberCount) {
   const ranges = getOverviewHistoryRangeDefinitions();
   const currentRate = formatOverviewRate(currentStats, memberCount);
   const completionState = getOverviewCompletionState(currentStats, memberCount);
+  const shouldOpen = window.matchMedia("(min-width: 961px)").matches;
   return `
-    <details class="overview-status-group overview-status-details overview-rate-group">
+    <details class="overview-status-group overview-status-details overview-rate-group"${shouldOpen ? " open" : ""}>
       <summary class="overview-status-head overview-rate-hero">
         <strong>整體出席率</strong>
         <span class="overview-rate-value">${escapeHtml(currentRate)}</span>
@@ -6487,6 +6489,7 @@ function fillSelect(select, items, options = {}) {
 
 function setDirty(isDirty) {
   state.dirty = isDirty;
+  els.attendanceView?.classList.toggle("is-dirty", Boolean(isDirty));
   if (isDirty) {
     clearAttendanceSaveSuccessFeedback();
   }

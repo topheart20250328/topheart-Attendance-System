@@ -3782,6 +3782,96 @@ tbody tr:last-child td {
 }
 
 @media (min-width: 961px) {
+  body.is-authenticated .card {
+    padding: 14px 16px;
+    margin-bottom: 8px;
+  }
+
+  #navCard {
+    top: 6px;
+  }
+
+  #navCard.card {
+    padding: 8px 10px;
+  }
+
+  .tab-row {
+    gap: 7px;
+  }
+
+  .tab-btn {
+    min-height: 34px;
+    padding: 0.42rem 0.78rem;
+    font-size: 0.84rem;
+  }
+
+  #attendanceView > .card-header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  #attendanceView > .card-header h2 {
+    margin: 0;
+  }
+
+  #attendanceView > .card-header #dirtyBadge {
+    display: none;
+  }
+
+  #attendanceView.is-dirty > .card-header #dirtyBadge {
+    display: inline-flex;
+  }
+
+  #attendanceView #attendanceHeaderPanel {
+    display: none;
+  }
+
+  #attendanceView .attendance-desktop-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px 8px;
+    min-width: 0;
+  }
+
+  #attendanceView .attendance-desktop-toolbar .toolbar-group {
+    gap: 6px;
+    align-items: center;
+  }
+
+  #attendanceView .attendance-desktop-toolbar button {
+    min-height: 32px;
+    padding: 0.34rem 0.62rem;
+    font-size: 0.78rem;
+  }
+
+  #attendanceView .week-label {
+    display: grid;
+    grid-template-columns: auto minmax(126px, 150px) auto;
+    min-width: 0;
+    gap: 4px;
+    align-items: center;
+  }
+
+  #attendanceView .week-label span:first-child {
+    font-size: 0.72rem;
+  }
+
+  #attendanceView .week-label input {
+    min-height: 32px;
+    padding: 0.28rem 0.42rem;
+    font-size: 0.78rem;
+  }
+
+  #attendanceView .week-status-chip {
+    min-height: 24px;
+    padding: 0.14rem 0.4rem;
+    font-size: 0.68rem;
+  }
+
   #attendanceView .attendance-card {
     grid-template-columns: minmax(150px, 0.7fr) minmax(250px, 0.82fr) minmax(380px, 1.55fr);
     align-items: start;
@@ -3822,16 +3912,60 @@ tbody tr:last-child td {
   }
 
   #attendanceView .attendance-note-details summary {
-    margin-bottom: 7px;
+    display: none;
+    margin-bottom: 0;
   }
 
   #attendanceView .attendance-note-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 104px;
+    align-items: stretch;
+    gap: 7px;
     margin-top: 0;
   }
 
   #attendanceView .attendance-note-panel textarea {
-    min-height: 86px;
+    min-height: 64px;
     margin-top: 0;
+  }
+
+  #attendanceView .attendance-note-actions {
+    grid-template-columns: 1fr;
+    align-content: stretch;
+    gap: 5px;
+  }
+
+  #attendanceView .note-carry-row {
+    min-height: 0;
+    padding: 0.3rem 0.34rem;
+    border-radius: 9px;
+    font-size: 0.72rem;
+    line-height: 1.2;
+  }
+
+  #overviewView .overview-rate-hero {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  #overviewView .overview-rate-value,
+  #overviewView .overview-rate-completion {
+    display: none;
+  }
+
+  #overviewView .overview-unit-history-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  #overviewView .overview-history-event {
+    padding: 7px 8px;
+  }
+
+  #overviewView .overview-history-event strong {
+    font-size: 0.98rem;
+  }
+
+  #overviewView .overview-history-event .summary-subtext {
+    font-size: 0.68rem;
   }
 
   #orgsView .org-management-panel {

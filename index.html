@@ -29,7 +29,7 @@
       content="牧區點名・出席｜LINE 登入"
     />
     <title>topheart 牧區點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260513-desktop-org-note-v42" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260513-desktop-compact-v43" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -210,32 +210,31 @@
             <p class="eyebrow">Attendance</p>
             <h2>本週點名</h2>
           </div>
+          <div class="attendance-desktop-toolbar">
+            <div class="toolbar-group">
+              <button id="prevWeekBtn" type="button" class="secondary">
+                上一週
+              </button>
+              <label class="week-label">
+                <span>週次</span>
+                <input id="weekInput" type="date" />
+                <span id="weekStatusChip" class="week-status-chip is-current">本週</span>
+              </label>
+              <button id="nextWeekBtn" type="button" class="secondary">
+                下一週
+              </button>
+            </div>
+            <div class="toolbar-group">
+              <button id="refreshBtn" type="button" class="secondary">
+                重新整理
+              </button>
+              <button id="saveAttendanceBtn" type="button">儲存變更</button>
+            </div>
+          </div>
           <div id="dirtyBadge" class="badge neutral">已同步</div>
         </div>
 
         <div id="attendanceHeaderPanel" class="info-panel"></div>
-
-        <div class="toolbar">
-          <div class="toolbar-group">
-            <button id="prevWeekBtn" type="button" class="secondary">
-              上一週
-            </button>
-            <label class="week-label">
-              <span>週次</span>
-              <input id="weekInput" type="date" />
-              <span id="weekStatusChip" class="week-status-chip is-current">本週</span>
-            </label>
-            <button id="nextWeekBtn" type="button" class="secondary">
-              下一週
-            </button>
-          </div>
-          <div class="toolbar-group">
-            <button id="refreshBtn" type="button" class="secondary">
-              重新整理
-            </button>
-            <button id="saveAttendanceBtn" type="button">儲存變更</button>
-          </div>
-        </div>
 
         <div id="weekSummary" class="summary-grid"></div>
 
@@ -811,6 +810,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js" defer></script>
-    <script type="module" src="./attendance-ui/main.js?v=20260513-desktop-org-note-v42"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260513-desktop-compact-v43"></script>
   </body>
 </html>
