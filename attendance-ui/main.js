@@ -7,8 +7,11 @@ const STORAGE_KEYS = {
 
 const ROLE_LABELS = {
   preacher: "傳道人",
+  trainee_preacher: "實習傳道人",
+  district_pastor: "區牧",
   district_leader: "區長",
   big_family_leader: "大家長",
+  trainee_big_family_leader: "實習大家長",
   small_group_leader: "小家長",
   trainee_small_group_leader: "實習小家長",
   member: "小家人",
@@ -17,10 +20,26 @@ const ROLE_LABELS = {
 
 const ROLE_ORDER = {
   preacher: 1,
-  district_leader: 2,
-  big_family_leader: 3,
-  small_group_leader: 4,
-  trainee_small_group_leader: 4,
+  trainee_preacher: 2,
+  district_pastor: 3,
+  district_leader: 4,
+  big_family_leader: 5,
+  trainee_big_family_leader: 6,
+  small_group_leader: 7,
+  trainee_small_group_leader: 8,
+  member: 9,
+  best: 10,
+};
+
+const ROLE_PERMISSION_TIER = {
+  preacher: 1,
+  trainee_preacher: 1,
+  district_pastor: 2,
+  district_leader: 3,
+  big_family_leader: 4,
+  trainee_big_family_leader: 4,
+  small_group_leader: 5,
+  trainee_small_group_leader: 5,
   member: 6,
   best: 7,
 };
@@ -46,12 +65,19 @@ const STATUS_LABELS = {
 
 const LOGIN_ROLES = [
   "preacher",
+  "trainee_preacher",
+  "district_pastor",
   "district_leader",
   "big_family_leader",
+  "trainee_big_family_leader",
   "small_group_leader",
   "trainee_small_group_leader",
 ];
 
+const PREACHER_ROLES = ["preacher", "trainee_preacher"];
+const DISTRICT_PASTOR_ROLES = ["district_pastor"];
+const DISTRICT_LEADER_ROLES = ["district_leader"];
+const BIG_FAMILY_LEADER_ROLES = ["big_family_leader", "trainee_big_family_leader"];
 const SMALL_GROUP_LEADER_ROLES = [
   "small_group_leader",
   "trainee_small_group_leader",
@@ -62,15 +88,23 @@ const MEMBER_ROLES = ["member", "best"];
 const MANAGEMENT_CREATE_ROLES = [
   "district_leader",
   "big_family_leader",
+  "trainee_big_family_leader",
   "small_group_leader",
   "trainee_small_group_leader",
   "member",
   "best",
 ];
 
-const ADMIN_CREATE_ROLES = ["preacher", ...MANAGEMENT_CREATE_ROLES];
+const ADMIN_CREATE_ROLES = ["preacher", "trainee_preacher", "district_pastor", ...MANAGEMENT_CREATE_ROLES];
 
-const OVERVIEW_ROLES = ["preacher", "district_leader", "big_family_leader"];
+const OVERVIEW_ROLES = [
+  "preacher",
+  "trainee_preacher",
+  "district_pastor",
+  "district_leader",
+  "big_family_leader",
+  "trainee_big_family_leader",
+];
 
 const DEFAULT_PROJECT_URL = "https://aiifotwroawqxkcsfjzi.supabase.co";
 const NOTE_MAX_LENGTH = 1000;
@@ -84,6 +118,7 @@ const V2_API_ACTIONS = new Set([
   "delete-invite",
   "save-attendance",
   "move-organization",
+  "purge-member",
   "reset-member-line-binding",
   "update-member",
 ]);
@@ -309,6 +344,7 @@ const state = {
     editingOrgId: null,
     orgFocusTarget: null,
     orgTreeMode: "compact",
+    orgTreeCollapsedKeys: new Set(),
     peopleSearch: "",
     peopleRole: "",
     peopleOpenGroups: new Set(),
@@ -449,6 +485,7 @@ function bindEvents() {
   els.smallGroupTableBody.addEventListener("click", handleOrgTableClick);
   els.orgTreeCompactBtn?.addEventListener("click", () => switchOrganizationTreeMode("compact"));
   els.orgTreeVerticalBtn?.addEventListener("click", () => switchOrganizationTreeMode("vertical"));
+  els.orgTreeBody?.addEventListener("click", handleOrganizationTreeClick);
   els.captureOrgTreeBtn?.addEventListener("click", handleCaptureOrganizationTree);
   els.closeOrgEditorBtn.addEventListener("click", closeOrgEditor);
   els.orgEditorForm.addEventListener("submit", handleSaveOrganization);
@@ -1667,7 +1704,7 @@ function shouldGroupAttendanceRows() {
 
   return Boolean(
     state.currentMember.is_admin ||
-      ["preacher", "district_leader", "big_family_leader"].includes(
+      ["preacher", "trainee_preacher", "district_pastor", "district_leader", "big_family_leader", "trainee_big_family_leader"].includes(
         state.currentMember.role,
       ),
   );
@@ -1678,15 +1715,15 @@ function getAttendanceGroupLabel(member) {
     return "";
   }
 
-  if (state.currentMember?.is_admin || state.currentMember?.role === "preacher") {
-    return member.district_name || (member.role === "preacher" ? "傳道人" : "其他");
+  if (state.currentMember?.is_admin || PREACHER_ROLES.includes(state.currentMember?.role) || DISTRICT_PASTOR_ROLES.includes(state.currentMember?.role)) {
+    return member.district_name || (PREACHER_ROLES.includes(member.role) ? getRoleLabel(member.role) : "其他");
   }
 
-  if (state.currentMember?.role === "district_leader") {
+  if (DISTRICT_LEADER_ROLES.includes(state.currentMember?.role)) {
     return member.big_family_name || member.small_group_name || "未設定大家 / 小家";
   }
 
-  if (state.currentMember?.role === "big_family_leader") {
+  if (BIG_FAMILY_LEADER_ROLES.includes(state.currentMember?.role)) {
     return member.small_group_name || "未設定小家";
   }
 
@@ -2110,19 +2147,19 @@ function formatMemberScopeSummary(member) {
   }
 
   const viewer = state.currentMember;
-  if (viewer.is_admin) {
+  if (viewer.is_admin || PREACHER_ROLES.includes(viewer.role) || DISTRICT_PASTOR_ROLES.includes(viewer.role)) {
     return [member.district_name, member.big_family_name, member.small_group_name]
       .filter(Boolean)
       .join(" / ");
   }
 
-  if (viewer.role === "district_leader") {
+  if (DISTRICT_LEADER_ROLES.includes(viewer.role)) {
     return [member.big_family_name, member.small_group_name]
       .filter(Boolean)
       .join(" / ");
   }
 
-  if (viewer.role === "big_family_leader") {
+  if (BIG_FAMILY_LEADER_ROLES.includes(viewer.role)) {
     return [member.small_group_name].filter(Boolean).join(" / ");
   }
 
@@ -2972,8 +3009,8 @@ function getEditableManagementMembers() {
 
   return state.adminData.members.filter(
     (member) =>
-      member.district_id === state.currentMember.district_id &&
-      MEMBER_ROLES.includes(member.role),
+      canManageMemberDistrict(state.currentMember, member.district_id) &&
+      canManageRole(state.currentMember.role, member.role),
   );
 }
 
@@ -3007,9 +3044,11 @@ function getFilteredManagementMembers() {
 
 function renderPeopleTable(editableMembers) {
   const rows = getFilteredManagementMembers();
+  const activeRows = rows.filter((member) => member.is_active !== false);
+  const archivedRows = rows.filter((member) => member.is_active === false);
   if (els.peopleSummary) {
     els.peopleSummary.textContent = editableMembers.length
-      ? `目前顯示 ${rows.length} 位，可管理總數 ${editableMembers.length} 位`
+      ? `目前顯示 ${rows.length} 位（啟用 ${activeRows.length} 位 / 封存 ${archivedRows.length} 位），可管理總數 ${editableMembers.length} 位`
       : "目前沒有可編輯的人員資料";
   }
 
@@ -3020,9 +3059,15 @@ function renderPeopleTable(editableMembers) {
   }
 
   const shouldOpenGroups = Boolean(state.ui.peopleSearch || state.ui.peopleRole);
-  els.peopleTableBody.innerHTML = buildPeopleHierarchy(rows)
-    .map((district) => renderPeopleDistrictGroup(district, shouldOpenGroups))
-    .join("");
+  const activeHtml = activeRows.length
+    ? buildPeopleHierarchy(activeRows)
+      .map((district) => renderPeopleDistrictGroup(district, shouldOpenGroups))
+      .join("")
+    : '<div class="empty-state-card">目前沒有符合篩選的啟用人員。</div>';
+  els.peopleTableBody.innerHTML = `
+    ${activeHtml}
+    ${renderPeopleArchiveSection(archivedRows)}
+  `;
 }
 
 function buildPeopleHierarchy(rows) {
@@ -3216,6 +3261,7 @@ function renderPeopleMemberCard(member) {
           : "";
       const canDelete = canDeleteMember(member);
       const canRestore = canRestoreMember(member);
+      const canPurge = canPurgeMember(member);
 
       return `
         <article class="member-card${member.is_active ? "" : " is-inactive"}">
@@ -3237,7 +3283,10 @@ function renderPeopleMemberCard(member) {
                 ? `<button type="button" class="danger-button people-restore-btn" data-member-id="${member.id}" data-member-name="${escapeHtml(member.full_name)}">恢復啟用</button>`
                 : ""}
               ${canDelete
-                ? `<button type="button" class="secondary danger-button people-delete-btn" data-member-id="${member.id}" data-member-name="${escapeHtml(member.full_name)}">停用封存</button>`
+                ? `<button type="button" class="secondary danger-button people-delete-btn" data-member-id="${member.id}" data-member-name="${escapeHtml(member.full_name)}">封存</button>`
+                : ""}
+              ${canPurge
+                ? `<button type="button" class="secondary danger-button people-purge-btn" data-member-id="${member.id}" data-member-name="${escapeHtml(member.full_name)}">完全刪除</button>`
                 : ""}
             </div>
           </div>
@@ -3260,6 +3309,23 @@ function renderPeopleMemberCard(member) {
             : ""}
         </article>
       `;
+}
+
+function renderPeopleArchiveSection(members) {
+  const isOpen = members.length > 0 || state.ui.peopleOpenGroups.has("archive:members");
+  return `
+    <details class="people-scope-group people-archive-group" data-people-group-key="archive:members" ${isOpen ? "open" : ""}>
+      <summary>
+        <span>封存區</span>
+        <span class="status-chip archived">${members.length}</span>
+      </summary>
+      <div class="people-scope-members">
+        ${members.length
+          ? members.map(renderPeopleMemberCard).join("")
+          : '<div class="empty-state-card">目前沒有封存人員。</div>'}
+      </div>
+    </details>
+  `;
 }
 
 function handlePeopleFilters() {
@@ -3290,6 +3356,18 @@ function handlePeopleTableClick(event) {
     }
 
     handleDeleteMember(deleteButton, memberId, memberName);
+    return;
+  }
+
+  const purgeButton = event.target.closest(".people-purge-btn");
+  if (purgeButton) {
+    const memberId = Number(purgeButton.dataset.memberId);
+    const memberName = purgeButton.dataset.memberName || "這位人員";
+    if (!memberId) {
+      return;
+    }
+
+    handlePurgeMember(purgeButton, memberId, memberName);
     return;
   }
 
@@ -3329,6 +3407,7 @@ async function handleRestoreMember(button, memberId, memberName) {
         small_group_id: member.small_group_id || null,
         is_admin: Boolean(member.is_admin),
         is_active: true,
+        district_ids: getDistrictPastorDistrictIds(member),
       },
     });
 
@@ -3344,30 +3423,28 @@ async function handleRestoreMember(button, memberId, memberName) {
 
 async function handleDeleteMember(button, memberId, memberName) {
   const member = state.adminData.members.find((item) => item.id === memberId);
-  const canSkipConfirm = member && MEMBER_ROLES.includes(member.role);
-
-  if (!canSkipConfirm) {
-    if (
-      !window.confirm(
-        `確定要停用並封存「${memberName}」嗎？歷史點名紀錄會保留，但此人將無法登入並不再出現在點名名單。`,
-      )
-    ) {
-      return;
-    }
-    const confirmName = window.prompt(`請輸入「${memberName}」確認停用封存。`);
-    if (confirmName !== memberName) {
-      showToast("已取消停用封存。");
-      return;
-    }
+  if (!member) {
+    showToast("找不到這筆人員資料。");
+    return;
   }
 
   setButtonLoading(button, true);
   try {
-    const data = await apiRequest("delete-member", {
+    const data = await apiRequest("update-member", {
       method: "POST",
       authMode: "app",
       body: {
         member_id: memberId,
+        full_name: member.full_name,
+        role: member.role,
+        gender: member.gender || null,
+        note: member.note || "",
+        district_id: member.district_id || null,
+        big_family_id: member.big_family_id || null,
+        small_group_id: member.small_group_id || null,
+        is_admin: Boolean(member.is_admin),
+        is_active: false,
+        district_ids: getDistrictPastorDistrictIds(member),
       },
     });
 
@@ -3376,10 +3453,44 @@ async function handleDeleteMember(button, memberId, memberName) {
     }
 
     await Promise.all([loadAdminPanel(), loadDashboard({ skipDirtyCheck: true })]);
-    showToast(data?.message || "人員已停用封存。");
+    showToast(data?.message || "人員已移入封存區。");
   } catch (error) {
     console.error(error);
-    showToast(error.message || "停用封存人員失敗。");
+    showToast(error.message || "封存人員失敗。");
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+async function handlePurgeMember(button, memberId, memberName) {
+  if (
+    !window.confirm(
+      `確定要完全刪除「${memberName}」嗎？此操作會刪除該人員、點名紀錄、邀請碼與登入資料，且無法復原。`,
+    )
+  ) {
+    return;
+  }
+  const confirmName = window.prompt(`請輸入「${memberName}」確認完全刪除。`);
+  if (confirmName !== memberName) {
+    showToast("已取消完全刪除。");
+    return;
+  }
+
+  setButtonLoading(button, true);
+  try {
+    const data = await apiRequest("purge-member", {
+      method: "POST",
+      authMode: "app",
+      body: { member_id: memberId },
+    });
+    if (state.ui.editingMemberId === memberId) {
+      closeMemberEditor();
+    }
+    await Promise.all([loadAdminPanel(), loadDashboard({ skipDirtyCheck: true })]);
+    showToast(data?.message || "人員已完全刪除。");
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "完全刪除人員失敗。");
   } finally {
     setButtonLoading(button, false);
   }
@@ -3470,7 +3581,7 @@ function populateBulkRoleOptions() {
     return;
   }
 
-  const roles = state.currentMember?.is_admin ? ADMIN_CREATE_ROLES : MANAGEMENT_CREATE_ROLES;
+  const roles = getCreateRoleOptions();
   fillSelect(
     els.bulkRoleSelect,
     roles.map((role) => ({ value: role, label: getRoleLabel(role) })),
@@ -3486,7 +3597,9 @@ function populateBulkDistrictOptions() {
     return;
   }
 
-  const districtOptions = getSelectableDistricts().map((district) => ({
+  const districtOptions = getSelectableDistricts().filter(
+    (district) => canManageMemberDistrict(state.currentMember, district.id),
+  ).map((district) => ({
     value: String(district.id),
     label: getOrganizationDisplayName(district.name, district.is_active),
   }));
@@ -3494,7 +3607,7 @@ function populateBulkDistrictOptions() {
     placeholder: districtOptions.length ? "可留空（無區）" : "尚無可選區",
   });
 
-  if (state.currentMember?.is_admin) {
+  if (state.currentMember?.is_admin || PREACHER_ROLES.includes(state.currentMember?.role) || DISTRICT_PASTOR_ROLES.includes(state.currentMember?.role)) {
     els.bulkDistrictSelect.disabled = false;
   } else {
     els.bulkDistrictSelect.value = String(state.currentMember?.district_id || "");
@@ -3539,7 +3652,7 @@ function syncBulkDefaultScope() {
   );
 
   const isDistrictLeaderCreate = role === "district_leader";
-  const isBigFamilyLeaderCreate = role === "big_family_leader";
+  const isBigFamilyLeaderCreate = BIG_FAMILY_LEADER_ROLES.includes(role);
   const isSmallGroupRole = SMALL_GROUP_LEADER_ROLES.includes(role);
   setHidden(els.bulkDistrictLabel, false);
   setHidden(els.bulkBigFamilyLabel, isDistrictLeaderCreate);
@@ -3652,13 +3765,19 @@ function getBulkMemberError(member) {
   if (!member.role) {
     return "請選擇職分。";
   }
-  if (!state.currentMember?.is_admin && member.role === "preacher") {
-    return "非管理員不可新增傳道人。";
+  if (
+    !state.currentMember?.is_admin &&
+    (!canManageRole(state.currentMember?.role, member.role) ||
+      (member.role === "district_leader" &&
+        !DISTRICT_PASTOR_ROLES.includes(state.currentMember?.role) &&
+        !PREACHER_ROLES.includes(state.currentMember?.role)))
+  ) {
+    return "沒有權限新增此職分。";
   }
-  if (!state.currentMember?.is_admin && member.district_id !== state.currentMember?.district_id) {
+  if (!state.currentMember?.is_admin && !canManageMemberDistrict(state.currentMember, member.district_id)) {
     return "只能新增到自己的轄區。";
   }
-  if (member.role === "big_family_leader" && !member.district_id) {
+  if (BIG_FAMILY_LEADER_ROLES.includes(member.role) && !member.district_id) {
     return "新增大家長需要選擇所屬區。";
   }
   if (SMALL_GROUP_LEADER_ROLES.includes(member.role) && !member.district_id) {
@@ -3933,10 +4052,10 @@ function formatPeopleScopeSummary(member) {
 function populateRoleOptions(mode, member) {
   let roles;
   if (mode === "create") {
-    roles = state.currentMember?.is_admin ? ADMIN_CREATE_ROLES : MANAGEMENT_CREATE_ROLES;
+    roles = getCreateRoleOptions();
   } else {
-    if (state.currentMember?.is_admin) {
-      roles = ADMIN_CREATE_ROLES;
+    if (state.currentMember?.is_admin || PREACHER_ROLES.includes(state.currentMember?.role)) {
+      roles = getCreateRoleOptions();
     } else {
       roles = [member.role];
     }
@@ -3948,7 +4067,18 @@ function populateRoleOptions(mode, member) {
     { placeholder: "請選擇身分" },
   );
 
-  els.memberRoleSelect.disabled = mode === "edit" && !state.currentMember?.is_admin;
+  els.memberRoleSelect.disabled =
+    mode === "edit" && !(state.currentMember?.is_admin || PREACHER_ROLES.includes(state.currentMember?.role));
+}
+
+function getCreateRoleOptions() {
+  if (state.currentMember?.is_admin || PREACHER_ROLES.includes(state.currentMember?.role)) {
+    return ADMIN_CREATE_ROLES;
+  }
+  if (DISTRICT_PASTOR_ROLES.includes(state.currentMember?.role)) {
+    return MANAGEMENT_CREATE_ROLES;
+  }
+  return MANAGEMENT_CREATE_ROLES.filter((role) => role !== "district_leader");
 }
 
 function getOrganizationDisplayName(name, isActive) {
@@ -3987,12 +4117,12 @@ function getSelectableSmallGroups({
   includeSmallGroupId = 0,
 }) {
   return state.adminData.smallGroups.filter((smallGroup) => {
-    if (!districtId && !bigFamilyId && !MEMBER_ROLES.includes(role) && role !== "preacher") {
+    if (!districtId && !bigFamilyId && !MEMBER_ROLES.includes(role) && !PREACHER_ROLES.includes(role)) {
       return smallGroup.id === includeSmallGroupId;
     }
 
     const matchesScope =
-      MEMBER_ROLES.includes(role) || role === "preacher"
+      MEMBER_ROLES.includes(role) || PREACHER_ROLES.includes(role)
         ? bigFamilyId
           ? smallGroup.big_family_id === bigFamilyId
           : districtId
@@ -4020,14 +4150,33 @@ function populateDistrictOptions(member) {
 
   if (state.currentMember?.is_admin) {
     els.memberDistrictSelect.disabled = false;
-    if (member?.district_id) {
+    if (member?.role === "district_pastor") {
+      setSelectedDistrictIds(getDistrictPastorDistrictIds(member));
+    } else if (member?.district_id) {
       els.memberDistrictSelect.value = String(member.district_id);
     }
   } else {
-    const districtId = String(state.currentMember?.district_id || "");
-    els.memberDistrictSelect.value = districtId;
-    els.memberDistrictSelect.disabled = true;
+    els.memberDistrictSelect.disabled = DISTRICT_LEADER_ROLES.includes(state.currentMember?.role);
+    if (DISTRICT_PASTOR_ROLES.includes(state.currentMember?.role)) {
+      setSelectedDistrictIds(getDistrictPastorDistrictIds(state.currentMember));
+    } else {
+      const districtId = String(state.currentMember?.district_id || "");
+      els.memberDistrictSelect.value = districtId;
+    }
   }
+}
+
+function setSelectedDistrictIds(ids) {
+  const selected = new Set((ids || []).map((id) => String(id)));
+  Array.from(els.memberDistrictSelect.options).forEach((option) => {
+    option.selected = selected.has(option.value);
+  });
+}
+
+function getSelectedDistrictIds() {
+  return Array.from(els.memberDistrictSelect.selectedOptions || [])
+    .map((option) => Number(option.value || 0))
+    .filter((value) => Number.isInteger(value) && value > 0);
 }
 
 function syncEditorBigFamilyOptions(member = null) {
@@ -4070,7 +4219,7 @@ function syncEditorSmallGroupOptions(member = null) {
     available.map((smallGroup) => ({
       value: String(smallGroup.id),
       label:
-        MEMBER_ROLES.includes(role) || role === "preacher"
+        MEMBER_ROLES.includes(role) || PREACHER_ROLES.includes(role)
           ? [
               getOrganizationDisplayName(smallGroup.name, smallGroup.is_active),
               smallGroup.big_family_name,
@@ -4126,26 +4275,30 @@ function syncMemberFormScope() {
   const role = els.memberRoleSelect.value;
   const isCreateMode = state.ui.editorMode === "create";
   const isEditMode = state.ui.editorMode === "edit";
+  const editingMember = isEditMode
+    ? state.adminData.members.find((member) => member.id === state.ui.editingMemberId)
+    : null;
   const needsBigFamily =
     MEMBER_ROLES.includes(role)
       ? isEditMode
-      : role === "big_family_leader"
+      : BIG_FAMILY_LEADER_ROLES.includes(role)
         ? !isCreateMode
         : SMALL_GROUP_LEADER_ROLES.includes(role)
           ? true
           : false;
   const showSmallGroupField =
-    role === "preacher" ||
+    PREACHER_ROLES.includes(role) ||
     MEMBER_ROLES.includes(role) ||
     (SMALL_GROUP_LEADER_ROLES.includes(role) && !isCreateMode);
   const showDistrictField =
-    role === "preacher" ||
+    PREACHER_ROLES.includes(role) ||
+    role === "district_pastor" ||
     (!(role === "district_leader" && isCreateMode) &&
       (!MEMBER_ROLES.includes(role) || isEditMode));
   const districtRequired =
-    role === "preacher"
+    PREACHER_ROLES.includes(role) || role === "district_pastor"
       ? false
-      : isCreateMode && (role === "big_family_leader" || SMALL_GROUP_LEADER_ROLES.includes(role));
+      : isCreateMode && (BIG_FAMILY_LEADER_ROLES.includes(role) || SMALL_GROUP_LEADER_ROLES.includes(role));
 
   setHidden(els.memberDistrictLabel, !showDistrictField);
   setHidden(els.memberBigFamilyLabel, !needsBigFamily);
@@ -4154,6 +4307,11 @@ function syncMemberFormScope() {
   setHidden(els.memberIsAdminWrap, !canEditAdminPermission);
 
   els.memberDistrictSelect.required = districtRequired;
+  els.memberDistrictSelect.multiple = role === "district_pastor";
+  els.memberDistrictLabel.querySelector("span").textContent = role === "district_pastor" ? "管理區域（可複選）" : "所屬區";
+  if (role === "district_pastor" && editingMember) {
+    setSelectedDistrictIds(getDistrictPastorDistrictIds(editingMember));
+  }
   els.memberBigFamilySelect.required = false;
   els.memberSmallGroupSelect.required =
     isCreateMode && MEMBER_ROLES.includes(role);
@@ -4168,12 +4326,17 @@ function syncMemberFormScope() {
     preacher: isCreateMode
       ? "傳道人可選擇直屬小家作為預設點名範圍；需要時可勾選全部管理檢視全體。"
       : "傳道人可設定直屬小家作為預設點名範圍；需要時可勾選全部管理檢視全體。",
+    trainee_preacher: "實習傳道人與傳道人同權限，可檢視與管理全部資料。",
+    district_pastor: "區牧可管理多個指定區；請在管理區域中選取可管理的區。",
     district_leader: isCreateMode
       ? "新增區長時，系統會自動建立「姓名區」。"
       : "編輯區長時，可調整基本資料；所屬區也可留空。",
     big_family_leader: isCreateMode
       ? "新增大家長時，只需選區；系統會自動建立「姓名大家」。"
       : "編輯大家長時，可調整基本資料；所屬區/大家可留空。",
+    trainee_big_family_leader: isCreateMode
+      ? "新增實習大家長時，只需選區；系統會自動建立「姓名大家」。"
+      : "實習大家長與大家長同權限；可調整基本資料與大家歸屬。",
     small_group_leader: isCreateMode
       ? "新增小家長時，只需選區，大家可留空；系統會自動建立「姓名小家」。"
       : "編輯小家長時，可調整基本資料；區、大家與小家都可暫時留空。",
@@ -4203,6 +4366,7 @@ async function handleSaveMember(event) {
     gender: els.memberGenderSelect.value || null,
     note: els.memberNoteInput.value.trim(),
     district_id: Number(els.memberDistrictSelect.value || 0) || null,
+    district_ids: getSelectedDistrictIds(),
     big_family_id: Number(els.memberBigFamilySelect.value || 0) || null,
     small_group_id: Number(els.memberSmallGroupSelect.value || 0) || null,
     is_admin: els.memberIsAdminInput.checked,
@@ -4215,11 +4379,16 @@ async function handleSaveMember(event) {
   }
 
   if (
-    (body.role === "big_family_leader" || SMALL_GROUP_LEADER_ROLES.includes(body.role)) &&
+    (BIG_FAMILY_LEADER_ROLES.includes(body.role) || SMALL_GROUP_LEADER_ROLES.includes(body.role)) &&
     !body.district_id &&
     state.ui.editorMode === "create"
   ) {
     showToast("此身分至少需要指定所屬區。");
+    return;
+  }
+
+  if (body.role === "district_pastor" && !body.district_ids.length) {
+    showToast("區牧至少需要指定一個管理區域。");
     return;
   }
 
@@ -4558,13 +4727,15 @@ function renderOrganizationTreeDistrict(district) {
         !member.small_group_id,
     ),
   );
+  const nodeKey = getOrganizationTreeKey("district", district.id);
+  const isCollapsed = state.ui.orgTreeCollapsedKeys.has(nodeKey);
 
   return `
-    <article class="org-flow-row ${district.is_active ? "" : "is-archived"}">
+    <article class="org-flow-row ${district.is_active ? "" : "is-archived"} ${isCollapsed ? "is-collapsed" : ""}">
       <div class="org-flow-column org-flow-column-district">
-        ${renderOrganizationFlowNode("district", district.name, { isActive: district.is_active })}
+        ${renderOrganizationFlowNode("district", district.name, { isActive: district.is_active, nodeKey, isCollapsed })}
       </div>
-      <div class="org-flow-branches">
+      <div class="org-flow-branches org-flow-children">
         ${bigFamilies.map((bigFamily) => renderOrganizationTreeBigFamily(bigFamily)).join("")}
         ${directSmallGroups.map((smallGroup) => renderOrganizationTreeSmallGroup(smallGroup)).join("")}
         ${directMembers.length ? renderOrganizationTreeMemberBucket("直屬人員", directMembers) : ""}
@@ -4586,13 +4757,15 @@ function renderOrganizationTreeBigFamily(bigFamily) {
         !member.small_group_id,
     ),
   );
+  const nodeKey = getOrganizationTreeKey("big_family", bigFamily.id);
+  const isCollapsed = state.ui.orgTreeCollapsedKeys.has(nodeKey);
 
   return `
-    <div class="org-flow-branch ${bigFamily.is_active ? "" : "is-archived"}">
+    <div class="org-flow-branch ${bigFamily.is_active ? "" : "is-archived"} ${isCollapsed ? "is-collapsed" : ""}">
       <div class="org-flow-column org-flow-column-big">
-        ${renderOrganizationFlowNode("big_family", bigFamily.name, { isActive: bigFamily.is_active })}
+        ${renderOrganizationFlowNode("big_family", bigFamily.name, { isActive: bigFamily.is_active, nodeKey, isCollapsed })}
       </div>
-      <div class="org-flow-branches org-flow-small-branches">
+      <div class="org-flow-branches org-flow-small-branches org-flow-children">
         ${smallGroups.map((smallGroup) => renderOrganizationTreeSmallGroup(smallGroup)).join("")}
         ${directMembers.length ? renderOrganizationTreeMemberBucket("直屬人員", directMembers) : ""}
         ${smallGroups.length || directMembers.length ? "" : '<div class="org-flow-empty">尚未建立小家</div>'}
@@ -4622,13 +4795,15 @@ function renderOrganizationTreeSmallGroup(smallGroup) {
         member.small_group_id === smallGroup.id,
     ),
   );
+  const nodeKey = getOrganizationTreeKey("small_group", smallGroup.id);
+  const isCollapsed = state.ui.orgTreeCollapsedKeys.has(nodeKey);
 
   return `
-    <div class="org-flow-branch org-flow-small-branch ${smallGroup.is_active ? "" : "is-archived"}">
+    <div class="org-flow-branch org-flow-small-branch ${smallGroup.is_active ? "" : "is-archived"} ${isCollapsed ? "is-collapsed" : ""}">
       <div class="org-flow-column org-flow-column-small">
-        ${renderOrganizationFlowNode("small_group", smallGroup.name, { isActive: smallGroup.is_active })}
+        ${renderOrganizationFlowNode("small_group", smallGroup.name, { isActive: smallGroup.is_active, nodeKey, isCollapsed })}
       </div>
-      <div class="org-flow-members">
+      <div class="org-flow-members org-flow-children">
         ${members.length
           ? members.map(renderOrganizationTreeMember).join("")
           : '<span class="org-flow-empty">尚無人員</span>'}
@@ -4658,12 +4833,37 @@ function getOrganizationTreeGenderClass(gender) {
   return "gender-unknown";
 }
 
-function renderOrganizationFlowNode(type, name, { isActive = true } = {}) {
+function renderOrganizationFlowNode(type, name, { isActive = true, nodeKey = "", isCollapsed = false } = {}) {
+  const canCollapse = Boolean(nodeKey);
   return `
     <div class="org-flow-node org-flow-node-${escapeHtml(type)} ${isActive ? "" : "is-archived"}">
       <strong>${escapeHtml(name)}</strong>
+      ${canCollapse
+        ? `<button type="button" class="org-collapse-btn" data-org-tree-key="${escapeHtml(nodeKey)}" aria-label="${escapeHtml(name)}${isCollapsed ? " 展開" : " 收合"}">${isCollapsed ? "展開" : "收合"}</button>`
+        : ""}
     </div>
   `;
+}
+
+function getOrganizationTreeKey(type, id) {
+  return `${type}:${id}`;
+}
+
+function handleOrganizationTreeClick(event) {
+  const button = event.target.closest(".org-collapse-btn");
+  if (!button) {
+    return;
+  }
+  const key = button.dataset.orgTreeKey;
+  if (!key) {
+    return;
+  }
+  if (state.ui.orgTreeCollapsedKeys.has(key)) {
+    state.ui.orgTreeCollapsedKeys.delete(key);
+  } else {
+    state.ui.orgTreeCollapsedKeys.add(key);
+  }
+  renderOrganizationTree();
 }
 
 function switchOrganizationTreeMode(mode) {
@@ -5805,12 +6005,17 @@ async function handleCreateInvite(event) {
 function canUseManagement() {
   return Boolean(
     state.currentMember &&
-      (state.currentMember.is_admin || state.currentMember.role === "district_leader"),
+      (
+        state.currentMember.is_admin ||
+        PREACHER_ROLES.includes(state.currentMember.role) ||
+        DISTRICT_PASTOR_ROLES.includes(state.currentMember.role) ||
+        DISTRICT_LEADER_ROLES.includes(state.currentMember.role)
+      ),
   );
 }
 
 function canUseOrganizationManagement() {
-  return Boolean(state.currentMember?.is_admin);
+  return canUseManagement();
 }
 
 function canUseOverview() {
@@ -5824,7 +6029,7 @@ function canUseManageAllToggle() {
   return Boolean(
     state.currentMember &&
       state.currentMember.small_group_id &&
-      (state.currentMember.is_admin || state.currentMember.role === "preacher"),
+      (state.currentMember.is_admin || PREACHER_ROLES.includes(state.currentMember.role)),
   );
 }
 
@@ -5839,7 +6044,7 @@ function canUseAttendanceFilters() {
 
   return Boolean(
     state.currentMember.is_admin ||
-      ["preacher", "district_leader", "big_family_leader"].includes(
+      ["preacher", "trainee_preacher", "district_pastor", "district_leader", "big_family_leader", "trainee_big_family_leader"].includes(
         state.currentMember.role,
       ),
   );
@@ -5859,9 +6064,8 @@ function canEditProfile(member) {
   }
 
   return (
-    state.currentMember.role === "district_leader" &&
-    member.district_id === state.currentMember.district_id &&
-    MEMBER_ROLES.includes(member.role)
+    canManageMemberDistrict(state.currentMember, member.district_id) &&
+    canManageRole(state.currentMember.role, member.role)
   );
 }
 
@@ -5879,10 +6083,9 @@ function canDeleteMember(member) {
   }
 
   return (
-    state.currentMember.role === "district_leader" &&
-    Boolean(state.currentMember.district_id) &&
-    member.district_id === state.currentMember.district_id &&
-    MEMBER_ROLES.includes(member.role)
+    member.is_active &&
+    canManageMemberDistrict(state.currentMember, member.district_id) &&
+    canManageRole(state.currentMember.role, member.role)
   );
 }
 
@@ -5896,11 +6099,47 @@ function canRestoreMember(member) {
   }
 
   return (
-    state.currentMember.role === "district_leader" &&
-    Boolean(state.currentMember.district_id) &&
-    member.district_id === state.currentMember.district_id &&
-    MEMBER_ROLES.includes(member.role)
+    canManageMemberDistrict(state.currentMember, member.district_id) &&
+    canManageRole(state.currentMember.role, member.role)
   );
+}
+
+function canPurgeMember(member) {
+  return Boolean(
+    state.currentMember &&
+      !member.is_active &&
+      member.id !== state.currentMember.id &&
+      (
+        state.currentMember.is_admin ||
+        (canManageMemberDistrict(state.currentMember, member.district_id) &&
+          canManageRole(state.currentMember.role, member.role))
+      ),
+  );
+}
+
+function canManageMemberDistrict(viewer, districtId) {
+  if (!viewer || viewer.is_admin || PREACHER_ROLES.includes(viewer.role)) {
+    return Boolean(viewer);
+  }
+  if (!districtId) {
+    return false;
+  }
+  if (DISTRICT_PASTOR_ROLES.includes(viewer.role)) {
+    return getDistrictPastorDistrictIds(viewer).includes(Number(districtId));
+  }
+  return DISTRICT_LEADER_ROLES.includes(viewer.role) && Number(viewer.district_id || 0) === Number(districtId);
+}
+
+function canManageRole(viewerRole, targetRole) {
+  const viewerTier = ROLE_PERMISSION_TIER[viewerRole] || 99;
+  const targetTier = ROLE_PERMISSION_TIER[targetRole] || 99;
+  return targetTier >= viewerTier && targetTier < 99;
+}
+
+function getDistrictPastorDistrictIds(member) {
+  return (member?.district_pastor_district_ids || [])
+    .map((value) => Number(value))
+    .filter((value) => Number.isInteger(value) && value > 0);
 }
 
 function handleAdminRefresh() {

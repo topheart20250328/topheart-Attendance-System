@@ -39,6 +39,48 @@ add column if not exists note_priority_high boolean not null default false;
 alter table public.attendance_records
 add column if not exists note_priority_high boolean not null default false;
 
+-- =========================================================
+-- 0C. 既有資料庫升級：新增職分與區牧多區對應
+-- 已經跑過新版 setup_supabase.sql 的全新資料庫不需要再跑。
+-- =========================================================
+alter type public.member_role add value if not exists 'trainee_preacher';
+alter type public.member_role add value if not exists 'district_pastor';
+alter type public.member_role add value if not exists 'trainee_big_family_leader';
+
+create table if not exists public.district_pastor_districts (
+  district_pastor_id bigint not null references public.members(id) on delete cascade,
+  district_id bigint not null references public.districts(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (district_pastor_id, district_id)
+);
+
+create index if not exists idx_district_pastor_districts_district_id
+on public.district_pastor_districts (district_id, district_pastor_id);
+
+alter table public.district_pastor_districts enable row level security;
+
+alter table public.members
+drop constraint if exists members_scope_matches_role;
+
+alter table public.members
+add constraint members_scope_matches_role check (
+  (
+    role::text = 'district_leader'
+    and big_family_id is null
+    and small_group_id is null
+  )
+  or (
+    role::text in ('preacher', 'trainee_preacher', 'district_pastor')
+  )
+  or (
+    role::text in ('big_family_leader', 'trainee_big_family_leader')
+    and small_group_id is null
+  )
+  or (
+    role::text in ('small_group_leader', 'trainee_small_group_leader', 'member', 'best')
+  )
+);
+
 drop view if exists public.member_directory;
 
 create view public.member_directory as
@@ -55,6 +97,7 @@ select
   m.line_user_id,
   m.is_active,
   m.last_line_login_at,
+  coalesce(dp.district_ids, array[]::bigint[]) as district_pastor_district_ids,
   m.district_id,
   d.name as district_name,
   coalesce(m.big_family_id, sg.big_family_id) as big_family_id,
@@ -66,10 +109,15 @@ select
 from public.members m
 left join public.small_groups sg on sg.id = m.small_group_id
 left join public.districts d on d.id = coalesce(m.district_id, sg.district_id)
-left join public.big_families bf on bf.id = coalesce(m.big_family_id, sg.big_family_id);
+left join public.big_families bf on bf.id = coalesce(m.big_family_id, sg.big_family_id)
+left join lateral (
+  select array_agg(dpd.district_id order by dpd.district_id) as district_ids
+  from public.district_pastor_districts dpd
+  where dpd.district_pastor_id = m.id
+) dp on true;
 
 -- =========================================================
--- 0C. 既有資料庫升級：出席總覽與大量人員查詢索引
+-- 0D. 既有資料庫升級：出席總覽與大量人員查詢索引
 -- 已經跑過新版 setup_supabase.sql 的全新資料庫不需要再跑。
 -- =========================================================
 create index if not exists idx_members_active_district_lookup
@@ -329,6 +377,7 @@ select
   district_name,
   big_family_name,
   small_group_name,
+  district_pastor_district_ids,
   note,
   last_line_login_at
 from public.member_directory
@@ -358,6 +407,19 @@ where full_name = '李小家長';
 update public.members
 set is_admin = true
 where full_name = '王大家長';
+
+-- =========================================================
+-- N2. 設定區牧管理多個區
+-- 先確認該人員 role = 'district_pastor'，再插入可管理的區。
+-- =========================================================
+insert into public.district_pastor_districts (district_pastor_id, district_id)
+select pastor.id, district.id
+from public.members pastor
+cross join public.districts district
+where pastor.full_name = '請改成區牧姓名'
+  and pastor.role = 'district_pastor'
+  and district.name in ('第一區', '第二區')
+on conflict (district_pastor_id, district_id) do nothing;
 
 
 -- =========================================================
@@ -459,8 +521,11 @@ where line_user_id is not null
       is_admin
       or role in (
         'preacher',
+        'trainee_preacher',
+        'district_pastor',
         'district_leader',
         'big_family_leader',
+        'trainee_big_family_leader',
         'small_group_leader',
         'trainee_small_group_leader'
       )
@@ -483,8 +548,11 @@ with blocked_bindings as (
         is_admin
         or role in (
           'preacher',
+          'trainee_preacher',
+          'district_pastor',
           'district_leader',
           'big_family_leader',
+          'trainee_big_family_leader',
           'small_group_leader',
           'trainee_small_group_leader'
         )

@@ -18,6 +18,7 @@ type MemberRow = {
   note: string | null;
   note_carry_forward: boolean | null;
   note_priority_high: boolean | null;
+  district_pastor_district_ids?: number[] | null;
 };
 
 type Scope = {
@@ -45,8 +46,11 @@ const corsHeaders = {
 
 const ROLES = new Set([
   "preacher",
+  "trainee_preacher",
+  "district_pastor",
   "district_leader",
   "big_family_leader",
+  "trainee_big_family_leader",
   "small_group_leader",
   "trainee_small_group_leader",
   "member",
@@ -56,20 +60,42 @@ const SMALL_GROUP_LEADER_ROLES = new Set([
   "small_group_leader",
   "trainee_small_group_leader",
 ]);
+const PREACHER_ROLES = new Set(["preacher", "trainee_preacher"]);
+const DISTRICT_PASTOR_ROLES = new Set(["district_pastor"]);
+const DISTRICT_LEADER_ROLES = new Set(["district_leader"]);
+const BIG_FAMILY_LEADER_ROLES = new Set(["big_family_leader", "trainee_big_family_leader"]);
 const MEMBER_ROLES = new Set(["member", "best"]);
 const LOGIN_ROLES = new Set([
   "preacher",
+  "trainee_preacher",
+  "district_pastor",
   "district_leader",
   "big_family_leader",
+  "trainee_big_family_leader",
   "small_group_leader",
   "trainee_small_group_leader",
 ]);
 const ROLE_ORDER: Record<string, number> = {
   preacher: 1,
-  district_leader: 2,
-  big_family_leader: 3,
-  small_group_leader: 4,
-  trainee_small_group_leader: 4,
+  trainee_preacher: 2,
+  district_pastor: 3,
+  district_leader: 4,
+  big_family_leader: 5,
+  trainee_big_family_leader: 6,
+  small_group_leader: 7,
+  trainee_small_group_leader: 8,
+  member: 9,
+  best: 10,
+};
+const ROLE_PERMISSION_TIER: Record<string, number> = {
+  preacher: 1,
+  trainee_preacher: 1,
+  district_pastor: 2,
+  district_leader: 3,
+  big_family_leader: 4,
+  trainee_big_family_leader: 4,
+  small_group_leader: 5,
+  trainee_small_group_leader: 5,
   member: 6,
   best: 7,
 };
@@ -130,6 +156,10 @@ Deno.serve(async (request) => {
 
     if (request.method === "POST" && action === "update-member") {
       return await handleUpdateMember(db, viewer, request);
+    }
+
+    if (request.method === "POST" && action === "purge-member") {
+      return await handlePurgeMember(db, viewer, request);
     }
 
     return json({ error: "Unknown action." }, 404);
@@ -205,11 +235,20 @@ function isLoginEnabled(member: MemberRow) {
 }
 
 function canUseManagement(viewer: MemberRow) {
-  return viewer.is_admin || viewer.role === "district_leader";
+  return viewer.is_admin || PREACHER_ROLES.has(viewer.role) || DISTRICT_PASTOR_ROLES.has(viewer.role) || DISTRICT_LEADER_ROLES.has(viewer.role);
 }
 
 function canManageDistrict(viewer: MemberRow, districtId: number | null) {
-  return viewer.is_admin || (districtId !== null && viewer.district_id === districtId);
+  if (viewer.is_admin || PREACHER_ROLES.has(viewer.role)) {
+    return true;
+  }
+  if (districtId === null) {
+    return false;
+  }
+  if (DISTRICT_PASTOR_ROLES.has(viewer.role)) {
+    return getDistrictPastorDistrictIds(viewer).includes(districtId);
+  }
+  return DISTRICT_LEADER_ROLES.has(viewer.role) && viewer.district_id === districtId;
 }
 
 function canEditProfile(viewer: MemberRow, target: MemberRow) {
@@ -218,11 +257,25 @@ function canEditProfile(viewer: MemberRow, target: MemberRow) {
   }
 
   return (
-    viewer.role === "district_leader" &&
-    Boolean(viewer.district_id) &&
-    target.district_id === viewer.district_id &&
-    MEMBER_ROLES.has(target.role)
+    canManageDistrict(viewer, target.district_id) &&
+    canManageAttendanceTarget(viewer.role, target.role)
   );
+}
+
+function canCreateRole(viewer: MemberRow, role: string, isAdminFlag: boolean) {
+  if (!canUseManagement(viewer) || isAdminFlag) {
+    return viewer.is_admin;
+  }
+  if (viewer.is_admin || PREACHER_ROLES.has(viewer.role)) {
+    return true;
+  }
+  if (DISTRICT_PASTOR_ROLES.has(viewer.role)) {
+    return ["district_leader", "big_family_leader", "trainee_big_family_leader", "small_group_leader", "trainee_small_group_leader", "member", "best"].includes(role);
+  }
+  if (DISTRICT_LEADER_ROLES.has(viewer.role)) {
+    return ["big_family_leader", "trainee_big_family_leader", "small_group_leader", "trainee_small_group_leader", "member", "best"].includes(role);
+  }
+  return false;
 }
 
 function normalizeRole(value: unknown) {
@@ -233,6 +286,19 @@ function normalizeRole(value: unknown) {
 function normalizeGender(value: unknown) {
   const gender = String(value || "").trim();
   return ["brother", "sister"].includes(gender) ? gender : null;
+}
+
+function getDistrictPastorDistrictIds(member: MemberRow) {
+  return (member.district_pastor_district_ids || [])
+    .map((value) => Number(value))
+    .filter((value) => Number.isInteger(value) && value > 0);
+}
+
+function normalizeDistrictIds(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return Array.from(new Set(value.map(toPositiveInt).filter(Boolean)));
 }
 
 function toPositiveInt(value: unknown) {
@@ -311,11 +377,15 @@ async function createMemberFromBody(
     return { status: 400, body: { error: "請完整填寫姓名與職分。" } };
   }
 
-  if (!viewer.is_admin) {
-    const allowed = ["big_family_leader", "small_group_leader", "trainee_small_group_leader", "member", "best"];
-    if (isAdmin || !allowed.includes(role)) {
-      return { status: 403, body: { error: "No permission to create this role." } };
-    }
+  if (!canCreateRole(viewer, role, isAdmin)) {
+    return { status: 403, body: { error: "No permission to create this role." } };
+  }
+  const districtPastorDistrictIds = normalizeDistrictIds(body?.district_ids);
+  if (role === "district_pastor" && !districtPastorDistrictIds.length) {
+    return { status: 400, body: { error: "District pastor requires at least one district." } };
+  }
+  if (role === "district_pastor" && !districtPastorDistrictIds.every((id) => canManageDistrict(viewer, id))) {
+    return { status: 403, body: { error: "No permission to assign one or more districts." } };
   }
 
   const scope = await resolveScope(db, body, role, { autoCreate: true, fullName });
@@ -346,10 +416,13 @@ async function createMemberFromBody(
     return { status: 500, body: { error: error.message } };
   }
 
+  await syncDistrictPastorDistricts(db, data.id, role, districtPastorDistrictIds);
+
   await writeAuditLog(db, viewer, "create_member", "members", data.id, {
     full_name: fullName,
     role,
     scope,
+    district_ids: districtPastorDistrictIds,
   });
 
   return { status: 200, body: { member: data } };
@@ -386,7 +459,11 @@ async function handleUpdateMember(
   }
 
   const requestedRole = normalizeRole(body?.role);
-  const targetRole = viewer.is_admin ? requestedRole || target.role : target.role;
+  const canChangeRole = viewer.is_admin || PREACHER_ROLES.has(viewer.role);
+  const targetRole = canChangeRole ? requestedRole || target.role : target.role;
+  if (!canChangeRole && requestedRole && requestedRole !== target.role) {
+    return json({ error: "No permission to change role." }, 403);
+  }
   const note = normalizeNote(body?.note);
   const scope = await resolveScope(db, body, targetRole, {
     autoCreate: false,
@@ -397,6 +474,13 @@ async function handleUpdateMember(
   }
   if (!canManageDistrict(viewer, scope.district_id)) {
     return json({ error: "No permission to edit this district." }, 403);
+  }
+  const districtPastorDistrictIds = normalizeDistrictIds(body?.district_ids);
+  if (targetRole === "district_pastor" && !districtPastorDistrictIds.length) {
+    return json({ error: "District pastor requires at least one district." }, 400);
+  }
+  if (targetRole === "district_pastor" && !districtPastorDistrictIds.every((id) => canManageDistrict(viewer, id))) {
+    return json({ error: "No permission to assign one or more districts." }, 403);
   }
 
   const { error } = await db
@@ -417,6 +501,8 @@ async function handleUpdateMember(
   if (error) {
     return json({ error: error.message }, 500);
   }
+
+  await syncDistrictPastorDistricts(db, target.id, targetRole, districtPastorDistrictIds);
 
   if (SMALL_GROUP_LEADER_ROLES.has(targetRole) && scope.small_group_id) {
     await db
@@ -453,10 +539,60 @@ async function handleUpdateMember(
       district_id: updated.district_id,
       big_family_id: updated.big_family_id,
       small_group_id: updated.small_group_id,
+      district_ids: districtPastorDistrictIds,
     },
   });
 
   return json({ member: updated });
+}
+
+async function handlePurgeMember(
+  db: ReturnType<typeof createAdminClient>,
+  viewer: MemberRow,
+  request: Request,
+) {
+  if (!canUseManagement(viewer)) {
+    return json({ error: "Forbidden." }, 403);
+  }
+  const body = await request.json().catch(() => null);
+  const memberId = toPositiveInt(body?.member_id);
+  if (!memberId) {
+    return json({ error: "member_id is required." }, 400);
+  }
+  if (memberId === viewer.id) {
+    return json({ error: "Cannot permanently delete yourself." }, 400);
+  }
+  const { data: target, error: targetError } = await db
+    .from("member_directory")
+    .select("*")
+    .eq("id", memberId)
+    .maybeSingle();
+  if (targetError) {
+    return json({ error: targetError.message }, 500);
+  }
+  if (!target) {
+    return json({ error: "Member not found." }, 404);
+  }
+  if (target.is_active) {
+    return json({ error: "Only archived members can be permanently deleted." }, 409);
+  }
+  if (!canEditProfile(viewer, target as MemberRow)) {
+    return json({ error: "No permission to delete this member." }, 403);
+  }
+
+  await writeAuditLog(db, viewer, "purge_member", "members", target.id, {
+    full_name: target.full_name,
+    role: target.role,
+    district_id: target.district_id,
+    big_family_id: target.big_family_id,
+    small_group_id: target.small_group_id,
+  });
+
+  const { error } = await db.from("members").delete().eq("id", target.id);
+  if (error) {
+    return json({ error: error.message }, 500);
+  }
+  return json({ ok: true, message: "人員與相關資料已完全刪除。" });
 }
 
 async function resolveScope(
@@ -469,7 +605,7 @@ async function resolveScope(
   const bigFamilyId = toPositiveInt(body?.big_family_id);
   const smallGroupId = toPositiveInt(body?.small_group_id);
 
-  if (role === "preacher") {
+  if (PREACHER_ROLES.has(role)) {
     if (smallGroupId) {
       const smallGroup = await getOne(db, "small_groups", smallGroupId);
       if (!smallGroup?.district_id) {
@@ -484,7 +620,11 @@ async function resolveScope(
     return { district_id: districtId || null, big_family_id: null, small_group_id: null };
   }
 
-  if (role === "district_leader") {
+  if (DISTRICT_PASTOR_ROLES.has(role)) {
+    return { district_id: null, big_family_id: null, small_group_id: null };
+  }
+
+  if (DISTRICT_LEADER_ROLES.has(role)) {
     if (districtId) {
       return { district_id: districtId, big_family_id: null, small_group_id: null };
     }
@@ -498,7 +638,7 @@ async function resolveScope(
     return { district_id: district.id, big_family_id: null, small_group_id: null };
   }
 
-  if (role === "big_family_leader") {
+  if (BIG_FAMILY_LEADER_ROLES.has(role)) {
     if (bigFamilyId) {
       const bigFamily = await getOne(db, "big_families", bigFamilyId);
       return bigFamily?.district_id
@@ -570,6 +710,30 @@ async function insertOne(db: ReturnType<typeof createAdminClient>, table: string
     throw new Error(error.message);
   }
   return data;
+}
+
+async function syncDistrictPastorDistricts(
+  db: ReturnType<typeof createAdminClient>,
+  memberId: number,
+  role: string,
+  districtIds: number[],
+) {
+  const { error: deleteError } = await db
+    .from("district_pastor_districts")
+    .delete()
+    .eq("district_pastor_id", memberId);
+  if (deleteError) {
+    throw new Error(deleteError.message);
+  }
+  if (role !== "district_pastor" || !districtIds.length) {
+    return;
+  }
+  const { error } = await db
+    .from("district_pastor_districts")
+    .insert(districtIds.map((districtId) => ({ district_pastor_id: memberId, district_id: districtId })));
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 async function handleDashboard(
@@ -895,7 +1059,7 @@ async function loadVisibleMembers(
   options: { manageAll?: boolean } = {},
 ) {
   let query = db.from("member_directory").select("*").eq("is_active", true).order("full_name");
-  if (viewer.is_admin || viewer.role === "preacher") {
+  if (viewer.is_admin || PREACHER_ROLES.has(viewer.role)) {
     if (viewer.small_group_id && !options.manageAll) {
       query = query.eq("small_group_id", viewer.small_group_id);
     }
@@ -906,14 +1070,22 @@ async function loadVisibleMembers(
     return (data || []) as MemberRow[];
   }
 
-  if (viewer.role === "district_leader") {
+  if (DISTRICT_PASTOR_ROLES.has(viewer.role)) {
+    const districtIds = getDistrictPastorDistrictIds(viewer);
+    if (!districtIds.length) {
+      return [];
+    }
+    query = query
+      .in("district_id", districtIds)
+      .in("role", ["district_pastor", "district_leader", "big_family_leader", "trainee_big_family_leader", "small_group_leader", "trainee_small_group_leader", "member", "best"]);
+  } else if (DISTRICT_LEADER_ROLES.has(viewer.role)) {
     query = query
       .eq("district_id", viewer.district_id || -1)
-      .in("role", ["district_leader", "big_family_leader", "small_group_leader", "trainee_small_group_leader", "member", "best"]);
-  } else if (viewer.role === "big_family_leader") {
+      .in("role", ["district_leader", "big_family_leader", "trainee_big_family_leader", "small_group_leader", "trainee_small_group_leader", "member", "best"]);
+  } else if (BIG_FAMILY_LEADER_ROLES.has(viewer.role)) {
     query = query
       .eq("big_family_id", viewer.big_family_id || -1)
-      .in("role", ["big_family_leader", "small_group_leader", "trainee_small_group_leader", "member", "best"]);
+      .in("role", ["big_family_leader", "trainee_big_family_leader", "small_group_leader", "trainee_small_group_leader", "member", "best"]);
   } else if (SMALL_GROUP_LEADER_ROLES.has(viewer.role)) {
     query = query
       .eq("small_group_id", viewer.small_group_id || -1)
@@ -936,17 +1108,16 @@ function canEditAttendance(viewer: MemberRow, target: MemberRow) {
   if (target.id === viewer.id) {
     return isLoginEnabled(viewer);
   }
-  if (viewer.is_admin || viewer.role === "preacher") {
+  if (viewer.is_admin || PREACHER_ROLES.has(viewer.role)) {
     return true;
   }
-  if (viewer.role === "district_leader") {
+  if (DISTRICT_PASTOR_ROLES.has(viewer.role) || DISTRICT_LEADER_ROLES.has(viewer.role)) {
     return (
-      Boolean(viewer.district_id) &&
-      viewer.district_id === target.district_id &&
+      canManageDistrict(viewer, target.district_id) &&
       canManageAttendanceTarget(viewer.role, target.role)
     );
   }
-  if (viewer.role === "big_family_leader") {
+  if (BIG_FAMILY_LEADER_ROLES.has(viewer.role)) {
     return (
       Boolean(viewer.big_family_id) &&
       viewer.big_family_id === target.big_family_id &&
@@ -968,8 +1139,8 @@ function canEditNote(viewer: MemberRow, target: MemberRow) {
 }
 
 function canManageAttendanceTarget(viewerRole: string, targetRole: string) {
-  const viewerOrder = ROLE_ORDER[viewerRole] || 99;
-  const targetOrder = ROLE_ORDER[targetRole] || 99;
+  const viewerOrder = ROLE_PERMISSION_TIER[viewerRole] || 99;
+  const targetOrder = ROLE_PERMISSION_TIER[targetRole] || 99;
   return targetOrder >= viewerOrder && targetOrder < 99;
 }
 
@@ -1009,7 +1180,7 @@ async function handleAttendanceOverview(
   viewer: MemberRow,
   url: URL,
 ) {
-  if (!(viewer.is_admin || ["preacher", "district_leader", "big_family_leader"].includes(viewer.role))) {
+  if (!(viewer.is_admin || PREACHER_ROLES.has(viewer.role) || DISTRICT_PASTOR_ROLES.has(viewer.role) || DISTRICT_LEADER_ROLES.has(viewer.role) || BIG_FAMILY_LEADER_ROLES.has(viewer.role))) {
     return { scope_label: "無權限", selected_week_start: "", weeks: [], units: [] };
   }
 
@@ -1100,10 +1271,16 @@ async function ensureWeek(db: ReturnType<typeof createAdminClient>, weekStart: s
 
 async function loadOverviewMembers(db: ReturnType<typeof createAdminClient>, viewer: MemberRow) {
   let query = db.from("member_directory").select("*").eq("is_active", true).order("full_name");
-  if (!viewer.is_admin && viewer.role !== "preacher") {
-    if (viewer.role === "district_leader") {
+  if (!viewer.is_admin && !PREACHER_ROLES.has(viewer.role)) {
+    if (DISTRICT_PASTOR_ROLES.has(viewer.role)) {
+      const districtIds = getDistrictPastorDistrictIds(viewer);
+      if (!districtIds.length) {
+        return [];
+      }
+      query = query.in("district_id", districtIds);
+    } else if (DISTRICT_LEADER_ROLES.has(viewer.role)) {
       query = query.eq("district_id", viewer.district_id || -1);
-    } else if (viewer.role === "big_family_leader") {
+    } else if (BIG_FAMILY_LEADER_ROLES.has(viewer.role)) {
       query = query.eq("big_family_id", viewer.big_family_id || -1);
     } else {
       return [];
@@ -1208,8 +1385,8 @@ async function buildUnits(
   options: OverviewRequestOptions,
 ) {
   const units = [];
-  const includeDistrict = viewer.is_admin || viewer.role === "preacher";
-  const includeBig = includeDistrict || viewer.role === "district_leader";
+  const includeDistrict = viewer.is_admin || PREACHER_ROLES.has(viewer.role) || DISTRICT_PASTOR_ROLES.has(viewer.role);
+  const includeBig = includeDistrict || DISTRICT_LEADER_ROLES.has(viewer.role);
 
   if (includeDistrict) {
     const districtIds = uniqueIds(members.map((member) => member.district_id));
@@ -1609,10 +1786,14 @@ function recentWeeks(anchorWeekStart: string, count: number) {
 }
 
 function getScopeLabel(viewer: MemberRow) {
-  if (viewer.is_admin || viewer.role === "preacher") {
+  if (viewer.is_admin || PREACHER_ROLES.has(viewer.role)) {
     return "全部牧區";
   }
-  if (viewer.role === "district_leader") {
+  if (DISTRICT_PASTOR_ROLES.has(viewer.role)) {
+    const count = getDistrictPastorDistrictIds(viewer).length;
+    return count ? `區牧轄區（${count} 區）` : "區牧轄區";
+  }
+  if (DISTRICT_LEADER_ROLES.has(viewer.role)) {
     return viewer.district_name ? `${viewer.district_name} 轄區` : "所屬區";
   }
   return viewer.big_family_name ? `${viewer.big_family_name} 轄區` : "所屬大家";

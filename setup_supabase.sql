@@ -44,8 +44,11 @@ create type public.member_gender as enum (
 
 create type public.member_role as enum (
   'preacher',
+  'trainee_preacher',
+  'district_pastor',
   'district_leader',
   'big_family_leader',
+  'trainee_big_family_leader',
   'small_group_leader',
   'trainee_small_group_leader',
   'member',
@@ -125,21 +128,28 @@ create table public.members (
   ),
   constraint members_scope_matches_role check (
     (
-      role = 'district_leader'
+      role::text = 'district_leader'
       and big_family_id is null
       and small_group_id is null
     )
     or (
-      role = 'preacher'
+      role::text in ('preacher', 'trainee_preacher', 'district_pastor')
     )
     or (
-      role = 'big_family_leader'
+      role::text in ('big_family_leader', 'trainee_big_family_leader')
       and small_group_id is null
     )
     or (
-      role in ('small_group_leader', 'trainee_small_group_leader', 'member', 'best')
+      role::text in ('small_group_leader', 'trainee_small_group_leader', 'member', 'best')
     )
   )
+);
+
+create table public.district_pastor_districts (
+  district_pastor_id bigint not null references public.members(id) on delete cascade,
+  district_id bigint not null references public.districts(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (district_pastor_id, district_id)
 );
 
 create table public.attendance_weeks (
@@ -246,6 +256,8 @@ create index idx_members_line_user_id on public.members (line_user_id);
 create index idx_members_district_role on public.members (district_id, role);
 create index idx_members_big_family_role on public.members (big_family_id, role);
 create index idx_members_small_group_role on public.members (small_group_id, role);
+create index idx_district_pastor_districts_district_id
+on public.district_pastor_districts (district_id, district_pastor_id);
 create index idx_members_active_district_lookup on public.members (district_id, role, full_name)
 where is_active;
 create index idx_members_active_big_family_lookup on public.members (big_family_id, role, full_name)
@@ -352,6 +364,7 @@ select
   m.line_user_id,
   m.is_active,
   m.last_line_login_at,
+  coalesce(dp.district_ids, array[]::bigint[]) as district_pastor_district_ids,
   m.district_id,
   d.name as district_name,
   coalesce(m.big_family_id, sg.big_family_id) as big_family_id,
@@ -364,12 +377,18 @@ from public.members m
 left join public.small_groups sg on sg.id = m.small_group_id
 left join public.districts d on d.id = coalesce(m.district_id, sg.district_id)
 left join public.big_families bf on bf.id = coalesce(m.big_family_id, sg.big_family_id)
+left join lateral (
+  select array_agg(dpd.district_id order by dpd.district_id) as district_ids
+  from public.district_pastor_districts dpd
+  where dpd.district_pastor_id = m.id
+) dp on true
 ;
 
 alter table public.districts enable row level security;
 alter table public.big_families enable row level security;
 alter table public.small_groups enable row level security;
 alter table public.members enable row level security;
+alter table public.district_pastor_districts enable row level security;
 alter table public.attendance_weeks enable row level security;
 alter table public.attendance_records enable row level security;
 alter table public.audit_logs enable row level security;

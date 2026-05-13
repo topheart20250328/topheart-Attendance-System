@@ -10,8 +10,11 @@ export const corsHeaders = {
 
 export const LOGIN_ENABLED_ROLES = new Set([
   "preacher",
+  "trainee_preacher",
+  "district_pastor",
   "district_leader",
   "big_family_leader",
+  "trainee_big_family_leader",
   "small_group_leader",
   "trainee_small_group_leader",
 ]);
@@ -26,8 +29,11 @@ export type MemberDirectoryRow = {
   note_priority_high: boolean;
   role:
     | "preacher"
+    | "trainee_preacher"
+    | "district_pastor"
     | "district_leader"
     | "big_family_leader"
+    | "trainee_big_family_leader"
     | "small_group_leader"
     | "trainee_small_group_leader"
     | "member"
@@ -36,6 +42,7 @@ export type MemberDirectoryRow = {
   line_user_id: string | null;
   is_active: boolean;
   last_line_login_at: string | null;
+  district_pastor_district_ids: number[] | null;
   district_id: number | null;
   district_name: string | null;
   big_family_id: number | null;

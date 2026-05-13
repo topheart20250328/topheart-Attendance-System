@@ -1859,9 +1859,24 @@ tbody tr:last-child td {
   color: #7c2d12;
 }
 
+.role-pill.role-trainee_preacher {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.role-pill.role-district_pastor {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
 .role-pill.role-big_family_leader {
   background: #ede6ff;
   color: #5e3ea5;
+}
+
+.role-pill.role-trainee_big_family_leader {
+  background: #f3e8ff;
+  color: #6b21a8;
 }
 
 .role-pill.role-small_group_leader,
@@ -2985,16 +3000,17 @@ tbody tr:last-child td {
 .org-flow-row,
 .org-flow-branch {
   position: relative;
-  display: inline-grid;
-  grid-template-columns: 132px max-content;
+  display: grid;
+  justify-items: center;
   align-items: start;
-  gap: 22px;
+  gap: 16px;
   width: max-content;
   max-width: none;
 }
 
 .org-flow-row {
-  min-width: 100%;
+  justify-self: center;
+  min-width: max-content;
   padding: 10px;
   border: 1px solid rgba(217, 226, 240, 0.86);
   border-radius: 18px;
@@ -3003,14 +3019,17 @@ tbody tr:last-child td {
 }
 
 .org-flow-branch + .org-flow-branch {
-  margin-top: 8px;
+  margin-top: 0;
 }
 
 .org-flow-branches {
   position: relative;
-  display: grid;
-  gap: 8px;
-  padding-left: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 14px;
+  padding-top: 16px;
 }
 
 .org-flow-row > .org-flow-branches::before,
@@ -3018,33 +3037,37 @@ tbody tr:last-child td {
 .org-flow-small-branch > .org-flow-members::before {
   content: "";
   position: absolute;
-  top: 19px;
-  left: -22px;
-  width: 22px;
-  height: 2px;
-  background: linear-gradient(90deg, rgba(43, 111, 243, 0.54), rgba(43, 111, 243, 0.12));
+  top: 0;
+  left: 50%;
+  width: 2px;
+  height: 16px;
+  background: linear-gradient(180deg, rgba(43, 111, 243, 0.54), rgba(43, 111, 243, 0.12));
 }
 
-.org-flow-branches > .org-flow-branch:not(:last-child)::after {
+.org-flow-branches::after {
   content: "";
   position: absolute;
-  top: 19px;
-  left: -6px;
-  width: 2px;
-  height: calc(100% + 8px);
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 2px;
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(43, 111, 243, 0.12), rgba(43, 111, 243, 0.52), rgba(43, 111, 243, 0.12));
+  background: linear-gradient(90deg, rgba(43, 111, 243, 0.08), rgba(43, 111, 243, 0.44), rgba(43, 111, 243, 0.08));
 }
 
 .org-flow-branch::before {
   content: "";
   position: absolute;
-  top: 19px;
-  left: -6px;
-  width: 22px;
-  height: 2px;
+  top: 0;
+  left: 50%;
+  width: 2px;
+  height: 16px;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(43, 111, 243, 0.46), rgba(43, 111, 243, 0.1));
+  background: linear-gradient(180deg, rgba(43, 111, 243, 0.46), rgba(43, 111, 243, 0.1));
+}
+
+.org-flow-row::before {
+  content: none;
 }
 
 .org-flow-row > .org-flow-branches > .org-flow-branch,
@@ -3057,8 +3080,10 @@ tbody tr:last-child td {
   position: relative;
   z-index: 2;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 5px;
   min-height: 38px;
   padding: 7px 10px;
   border: 1px solid rgba(43, 111, 243, 0.24);
@@ -3068,6 +3093,22 @@ tbody tr:last-child td {
   color: #1e3a8a;
   box-shadow: 0 6px 14px rgba(43, 111, 243, 0.08);
   text-align: center;
+}
+
+.org-collapse-btn {
+  min-height: 24px;
+  padding: 0.1rem 0.48rem;
+  border: 1px solid rgba(43, 111, 243, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  color: inherit;
+  font-size: 0.72rem;
+  box-shadow: none;
+}
+
+.org-flow-row.is-collapsed > .org-flow-children,
+.org-flow-branch.is-collapsed > .org-flow-children {
+  display: none;
 }
 
 .org-flow-node-big_family {
@@ -3198,7 +3239,10 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-vertical-tree .org-flow-branches {
+  display: grid;
+  justify-content: stretch;
   gap: 8px;
+  padding-top: 0;
   padding-left: 12px;
   border-left: 2px solid rgba(43, 111, 243, 0.16);
 }
@@ -3207,11 +3251,12 @@ tbody tr:last-child td {
 .org-tree-board.is-vertical-tree .org-flow-branch > .org-flow-branches::before,
 .org-tree-board.is-vertical-tree .org-flow-small-branch > .org-flow-members::before,
 .org-tree-board.is-vertical-tree .org-flow-branch::before,
-.org-tree-board.is-vertical-tree .org-flow-branches > .org-flow-branch:not(:last-child)::after {
+.org-tree-board.is-vertical-tree .org-flow-branches::after {
   display: none;
 }
 
 .org-tree-board.is-vertical-tree .org-flow-node {
+  flex-direction: row;
   justify-content: flex-start;
   min-height: 32px;
   padding: 6px 9px;
@@ -3232,7 +3277,12 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-exporting .org-flow-row {
-  min-width: 0;
+  min-width: max-content;
+}
+
+.org-tree-board.is-exporting .org-flow-row.is-collapsed > .org-flow-children,
+.org-tree-board.is-exporting .org-flow-branch.is-collapsed > .org-flow-children {
+  display: none !important;
 }
 
 .org-tree-board.is-exporting .org-flow-members {
