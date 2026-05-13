@@ -4638,18 +4638,27 @@ body.is-authenticated .toast {
   }
 
   body.is-authenticated .page-shell {
+    display: grid;
+    justify-items: center;
     width: 100%;
     max-width: 100%;
-    padding-right: 8px;
-    padding-left: 8px;
+    padding-right: 0;
+    padding-left: 0;
     padding-top: max(4px, env(safe-area-inset-top));
   }
 
   body.is-authenticated .app-header,
   body.is-authenticated .card {
-    width: 100%;
-    max-width: 100%;
+    width: calc(100vw - 16px);
+    max-width: 420px;
+    margin-right: auto;
+    margin-left: auto;
     margin-bottom: 6px;
+  }
+
+  body.is-authenticated #attendanceView.card,
+  body.is-authenticated #navCard.card {
+    justify-self: center;
   }
 
   body.is-authenticated .user-bar {
@@ -4766,6 +4775,8 @@ body.is-authenticated .toast {
   }
 
   #attendanceView .week-label input {
+    width: 100%;
+    min-width: 0;
     min-height: 34px;
     padding: 0.3rem 0.32rem;
     font-size: 0.9rem;
