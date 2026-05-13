@@ -4599,6 +4599,13 @@ body.is-authenticated .toast {
 }
 
 @media (max-width: 720px) {
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
   body.is-authenticated .app-header > div:first-child,
   #attendanceView .card-header,
   #attendanceView .info-panel,
@@ -4631,12 +4638,17 @@ body.is-authenticated .toast {
   }
 
   body.is-authenticated .page-shell {
-    width: min(1180px, calc(100vw - 16px));
+    width: 100%;
+    max-width: 100%;
+    padding-right: 8px;
+    padding-left: 8px;
     padding-top: max(4px, env(safe-area-inset-top));
   }
 
   body.is-authenticated .app-header,
   body.is-authenticated .card {
+    width: 100%;
+    max-width: 100%;
     margin-bottom: 6px;
   }
 
@@ -4949,7 +4961,7 @@ body.is-authenticated .toast {
   #attendanceView .attendance-save-bar {
     bottom: env(safe-area-inset-bottom);
     padding: 6px;
-    margin-inline: -2px;
+    margin-inline: 0;
   }
 
   #attendanceView .attendance-save-meta {
