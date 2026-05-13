@@ -1640,6 +1640,7 @@ function renderAttendanceRows() {
       const readonlyBadge = member.can_edit_attendance
         ? ""
         : '<span class="status-chip neutral">僅檢視</span>';
+      const shouldOpenNote = window.matchMedia("(min-width: 961px)").matches || member.note.trim();
 
       return `
         ${groupHeader}
@@ -1668,7 +1669,7 @@ function renderAttendanceRows() {
             ${renderAttendanceEventCard(member, "small_group_fellowship", "小家")}
           </div>
 
-          <details class="attendance-note-details${member.note.trim() ? " is-filled" : ""}">
+          <details class="attendance-note-details${member.note.trim() ? " is-filled" : ""}"${shouldOpenNote ? " open" : ""}>
             <summary>${buildNoteSummary(member)}</summary>
             <div class="attendance-note-panel">
               <textarea

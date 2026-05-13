@@ -3782,6 +3782,58 @@ tbody tr:last-child td {
 }
 
 @media (min-width: 961px) {
+  #attendanceView .attendance-card {
+    grid-template-columns: minmax(150px, 0.7fr) minmax(250px, 0.82fr) minmax(380px, 1.55fr);
+    align-items: start;
+  }
+
+  #attendanceView .attendance-event-grid {
+    justify-self: start;
+    width: min(100%, 290px);
+    gap: 7px;
+  }
+
+  #attendanceView .attendance-event-card {
+    gap: 6px;
+    padding: 8px;
+    border-radius: 14px;
+  }
+
+  #attendanceView .attendance-event-head {
+    gap: 6px;
+  }
+
+  #attendanceView .attendance-event-title,
+  #attendanceView .attendance-status-text {
+    font-size: 0.78rem;
+  }
+
+  #attendanceView .attendance-option {
+    min-height: 32px;
+    padding: 0.36rem 0.45rem;
+    border-radius: 10px;
+    font-size: 0.8rem;
+  }
+
+  #attendanceView .attendance-note-details {
+    width: 100%;
+    padding-top: 0;
+    border-top: none;
+  }
+
+  #attendanceView .attendance-note-details summary {
+    margin-bottom: 7px;
+  }
+
+  #attendanceView .attendance-note-panel {
+    margin-top: 0;
+  }
+
+  #attendanceView .attendance-note-panel textarea {
+    min-height: 86px;
+    margin-top: 0;
+  }
+
   #orgsView .org-management-panel {
     padding: 16px;
   }
@@ -3811,18 +3863,37 @@ tbody tr:last-child td {
   }
 
   #orgsView .org-scope-children {
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    align-items: start;
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+    align-items: stretch;
     gap: 10px;
   }
 
   #orgsView .compact-org-list {
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    align-items: start;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    align-items: stretch;
     gap: 8px;
   }
 
+  #orgsView .org-level-big-family,
+  #orgsView .org-level-small-group {
+    display: grid;
+    align-content: start;
+  }
+
+  #orgsView .org-level-big-family > summary,
+  #orgsView .org-level-small-group > summary {
+    min-height: 42px;
+    align-items: center;
+  }
+
+  #orgsView .org-level-big-family .org-scope-body,
+  #orgsView .org-level-small-group .org-scope-body {
+    align-content: start;
+  }
+
   #orgsView .org-card {
+    grid-template-columns: 1fr;
+    align-items: start;
     gap: 10px;
     padding: 11px 12px;
   }
@@ -3835,16 +3906,31 @@ tbody tr:last-child td {
   }
 
   #orgsView .org-card .row-actions {
-    justify-content: flex-end;
+    justify-content: flex-start;
     flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  #orgsView .org-card .row-actions > button {
+    min-height: 28px;
+    padding: 0.25rem 0.48rem;
+    font-size: 0.74rem;
   }
 
   #orgsView .org-card-chips,
   #orgsView .org-card-description,
   #orgsView .org-card-hint,
   #orgsView .org-card-subline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
     justify-content: flex-start;
     text-align: left;
+  }
+
+  #orgsView .org-card-hint {
+    margin: 0;
+    line-height: 1.45;
   }
 }
 
