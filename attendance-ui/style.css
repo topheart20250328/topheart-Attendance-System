@@ -4603,7 +4603,7 @@ body.is-authenticated .toast {
   body {
     width: 100%;
     max-width: 100%;
-    overflow-x: hidden;
+    overflow-x: visible;
   }
 
   body.is-authenticated .app-header > div:first-child,
@@ -4640,8 +4640,8 @@ body.is-authenticated .toast {
 
   body.is-authenticated #attendanceView.card {
     width: 100%;
-    overflow-x: clip;
-    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+    overflow: visible;
+    padding-bottom: calc(18px + env(safe-area-inset-bottom));
   }
 
   body.is-authenticated .page-shell {
@@ -4987,17 +4987,15 @@ body.is-authenticated .toast {
   }
 
   #attendanceView .attendance-save-bar {
-    position: fixed;
-    right: max(8px, env(safe-area-inset-right));
-    bottom: max(6px, env(safe-area-inset-bottom));
-    left: max(8px, env(safe-area-inset-left));
-    z-index: 30;
-    width: auto;
-    max-width: 420px;
+    position: sticky;
+    right: auto;
+    bottom: calc(4px + env(safe-area-inset-bottom));
+    left: auto;
+    z-index: 5;
+    width: 100%;
+    max-width: none;
     padding: 6px;
     margin-inline: 0;
-    margin-right: auto;
-    margin-left: auto;
   }
 
   #attendanceView .attendance-save-meta {
