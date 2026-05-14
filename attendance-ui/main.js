@@ -5349,34 +5349,56 @@ async function handleCaptureOrganizationTree() {
       canvas ? canvas.scrollHeight + 20 : 0,
     );
     const pixelRatio = getOrganizationTreeExportPixelRatio(width, height, useMobileExport);
-    const dataUrl = await withTimeout(
-      htmlToImage.toPng(els.orgTreeBody, {
-        cacheBust: true,
-        pixelRatio,
-        skipAutoScale: true,
-        width,
-        height,
-        style: {
-          width: `${width}px`,
-          height: `${height}px`,
-          overflow: "visible",
-          background: "#ffffff",
-        },
-      }),
-      30000,
-      "截圖產生逾時",
-    );
+    const dataUrl = await captureOrganizationTreePng(htmlToImage, els.orgTreeBody, {
+      width,
+      height,
+      pixelRatio,
+    });
     await saveOrganizationTreeImage(dataUrl, fileName);
     showToast("已產生組織樹截圖。");
   } catch (error) {
     console.error(error);
-    showToast("產生截圖失敗，請稍後再試。");
+    showToast(error.message || "產生截圖失敗，請稍後再試。");
   } finally {
     els.orgTreeBody.classList.remove("is-exporting");
     els.orgTreeBody.scrollLeft = previousScrollLeft;
     els.orgTreeBody.scrollTop = previousScrollTop;
     setButtonLoading(els.captureOrgTreeBtn, false);
   }
+}
+
+async function captureOrganizationTreePng(htmlToImage, target, { width, height, pixelRatio }) {
+  const attempts = [...new Set([pixelRatio, Math.min(pixelRatio, 2), Math.min(pixelRatio, 1.5), 1])]
+    .filter((ratio) => ratio > 0)
+    .sort((left, right) => right - left);
+  let lastError = null;
+
+  for (const ratio of attempts) {
+    try {
+      return await withTimeout(
+        htmlToImage.toPng(target, {
+          cacheBust: true,
+          pixelRatio: ratio,
+          skipAutoScale: true,
+          width,
+          height,
+          style: {
+            width: `${width}px`,
+            height: `${height}px`,
+            overflow: "visible",
+            background: "#ffffff",
+          },
+        }),
+        30000,
+        `截圖產生逾時（${ratio.toFixed(2)}x）`,
+      );
+    } catch (error) {
+      lastError = error;
+      console.warn(`組織樹截圖以 ${ratio.toFixed(2)}x 產生失敗，改用較低解析度重試。`, error);
+    }
+  }
+
+  throw lastError || new Error("截圖產生失敗。");
 }
 
 function withTimeout(promise, timeoutMs, message) {

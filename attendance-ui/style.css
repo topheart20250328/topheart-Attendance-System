@@ -3887,27 +3887,19 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-exporting .org-flow-node {
-  background-image: none !important;
-  background-color: #edf4ff !important;
-  background-clip: padding-box;
-}
-
-.org-tree-board.is-exporting .org-flow-node-big_family {
-  background-color: #f2edff !important;
-}
-
-.org-tree-board.is-exporting .org-flow-node-small_group {
-  background-color: #eaf8ff !important;
-}
-
-.org-tree-board.is-exporting .org-flow-node-member_bucket {
-  background-color: #f8fafc !important;
+  overflow: hidden;
+  isolation: isolate;
+  contain: paint;
+  background-clip: border-box;
 }
 
 .org-tree-board.is-exporting .org-member-pill,
 .org-tree-board.is-exporting .name-card,
 .org-tree-board.is-exporting .role-pill {
-  background-clip: padding-box;
+  overflow: hidden;
+  isolation: isolate;
+  contain: paint;
+  background-clip: border-box;
 }
 
 .org-tree-board.is-exporting .org-flow-row.is-collapsed > .org-flow-children,
