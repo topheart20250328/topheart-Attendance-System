@@ -2121,7 +2121,7 @@ async function loadVisibleMembers(
       throw new Error(error.message);
     }
 
-    return (data || []) as MemberDirectoryRow[];
+    return await attachEquipmentProgress(adminClient, (data || []) as MemberDirectoryRow[]);
   }
 
   if (PREACHER_ROLES.has(viewer.role)) {
@@ -2130,7 +2130,7 @@ async function loadVisibleMembers(
       throw new Error(error.message);
     }
 
-    return (data || []) as MemberDirectoryRow[];
+    return await attachEquipmentProgress(adminClient, (data || []) as MemberDirectoryRow[]);
   }
 
   if (DISTRICT_PASTOR_ROLES.has(viewer.role)) {
@@ -2198,7 +2198,41 @@ async function loadVisibleMembers(
     throw new Error(error.message);
   }
 
-  return (data || []) as MemberDirectoryRow[];
+  return await attachEquipmentProgress(adminClient, (data || []) as MemberDirectoryRow[]);
+}
+
+async function attachEquipmentProgress(
+  adminClient: ReturnType<typeof createAdminClient>,
+  members: MemberDirectoryRow[],
+): Promise<MemberDirectoryRow[]> {
+  if (!members.length) {
+    return members;
+  }
+
+  const memberIds = members.map((member) => member.id);
+  const { data, error } = await adminClient
+    .from("members")
+    .select("id, equipment_progress")
+    .in("id", memberIds);
+
+  if (error) {
+    console.warn("Equipment progress lookup skipped", error.message);
+    return members.map((member) => ({
+      ...member,
+      equipment_progress: normalizeEquipmentProgress(member.equipment_progress),
+    }));
+  }
+
+  const progressById = new Map(
+    (data || []).map((member) => [
+      member.id,
+      normalizeEquipmentProgress(member.equipment_progress),
+    ]),
+  );
+  return members.map((member) => ({
+    ...member,
+    equipment_progress: progressById.get(member.id) || normalizeEquipmentProgress(member.equipment_progress),
+  }));
 }
 
 async function loadAttendanceMap(
@@ -2648,8 +2682,12 @@ async function buildAdminOverview(
     throw new Error(memberError.message);
   }
 
+  const enrichedMembers = await attachEquipmentProgress(
+    adminClient,
+    (members || []) as MemberDirectoryRow[],
+  );
   const memberMap = new Map<number, MemberDirectoryRow>(
-    (members || []).map((member) => [member.id, member as MemberDirectoryRow]),
+    enrichedMembers.map((member) => [member.id, member]),
   );
   const { data: inviteRows, error: inviteError } = await adminClient
     .from("login_invites")
@@ -2724,7 +2762,7 @@ async function buildAdminOverview(
         ? bigFamilyMap.get(smallGroup.big_family_id)?.name || null
         : null,
     })),
-    members: members || [],
+    members: enrichedMembers,
     invites,
   };
 }
@@ -2818,7 +2856,7 @@ async function loadOverviewMembers(
     throw new Error(error.message);
   }
 
-  return (data || []) as MemberDirectoryRow[];
+  return await attachEquipmentProgress(adminClient, (data || []) as MemberDirectoryRow[]);
 }
 
 async function loadOverviewOrganizations(

@@ -1086,7 +1086,7 @@ async function loadVisibleMembers(
     if (error) {
       throw new Error(error.message);
     }
-    return (data || []) as MemberRow[];
+    return await attachEquipmentProgress(db, (data || []) as MemberRow[]);
   }
 
   if (DISTRICT_PASTOR_ROLES.has(viewer.role)) {
@@ -1117,7 +1117,41 @@ async function loadVisibleMembers(
   if (error) {
     throw new Error(error.message);
   }
-  return (data || []) as MemberRow[];
+  return await attachEquipmentProgress(db, (data || []) as MemberRow[]);
+}
+
+async function attachEquipmentProgress(
+  db: ReturnType<typeof createAdminClient>,
+  members: MemberRow[],
+) {
+  if (!members.length) {
+    return members;
+  }
+
+  const memberIds = members.map((member) => member.id);
+  const { data, error } = await db
+    .from("members")
+    .select("id, equipment_progress")
+    .in("id", memberIds);
+
+  if (error) {
+    console.warn("Equipment progress lookup skipped", error.message);
+    return members.map((member) => ({
+      ...member,
+      equipment_progress: normalizeEquipmentProgress(member.equipment_progress),
+    }));
+  }
+
+  const progressById = new Map(
+    (data || []).map((member) => [
+      member.id,
+      normalizeEquipmentProgress(member.equipment_progress),
+    ]),
+  );
+  return members.map((member) => ({
+    ...member,
+    equipment_progress: progressById.get(member.id) || normalizeEquipmentProgress(member.equipment_progress),
+  }));
 }
 
 function canEditAttendance(viewer: MemberRow, target: MemberRow) {
@@ -1309,7 +1343,7 @@ async function loadOverviewMembers(db: ReturnType<typeof createAdminClient>, vie
   if (error) {
     throw new Error(error.message);
   }
-  return (data || []) as MemberRow[];
+  return await attachEquipmentProgress(db, (data || []) as MemberRow[]);
 }
 
 async function loadRecords(
