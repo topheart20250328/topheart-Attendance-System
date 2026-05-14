@@ -3788,11 +3788,10 @@ tbody tr:last-child td {
   content: "";
   position: absolute;
   top: -3px;
-  bottom: 5px;
   left: 6px;
   display: block;
   width: 2px;
-  height: auto;
+  height: 19px;
   border-radius: 999px;
   background: linear-gradient(180deg, rgba(96, 165, 250, 0.18), rgba(43, 111, 243, 0.5), rgba(96, 165, 250, 0.18));
 }
@@ -3814,7 +3813,15 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-vertical-tree .org-flow-branches > .org-flow-branch:not(:last-child)::after {
-  display: none;
+  content: "";
+  position: absolute;
+  top: 16px;
+  left: calc(-1 * var(--org-tree-vertical-gutter) + 6px);
+  display: block;
+  width: 2px;
+  height: calc(100% + 7px);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(43, 111, 243, 0.44), rgba(96, 165, 250, 0.18));
 }
 
 .org-tree-board.is-vertical-tree .org-flow-node {
