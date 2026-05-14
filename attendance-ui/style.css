@@ -3149,7 +3149,7 @@ tbody tr:last-child td {
 
 .org-tree-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
   justify-content: end;
   gap: 6px;
@@ -3162,6 +3162,22 @@ tbody tr:last-child td {
   border: 1px solid rgba(217, 226, 240, 0.92);
   border-radius: 999px;
   background: #f8fbff;
+}
+
+.org-tree-zoom-control {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid rgba(217, 226, 240, 0.92);
+  border-radius: 999px;
+  background: #f8fbff;
+}
+
+.org-tree-zoom-control > button {
+  min-height: 30px;
+  padding: 0.28rem 0.5rem;
+  border-radius: 999px;
+  box-shadow: none;
 }
 
 .org-tree-mode-control > button {
@@ -3183,11 +3199,19 @@ tbody tr:last-child td {
     width: 100%;
   }
 
-  .org-tree-mode-control {
+  .org-tree-mode-control,
+  .org-tree-zoom-control {
     grid-column: 1 / -1;
     display: grid;
-    grid-template-columns: 1fr 1fr;
     width: 100%;
+  }
+
+  .org-tree-mode-control {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .org-tree-zoom-control {
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .org-tree-actions > button {
@@ -3197,7 +3221,7 @@ tbody tr:last-child td {
 }
 
 .org-tree-board {
-  --org-tree-scale: 1;
+  --org-tree-density: 1;
   display: grid;
   align-items: start;
   gap: 12px;
@@ -3415,7 +3439,7 @@ tbody tr:last-child td {
   grid-template-columns: 1fr;
   justify-items: center;
   align-items: start;
-  gap: 18px;
+  gap: calc(18px * var(--org-tree-density, 1));
   width: max-content;
   min-width: 132px;
   max-width: none;
@@ -3437,19 +3461,19 @@ tbody tr:last-child td {
   flex-wrap: wrap;
   justify-content: center;
   align-items: flex-start;
-  gap: 18px;
+  gap: calc(18px * var(--org-tree-density, 1));
   width: max-content;
   min-width: 132px;
-  padding-top: 20px;
+  padding-top: calc(20px * var(--org-tree-density, 1));
   padding-left: 0;
 }
 
 .org-tree-board.is-compact-tree .org-flow-row > .org-flow-branches::before,
 .org-tree-board.is-compact-tree .org-flow-branch > .org-flow-branches::before {
-  top: -18px;
+  top: calc(-18px * var(--org-tree-density, 1));
   left: 50%;
   width: 2px;
-  height: 18px;
+  height: calc(18px * var(--org-tree-density, 1));
   border-radius: 999px;
   background: linear-gradient(180deg, rgba(43, 111, 243, 0.42), rgba(43, 111, 243, 0.1));
 }
@@ -3479,10 +3503,10 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-compact-tree .org-flow-branch::before {
-  top: -20px;
+  top: calc(-20px * var(--org-tree-density, 1));
   left: 50%;
   width: 2px;
-  height: 20px;
+  height: calc(20px * var(--org-tree-density, 1));
   border-radius: 999px;
   background: linear-gradient(180deg, rgba(43, 111, 243, 0.36), rgba(43, 111, 243, 0.08));
 }
@@ -3496,10 +3520,10 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-compact-tree .org-flow-small-branch > .org-flow-members::before {
-  top: -18px;
+  top: calc(-18px * var(--org-tree-density, 1));
   left: 50%;
   width: 2px;
-  height: 18px;
+  height: calc(18px * var(--org-tree-density, 1));
   border-radius: 999px;
   background: linear-gradient(180deg, rgba(43, 111, 243, 0.34), rgba(43, 111, 243, 0.08));
 }
@@ -5011,8 +5035,6 @@ body.is-authenticated .toast {
   #orgsView .org-tree-board.is-compact-tree .org-flow-row {
     justify-self: start;
     margin-inline: 0;
-    zoom: var(--org-tree-scale, 1);
-    transform-origin: top left;
   }
 
   #orgsView .org-tree-board.is-compact-tree .org-flow-branches {
