@@ -111,6 +111,7 @@ create table public.members (
   note text not null default '',
   note_carry_forward boolean not null default true,
   note_priority_high boolean not null default false,
+  equipment_progress text not null default 'none',
   role public.member_role not null,
   is_admin boolean not null default false,
   line_user_id text unique,
@@ -125,6 +126,9 @@ create table public.members (
   constraint members_note_length check (length(note) <= 1000),
   constraint members_line_user_id_not_blank check (
     line_user_id is null or btrim(line_user_id) <> ''
+  ),
+  constraint members_equipment_progress_valid check (
+    equipment_progress in ('none', 'growth', 'disciple', 'leader')
   ),
   constraint members_scope_matches_role check (
     (
@@ -363,6 +367,7 @@ select
   m.note,
   m.note_carry_forward,
   m.note_priority_high,
+  m.equipment_progress,
   m.role,
   m.is_admin,
   m.line_user_id,

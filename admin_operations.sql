@@ -144,6 +144,70 @@ create index if not exists idx_attendance_records_week_member_event
 on public.attendance_records (attendance_week_id, member_id, event_type);
 
 -- =========================================================
+-- 0E. 既有資料庫升級：新增裝備課程進度
+-- 已經跑過新版 setup_supabase.sql 的全新資料庫不需要再跑。
+-- =========================================================
+alter table public.members
+add column if not exists equipment_progress text not null default 'none';
+
+update public.members
+set equipment_progress = 'none'
+where equipment_progress is null
+or equipment_progress not in ('none', 'growth', 'disciple', 'leader');
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'members_equipment_progress_valid'
+      and conrelid = 'public.members'::regclass
+  ) then
+    alter table public.members
+    add constraint members_equipment_progress_valid check (
+      equipment_progress in ('none', 'growth', 'disciple', 'leader')
+    );
+  end if;
+end $$;
+
+drop view if exists public.member_directory;
+
+create view public.member_directory
+with (security_invoker = true) as
+select
+  m.id,
+  m.full_name,
+  m.birthday,
+  m.gender,
+  m.note,
+  m.note_carry_forward,
+  m.note_priority_high,
+  m.equipment_progress,
+  m.role,
+  m.is_admin,
+  m.line_user_id,
+  m.is_active,
+  m.last_line_login_at,
+  coalesce(dp.district_ids, array[]::bigint[]) as district_pastor_district_ids,
+  m.district_id,
+  d.name as district_name,
+  coalesce(m.big_family_id, sg.big_family_id) as big_family_id,
+  bf.name as big_family_name,
+  m.small_group_id,
+  sg.name as small_group_name,
+  m.created_at,
+  m.updated_at
+from public.members m
+left join public.small_groups sg on sg.id = m.small_group_id
+left join public.districts d on d.id = coalesce(m.district_id, sg.district_id)
+left join public.big_families bf on bf.id = coalesce(m.big_family_id, sg.big_family_id)
+left join lateral (
+  select array_agg(dpd.district_id order by dpd.district_id) as district_ids
+  from public.district_pastor_districts dpd
+  where dpd.district_pastor_id = m.id
+) dp on true;
+
+-- =========================================================
 -- A. 第一次登入後，查看待綁定的 LINE 身分
 -- =========================================================
 select

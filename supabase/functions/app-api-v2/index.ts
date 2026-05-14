@@ -18,6 +18,7 @@ type MemberRow = {
   note: string | null;
   note_carry_forward: boolean | null;
   note_priority_high: boolean | null;
+  equipment_progress: string;
   district_pastor_district_ids?: number[] | null;
 };
 
@@ -100,6 +101,7 @@ const ROLE_PERMISSION_TIER: Record<string, number> = {
   best: 7,
 };
 const VALID_STATUS = new Set(["unknown", "present", "absent"]);
+const EQUIPMENT_PROGRESS_VALUES = new Set(["none", "growth", "disciple", "leader"]);
 const NOTE_MAX_LENGTH = 1000;
 const HISTORY_RANGES = [
   { key: "month", label: "本月", weeksBack: 0 },
@@ -290,6 +292,11 @@ function normalizeGender(value: unknown) {
   return ["brother", "sister"].includes(gender) ? gender : null;
 }
 
+function normalizeEquipmentProgress(value: unknown) {
+  const progress = String(value || "").trim();
+  return EQUIPMENT_PROGRESS_VALUES.has(progress) ? progress : "none";
+}
+
 function getDistrictPastorDistrictIds(member: MemberRow) {
   return (member.district_pastor_district_ids || [])
     .map((value) => Number(value))
@@ -375,6 +382,7 @@ async function createMemberFromBody(
   const role = normalizeRole(body?.role);
   const isAdmin = Boolean(body?.is_admin);
   const note = normalizeNote(body?.note);
+  const equipmentProgress = normalizeEquipmentProgress(body?.equipment_progress);
   if (!fullName || !role) {
     return { status: 400, body: { error: "請完整填寫姓名與職分。" } };
   }
@@ -402,6 +410,7 @@ async function createMemberFromBody(
       role,
       gender: normalizeGender(body?.gender),
       note,
+      equipment_progress: equipmentProgress,
       is_admin: viewer.is_admin ? isAdmin : false,
       is_active: body?.is_active !== false,
       district_id: scope.district_id,
@@ -420,6 +429,7 @@ async function createMemberFromBody(
   await writeAuditLog(db, viewer, "create_member", "members", data.id, {
     full_name: fullName,
     role,
+    equipment_progress: equipmentProgress,
     scope,
     district_ids: districtPastorDistrictIds,
   });
@@ -486,6 +496,7 @@ async function handleUpdateMember(
       role: targetRole,
       gender: normalizeGender(body?.gender),
       note,
+      equipment_progress: normalizeEquipmentProgress(body?.equipment_progress ?? target.equipment_progress),
       is_admin: viewer.is_admin ? Boolean(body?.is_admin) : target.is_admin,
       is_active: body?.is_active !== false,
       district_id: scope.district_id,
@@ -523,6 +534,7 @@ async function handleUpdateMember(
     before: {
       full_name: target.full_name,
       role: target.role,
+      equipment_progress: target.equipment_progress,
       is_active: target.is_active,
       district_id: target.district_id,
       big_family_id: target.big_family_id,
@@ -531,6 +543,7 @@ async function handleUpdateMember(
     after: {
       full_name: updated.full_name,
       role: updated.role,
+      equipment_progress: updated.equipment_progress,
       is_active: updated.is_active,
       district_id: updated.district_id,
       big_family_id: updated.big_family_id,
@@ -1670,6 +1683,7 @@ function detail(
       full_name: member.full_name,
       role: member.role,
       gender: member.gender,
+      equipment_progress: member.equipment_progress || "none",
       note: String(record?.note || "").trim(),
       note_priority_high: Boolean(record?.note && record?.note_priority_high),
       history: historyMap.get(member.id) || createEmptyHistorySummary(formatDate(new Date())),

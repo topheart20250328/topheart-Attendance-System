@@ -1468,6 +1468,7 @@ async function handleCreateMember(
   const birthday = body?.birthday ? String(body.birthday) : null;
   const gender = normalizeGender(body?.gender);
   const note = normalizeNote(body?.note);
+  const equipmentProgress = normalizeEquipmentProgress(body?.equipment_progress);
 
   if (!fullName || !role) {
     return jsonResponse({ error: "full_name and role are required." }, 400);
@@ -1511,6 +1512,7 @@ async function handleCreateMember(
       birthday,
       gender,
       note,
+      equipment_progress: equipmentProgress,
       role,
       is_admin: sessionContext.member.is_admin ? isAdmin : false,
       district_id: scope.district_id,
@@ -1613,6 +1615,7 @@ async function handleUpdateMember(
     birthday: body?.birthday ? String(body.birthday) : null,
     gender: normalizeGender(body?.gender),
     note: normalizeNote(body?.note),
+    equipment_progress: normalizeEquipmentProgress(body?.equipment_progress ?? targetMember.equipment_progress),
     role: targetRole,
     is_admin: sessionContext.member.is_admin
       ? Boolean(body?.is_admin)
@@ -4022,6 +4025,13 @@ function normalizeRole(value: unknown) {
 function normalizeGender(value: unknown) {
   const normalized = String(value || "").trim();
   return ["brother", "sister"].includes(normalized) ? normalized : null;
+}
+
+function normalizeEquipmentProgress(value: unknown) {
+  const normalized = String(value || "").trim();
+  return ["none", "growth", "disciple", "leader"].includes(normalized)
+    ? normalized
+    : "none";
 }
 
 function normalizeNote(value: unknown) {

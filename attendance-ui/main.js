@@ -57,6 +57,20 @@ const GENDER_LABELS = {
   sister: "姊妹",
 };
 
+const EQUIPMENT_PROGRESS_LABELS = {
+  none: "未裝備",
+  growth: "成長班",
+  disciple: "門徒班",
+  leader: "領袖班",
+};
+
+const EQUIPMENT_PROGRESS_ORDER = {
+  leader: 1,
+  disciple: 2,
+  growth: 3,
+  none: 4,
+};
+
 const STATUS_LABELS = {
   unknown: "待確認",
   present: "出席",
@@ -223,6 +237,7 @@ const els = {
   memberNameInput: document.querySelector("#memberNameInput"),
   memberRoleSelect: document.querySelector("#memberRoleSelect"),
   memberGenderSelect: document.querySelector("#memberGenderSelect"),
+  memberEquipmentProgressSelect: document.querySelector("#memberEquipmentProgressSelect"),
   memberDistrictLabel: document.querySelector("#memberDistrictLabel"),
   memberDistrictSelect: document.querySelector("#memberDistrictSelect"),
   memberBigFamilyLabel: document.querySelector("#memberBigFamilyLabel"),
@@ -1682,7 +1697,7 @@ function renderAttendanceRows() {
           <div class="attendance-card-head">
             <div class="row-meta">
               <div class="attendance-name-line">
-                <strong class="attendance-member-name name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</strong>
+                <strong class="attendance-member-name name-card gender-${escapeHtml(member.gender || "unknown")} ${escapeHtml(getEquipmentProgressClass(member.equipment_progress))}">${escapeHtml(member.full_name)}</strong>
                 ${renderGenderBadge(member.gender)}
               </div>
               <div class="attendance-meta-line">
@@ -2783,7 +2798,7 @@ function renderOverviewMember(member) {
       ${shouldOpen ? "open" : ""}
     >
       <summary class="overview-member-row">
-        <span class="name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</span>
+        <span class="name-card gender-${escapeHtml(member.gender || "unknown")} ${escapeHtml(getEquipmentProgressClass(member.equipment_progress))}">${escapeHtml(member.full_name)}</span>
         <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
         ${alerts.map(renderOverviewAlertBadge).join("")}
         ${hasRegularNote ? '<span class="overview-note-badge">有備註</span>' : ""}
@@ -3444,6 +3459,7 @@ async function handleRestoreMember(button, memberId, memberName) {
         full_name: member.full_name,
         role: member.role,
         gender: member.gender || null,
+        equipment_progress: normalizeEquipmentProgress(member.equipment_progress),
         note: member.note || "",
         district_id: member.district_id || null,
         big_family_id: member.big_family_id || null,
@@ -3481,6 +3497,7 @@ async function handleDeleteMember(button, memberId, memberName) {
         full_name: member.full_name,
         role: member.role,
         gender: member.gender || null,
+        equipment_progress: normalizeEquipmentProgress(member.equipment_progress),
         note: member.note || "",
         district_id: member.district_id || null,
         big_family_id: member.big_family_id || null,
@@ -4332,6 +4349,7 @@ function fillMemberForm(mode, member) {
       : "區長可建立自己轄區內的大/小家長、小家人與新朋友；新增管理職時會自動建立同名組織。";
     els.memberNameInput.value = "";
     els.memberGenderSelect.value = "";
+    els.memberEquipmentProgressSelect.value = "none";
     els.memberNoteInput.value = "";
     els.memberActiveSelect.value = "true";
     els.memberIsAdminInput.checked = false;
@@ -4349,6 +4367,7 @@ function fillMemberForm(mode, member) {
     els.memberNameInput.value = member.full_name || "";
     els.memberRoleSelect.value = member.role;
     els.memberGenderSelect.value = member.gender || "";
+    els.memberEquipmentProgressSelect.value = normalizeEquipmentProgress(member.equipment_progress);
     els.memberNoteInput.value = member.note || "";
     els.memberActiveSelect.value = member.is_active ? "true" : "false";
     els.memberIsAdminInput.checked = Boolean(member.is_admin);
@@ -4454,6 +4473,7 @@ async function handleSaveMember(event) {
     full_name: els.memberNameInput.value.trim(),
     role,
     gender: els.memberGenderSelect.value || null,
+    equipment_progress: normalizeEquipmentProgress(els.memberEquipmentProgressSelect.value),
     note: els.memberNoteInput.value.trim(),
     district_id: usesManagedDistricts
       ? null
@@ -4935,7 +4955,7 @@ function renderOrganizationTreeMember(member) {
   const roleClass = `role-${escapeHtml(member.role || "member")}`;
   return `
     <span class="org-member-pill ${member.is_active ? "" : "is-inactive"}">
-      <strong class="name-card ${genderClass}">${escapeHtml(member.full_name)}</strong>
+      <strong class="name-card ${genderClass} ${escapeHtml(getEquipmentProgressClass(member.equipment_progress))}">${escapeHtml(member.full_name)}</strong>
       <span class="role-pill ${roleClass}">${escapeHtml(getRoleLabel(member.role))}</span>
     </span>
   `;
@@ -6841,6 +6861,19 @@ function getGenderLabel(gender) {
   return GENDER_LABELS[gender] || "-";
 }
 
+function normalizeEquipmentProgress(progress) {
+  return Object.prototype.hasOwnProperty.call(
+    EQUIPMENT_PROGRESS_LABELS,
+    progress,
+  )
+    ? progress
+    : "none";
+}
+
+function getEquipmentProgressClass(progress) {
+  return `equipment-${normalizeEquipmentProgress(progress)}`;
+}
+
 async function apiRequest(action, options = {}) {
   if (!hasProjectUrl()) {
     throw new Error("尚未設定 Supabase Project URL。");
@@ -6980,6 +7013,12 @@ function sortMembers(members) {
     const rightRole = ROLE_ORDER[right.role] || 99;
     if (leftRole !== rightRole) {
       return leftRole - rightRole;
+    }
+
+    const leftProgress = EQUIPMENT_PROGRESS_ORDER[normalizeEquipmentProgress(left.equipment_progress)] || 99;
+    const rightProgress = EQUIPMENT_PROGRESS_ORDER[normalizeEquipmentProgress(right.equipment_progress)] || 99;
+    if (leftProgress !== rightProgress) {
+      return leftProgress - rightProgress;
     }
 
     const districtCompare = compareMemberScopeOrder(

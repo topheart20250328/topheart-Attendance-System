@@ -27,6 +27,7 @@ export type MemberDirectoryRow = {
   note: string;
   note_carry_forward: boolean;
   note_priority_high: boolean;
+  equipment_progress: "none" | "growth" | "disciple" | "leader";
   role:
     | "preacher"
     | "trainee_preacher"
