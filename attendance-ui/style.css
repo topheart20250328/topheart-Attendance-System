@@ -3722,7 +3722,7 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-vertical-tree {
-  --org-tree-vertical-column-width: 210px;
+  --org-tree-vertical-column-width: 182px;
   justify-items: stretch;
 }
 
@@ -3736,10 +3736,11 @@ tbody tr:last-child td {
   min-width: var(--org-tree-vertical-column-width);
   max-width: var(--org-tree-vertical-column-width);
   box-sizing: border-box;
+  overflow: visible;
 }
 
 .org-tree-board.is-vertical-tree .org-flow-row {
-  padding: 9px;
+  padding: 7px;
   justify-self: start;
 }
 
@@ -3752,10 +3753,10 @@ tbody tr:last-child td {
 .org-tree-board.is-vertical-tree .org-flow-branches {
   display: grid;
   justify-content: start;
-  gap: 8px;
+  gap: 7px;
   padding-top: 0;
-  padding-left: 10px;
-  border-left: 2px solid rgba(43, 111, 243, 0.16);
+  padding-left: 0;
+  border-left: 0;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -3763,7 +3764,7 @@ tbody tr:last-child td {
 
 .org-tree-board.is-vertical-tree .org-flow-branches > .org-flow-branch {
   width: 100%;
-  min-width: 0;
+  min-width: 100%;
   max-width: 100%;
 }
 
@@ -3785,19 +3786,22 @@ tbody tr:last-child td {
   padding: 6px 9px;
   text-align: left;
   box-sizing: border-box;
+  background-clip: padding-box;
 }
 
 .org-tree-board.is-vertical-tree .org-flow-members {
   display: grid;
   grid-template-columns: repeat(2, 78px);
-  gap: 5px;
+  gap: 4px;
   width: 100%;
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
   justify-content: center;
   justify-items: stretch;
-  padding-inline: 7px;
+  padding: 6px 4px;
+  background: #f8fafc;
+  background-clip: padding-box;
 }
 
 .org-tree-board.is-vertical-tree .org-member-pill {
@@ -3816,6 +3820,7 @@ tbody tr:last-child td {
   max-height: none !important;
   max-width: none !important;
   background: #ffffff !important;
+  background-image: none !important;
 }
 
 .org-tree-board.is-exporting .org-tree-scaled-shell {
@@ -3868,13 +3873,15 @@ tbody tr:last-child td {
 
 .org-tree-board.is-exporting.is-vertical-tree .org-flow-members {
   grid-template-columns: repeat(2, 78px);
-  gap: 5px;
+  gap: 4px;
   width: 100% !important;
   min-width: 0 !important;
   max-width: 100% !important;
   box-sizing: border-box;
   justify-content: center;
-  padding-inline: 7px;
+  padding: 6px 4px;
+  background: #f8fafc !important;
+  background-image: none !important;
 }
 
 .org-tree-board.is-exporting.is-vertical-tree .org-member-pill {
