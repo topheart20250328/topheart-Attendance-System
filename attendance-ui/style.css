@@ -3170,22 +3170,26 @@ tbody tr:last-child td {
 
 .org-tree-zoom-control {
   display: inline-grid;
-  grid-template-columns: minmax(148px, 164px) auto auto;
+  grid-template-columns: max-content auto auto;
   align-items: center;
   gap: 4px;
-  padding: 3px;
-  min-height: 34px;
+  padding: 0;
+  min-height: 0;
   box-sizing: border-box;
-  border: 1px solid rgba(217, 226, 240, 0.92);
-  border-radius: 999px;
-  background: #f8fbff;
+  border: 0;
+  background: transparent;
 }
 
 .org-tree-zoom-field {
   display: grid;
-  grid-template-columns: max-content minmax(72px, 1fr) 34px;
+  grid-template-columns: max-content 84px 34px;
   align-items: center;
   gap: 5px;
+  min-height: 34px;
+  padding: 3px 8px;
+  border: 1px solid rgba(217, 226, 240, 0.92);
+  border-radius: 999px;
+  background: #f8fbff;
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 800;
@@ -3256,8 +3260,8 @@ tbody tr:last-child td {
 }
 
 .org-tree-zoom-control > button {
-  min-height: 24px;
-  padding: 0.18rem 0.4rem;
+  min-height: 34px;
+  padding: 0.2rem 0.56rem;
   border-radius: 999px;
   box-shadow: none;
   font-size: 0.76rem;
@@ -3914,6 +3918,12 @@ tbody tr:last-child td {
 
 .org-tree-board.is-exporting.is-vertical-tree .org-flow-row > .org-flow-column {
   width: 100%;
+}
+
+.org-tree-board.is-exporting.is-vertical-tree .org-flow-branches > .org-flow-branch {
+  width: 100%;
+  min-width: 100%;
+  max-width: 100%;
 }
 
 .org-tree-board.is-exporting.is-vertical-tree .org-flow-members {
