@@ -3722,7 +3722,8 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-vertical-tree {
-  --org-tree-vertical-column-width: 182px;
+  --org-tree-vertical-column-width: 206px;
+  --org-tree-vertical-gutter: 14px;
   justify-items: stretch;
 }
 
@@ -3757,7 +3758,7 @@ tbody tr:last-child td {
   justify-content: start;
   gap: 7px;
   padding-top: 0;
-  padding-left: 0;
+  padding-left: var(--org-tree-vertical-gutter);
   border-left: 0;
   width: 100%;
   max-width: 100%;
@@ -3781,31 +3782,31 @@ tbody tr:last-child td {
   width: 2px;
   height: auto;
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(43, 111, 243, 0.08), rgba(43, 111, 243, 0.32), rgba(43, 111, 243, 0.08));
+  background: linear-gradient(180deg, rgba(96, 165, 250, 0.18), rgba(43, 111, 243, 0.5), rgba(96, 165, 250, 0.18));
 }
 
 .org-tree-board.is-vertical-tree .org-flow-small-branch > .org-flow-members::before {
   content: "";
   position: absolute;
   top: -7px;
-  left: 6px;
+  left: calc(-1 * var(--org-tree-vertical-gutter) + 6px);
   display: block;
   width: 2px;
   height: 9px;
   border-radius: 999px;
-  background: rgba(43, 111, 243, 0.22);
+  background: rgba(43, 111, 243, 0.42);
 }
 
 .org-tree-board.is-vertical-tree .org-flow-branch::before {
   content: "";
   position: absolute;
   top: 16px;
-  left: 6px;
+  left: calc(-1 * var(--org-tree-vertical-gutter) + 6px);
   display: block;
-  width: 10px;
+  width: calc(var(--org-tree-vertical-gutter) - 4px);
   height: 2px;
   border-radius: 999px;
-  background: rgba(43, 111, 243, 0.24);
+  background: rgba(43, 111, 243, 0.44);
 }
 
 .org-tree-board.is-vertical-tree .org-flow-branches > .org-flow-branch:not(:last-child)::after {
