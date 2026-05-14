@@ -3161,6 +3161,8 @@ tbody tr:last-child td {
   align-items: center;
   gap: 4px;
   padding: 3px;
+  min-height: 34px;
+  box-sizing: border-box;
   border: 1px solid rgba(217, 226, 240, 0.92);
   border-radius: 999px;
   background: #f8fbff;
@@ -3168,10 +3170,12 @@ tbody tr:last-child td {
 
 .org-tree-zoom-control {
   display: inline-grid;
-  grid-template-columns: minmax(150px, 170px) auto auto;
+  grid-template-columns: minmax(148px, 164px) auto auto;
   align-items: center;
   gap: 4px;
   padding: 3px;
+  min-height: 34px;
+  box-sizing: border-box;
   border: 1px solid rgba(217, 226, 240, 0.92);
   border-radius: 999px;
   background: #f8fbff;
@@ -3179,12 +3183,13 @@ tbody tr:last-child td {
 
 .org-tree-zoom-field {
   display: grid;
-  grid-template-columns: max-content minmax(76px, 1fr) 36px;
+  grid-template-columns: max-content minmax(72px, 1fr) 34px;
   align-items: center;
   gap: 5px;
   color: var(--muted);
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   font-weight: 800;
+  line-height: 1;
   white-space: nowrap;
 }
 
@@ -3193,7 +3198,7 @@ tbody tr:last-child td {
   appearance: none;
   -webkit-appearance: none;
   width: 100%;
-  height: 18px;
+  height: 16px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -3213,9 +3218,9 @@ tbody tr:last-child td {
 
 .org-tree-zoom-field input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
-  margin-top: -5px;
+  width: 14px;
+  height: 14px;
+  margin-top: -4px;
   border: 2px solid var(--primary);
   border-radius: 999px;
   background: #ffffff;
@@ -3235,8 +3240,8 @@ tbody tr:last-child td {
 }
 
 .org-tree-zoom-field input[type="range"]::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border: 2px solid var(--primary);
   border-radius: 999px;
   background: #ffffff;
@@ -3251,19 +3256,19 @@ tbody tr:last-child td {
 }
 
 .org-tree-zoom-control > button {
-  min-height: 26px;
-  padding: 0.22rem 0.42rem;
+  min-height: 24px;
+  padding: 0.18rem 0.4rem;
   border-radius: 999px;
   box-shadow: none;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
 }
 
 .org-tree-mode-control > button {
-  min-height: 26px;
-  padding: 0.22rem 0.5rem;
+  min-height: 24px;
+  padding: 0.18rem 0.48rem;
   border-radius: 999px;
   box-shadow: none;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
 }
 
 .org-tree-mode-control > button.is-active {
@@ -3786,15 +3791,7 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-vertical-tree .org-flow-small-branch > .org-flow-members::before {
-  content: "";
-  position: absolute;
-  top: -7px;
-  left: calc(-1 * var(--org-tree-vertical-gutter) + 6px);
-  display: block;
-  width: 2px;
-  height: 9px;
-  border-radius: 999px;
-  background: rgba(43, 111, 243, 0.42);
+  content: none;
 }
 
 .org-tree-board.is-vertical-tree .org-flow-branch::before {
@@ -3909,9 +3906,14 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-exporting.is-vertical-tree .org-flow-row {
+  padding: 0;
   background: transparent;
   border-color: transparent;
   box-shadow: none;
+}
+
+.org-tree-board.is-exporting.is-vertical-tree .org-flow-row > .org-flow-column {
+  width: 100%;
 }
 
 .org-tree-board.is-exporting.is-vertical-tree .org-flow-members {
