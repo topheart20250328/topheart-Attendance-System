@@ -4276,8 +4276,14 @@ tbody tr:last-child td {
     gap: 10px;
   }
 
+  #orgsView .org-scope-body .org-card-list {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+  }
+
   #orgsView .compact-org-list {
-    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     align-items: stretch;
     gap: 8px;
   }
@@ -4323,6 +4329,21 @@ tbody tr:last-child td {
     min-height: 28px;
     padding: 0.25rem 0.48rem;
     font-size: 0.74rem;
+  }
+
+  #orgsView .org-level-small-group .org-card-head {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  #orgsView .org-level-small-group .org-card-title strong {
+    overflow-wrap: normal;
+    word-break: keep-all;
+  }
+
+  #orgsView .org-level-small-group .org-card .row-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
   #orgsView .org-card-chips,
