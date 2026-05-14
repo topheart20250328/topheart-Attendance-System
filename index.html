@@ -29,7 +29,7 @@
       content="牧區點名・出席｜LINE 登入"
     />
     <title>topheart 牧區點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260514-orgtree-density-v56" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260514-orgtree-viewport-v57" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -560,14 +560,16 @@
                 </button>
               </div>
               <div class="segmented-control org-tree-zoom-control" role="group" aria-label="組織樹縮放">
-                <button id="orgTreeZoomOutBtn" type="button" class="secondary">
-                  縮小
+                <label class="org-tree-zoom-field">
+                  <span>縮放</span>
+                  <input id="orgTreeZoomRange" type="range" min="8" max="150" step="1" value="100" />
+                  <output id="orgTreeZoomValue">100%</output>
+                </label>
+                <button id="orgTreeFitBtn" type="button" class="secondary">
+                  適合畫面
                 </button>
                 <button id="orgTreeZoomResetBtn" type="button" class="secondary">
                   重設
-                </button>
-                <button id="orgTreeZoomInBtn" type="button" class="secondary">
-                  放大
                 </button>
               </div>
               <button id="captureOrgTreeBtn" type="button" class="secondary">
@@ -821,6 +823,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js" defer></script>
-    <script type="module" src="./attendance-ui/main.js?v=20260514-orgtree-density-v56"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260514-orgtree-viewport-v57"></script>
   </body>
 </html>

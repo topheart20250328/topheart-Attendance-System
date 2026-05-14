@@ -3149,7 +3149,7 @@ tbody tr:last-child td {
 
 .org-tree-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, auto) auto auto;
   align-items: center;
   justify-content: end;
   gap: 6px;
@@ -3165,12 +3165,35 @@ tbody tr:last-child td {
 }
 
 .org-tree-zoom-control {
-  display: inline-flex;
-  gap: 4px;
-  padding: 3px;
+  display: inline-grid;
+  grid-template-columns: minmax(170px, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 5px;
   border: 1px solid rgba(217, 226, 240, 0.92);
   border-radius: 999px;
   background: #f8fbff;
+}
+
+.org-tree-zoom-field {
+  display: grid;
+  grid-template-columns: auto minmax(86px, 1fr) 42px;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.org-tree-zoom-field input[type="range"] {
+  width: 100%;
+  accent-color: var(--primary);
+}
+
+.org-tree-zoom-field output {
+  color: var(--text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .org-tree-zoom-control > button {
@@ -3211,7 +3234,12 @@ tbody tr:last-child td {
   }
 
   .org-tree-zoom-control {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 1fr 1fr;
+    border-radius: 18px;
+  }
+
+  .org-tree-zoom-field {
+    grid-column: 1 / -1;
   }
 
   .org-tree-actions > button {
@@ -3221,14 +3249,15 @@ tbody tr:last-child td {
 }
 
 .org-tree-board {
-  --org-tree-density: 1;
+  --org-tree-scale: 1;
   display: grid;
   align-items: start;
   gap: 12px;
   max-width: 100%;
+  max-height: min(72vh, 760px);
   box-sizing: border-box;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
+  overflow: auto;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-x pan-y;
   padding: 10px;
@@ -3241,8 +3270,44 @@ tbody tr:last-child td {
   user-select: none;
 }
 
+.org-tree-scaled-shell {
+  position: relative;
+  min-width: 1px;
+  min-height: 1px;
+}
+
+.org-tree-canvas {
+  display: grid;
+  grid-template-columns: repeat(var(--org-tree-district-columns, 1), max-content);
+  align-items: start;
+  justify-content: center;
+  gap: 18px;
+  width: max-content;
+  max-width: none;
+  transform: scale(var(--org-tree-scale, 1));
+  transform-origin: top left;
+}
+
 .org-tree-board.is-dragging {
   cursor: grabbing;
+}
+
+@media (max-width: 640px) {
+  .org-tree-board {
+    max-height: 68vh;
+  }
+}
+
+.org-tree-board.is-vertical-tree .org-tree-scaled-shell {
+  width: auto !important;
+  height: auto !important;
+}
+
+.org-tree-board.is-vertical-tree .org-tree-canvas {
+  width: auto;
+  grid-template-columns: 1fr;
+  justify-content: stretch;
+  transform: none;
 }
 
 .org-tree-panel.is-tree-hidden .org-tree-board {
@@ -3439,7 +3504,7 @@ tbody tr:last-child td {
   grid-template-columns: 1fr;
   justify-items: center;
   align-items: start;
-  gap: calc(18px * var(--org-tree-density, 1));
+  gap: 18px;
   width: max-content;
   min-width: 132px;
   max-width: none;
@@ -3461,19 +3526,19 @@ tbody tr:last-child td {
   flex-wrap: wrap;
   justify-content: center;
   align-items: flex-start;
-  gap: calc(18px * var(--org-tree-density, 1));
+  gap: 18px;
   width: max-content;
   min-width: 132px;
-  padding-top: calc(20px * var(--org-tree-density, 1));
+  padding-top: 20px;
   padding-left: 0;
 }
 
 .org-tree-board.is-compact-tree .org-flow-row > .org-flow-branches::before,
 .org-tree-board.is-compact-tree .org-flow-branch > .org-flow-branches::before {
-  top: calc(-18px * var(--org-tree-density, 1));
+  top: -18px;
   left: 50%;
   width: 2px;
-  height: calc(18px * var(--org-tree-density, 1));
+  height: 18px;
   border-radius: 999px;
   background: linear-gradient(180deg, rgba(43, 111, 243, 0.42), rgba(43, 111, 243, 0.1));
 }
@@ -3503,10 +3568,10 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-compact-tree .org-flow-branch::before {
-  top: calc(-20px * var(--org-tree-density, 1));
+  top: -20px;
   left: 50%;
   width: 2px;
-  height: calc(20px * var(--org-tree-density, 1));
+  height: 20px;
   border-radius: 999px;
   background: linear-gradient(180deg, rgba(43, 111, 243, 0.36), rgba(43, 111, 243, 0.08));
 }
@@ -3520,10 +3585,10 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-compact-tree .org-flow-small-branch > .org-flow-members::before {
-  top: calc(-18px * var(--org-tree-density, 1));
+  top: -18px;
   left: 50%;
   width: 2px;
-  height: calc(18px * var(--org-tree-density, 1));
+  height: 18px;
   border-radius: 999px;
   background: linear-gradient(180deg, rgba(43, 111, 243, 0.34), rgba(43, 111, 243, 0.08));
 }
@@ -3671,8 +3736,18 @@ tbody tr:last-child td {
 .org-tree-board.is-exporting {
   overflow: visible !important;
   width: max-content !important;
+  max-height: none !important;
   max-width: none !important;
   background: #ffffff !important;
+}
+
+.org-tree-board.is-exporting .org-tree-scaled-shell {
+  width: auto !important;
+  height: auto !important;
+}
+
+.org-tree-board.is-exporting .org-tree-canvas {
+  transform: none !important;
 }
 
 .org-tree-board.is-exporting .org-flow-row {

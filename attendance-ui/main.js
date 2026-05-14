@@ -110,8 +110,8 @@ const DEFAULT_PROJECT_URL = "https://aiifotwroawqxkcsfjzi.supabase.co";
 const NOTE_MAX_LENGTH = 1000;
 const LAYOUT_SIZES = ["small", "medium", "large"];
 const ORG_TREE_MODES = ["compact", "vertical"];
-const ORG_TREE_MIN_SCALE = 0.55;
-const ORG_TREE_MAX_SCALE = 1.6;
+const ORG_TREE_MIN_SCALE = 0.08;
+const ORG_TREE_MAX_SCALE = 1.5;
 const V2_API_ACTIONS = new Set([
   "attendance-overview",
   "create-members-batch",
@@ -276,9 +276,10 @@ const els = {
   orgTreeBody: document.querySelector("#orgTreeBody"),
   orgTreeCompactBtn: document.querySelector("#orgTreeCompactBtn"),
   orgTreeVerticalBtn: document.querySelector("#orgTreeVerticalBtn"),
-  orgTreeZoomOutBtn: document.querySelector("#orgTreeZoomOutBtn"),
+  orgTreeZoomRange: document.querySelector("#orgTreeZoomRange"),
+  orgTreeZoomValue: document.querySelector("#orgTreeZoomValue"),
+  orgTreeFitBtn: document.querySelector("#orgTreeFitBtn"),
   orgTreeZoomResetBtn: document.querySelector("#orgTreeZoomResetBtn"),
-  orgTreeZoomInBtn: document.querySelector("#orgTreeZoomInBtn"),
   captureOrgTreeBtn: document.querySelector("#captureOrgTreeBtn"),
   toggleOrgTreePanelBtn: document.querySelector("#toggleOrgTreePanelBtn"),
   districtSection: document.querySelector("#districtSection"),
@@ -520,9 +521,9 @@ function bindEvents() {
   els.smallGroupTableBody.addEventListener("click", handleOrgTableClick);
   els.orgTreeCompactBtn?.addEventListener("click", () => switchOrganizationTreeMode("compact"));
   els.orgTreeVerticalBtn?.addEventListener("click", () => switchOrganizationTreeMode("vertical"));
-  els.orgTreeZoomOutBtn?.addEventListener("click", () => adjustOrganizationTreeScale(-0.12));
+  els.orgTreeZoomRange?.addEventListener("input", () => setOrganizationTreeScale(Number(els.orgTreeZoomRange.value) / 100));
+  els.orgTreeFitBtn?.addEventListener("click", fitOrganizationTreeToView);
   els.orgTreeZoomResetBtn?.addEventListener("click", () => setOrganizationTreeScale(1));
-  els.orgTreeZoomInBtn?.addEventListener("click", () => adjustOrganizationTreeScale(0.12));
   els.orgTreeBody?.addEventListener("click", handleOrganizationTreeClick);
   els.orgTreeBody?.addEventListener("keydown", handleOrganizationTreeKeydown);
   els.orgTreeBody?.addEventListener("pointerdown", handleOrganizationTreePointerDown);
@@ -564,6 +565,7 @@ function hydrateLocalState() {
   state.ui.overviewUnitType = uiPreferences.overviewUnitType;
   state.ui.inviteSort = uiPreferences.inviteSort;
   state.ui.orgTreeMode = uiPreferences.orgTreeMode;
+  state.ui.orgTreeScale = uiPreferences.orgTreeScale;
   els.projectUrlInput.value = state.config.projectUrl || "";
   if (els.overviewUnitTypeSelect) {
     els.overviewUnitTypeSelect.value = state.ui.overviewUnitType;
@@ -607,6 +609,10 @@ function loadUiPreferences() {
       orgTreeMode: ORG_TREE_MODES.includes(value.orgTreeMode)
         ? value.orgTreeMode
         : "compact",
+      orgTreeScale:
+        typeof value.orgTreeScale === "number"
+          ? Math.min(ORG_TREE_MAX_SCALE, Math.max(ORG_TREE_MIN_SCALE, value.orgTreeScale))
+          : 1,
     };
   } catch (_error) {
     return {
@@ -614,6 +620,7 @@ function loadUiPreferences() {
       overviewUnitType: "",
       inviteSort: "created_desc",
       orgTreeMode: "compact",
+      orgTreeScale: 1,
     };
   }
 }
@@ -626,6 +633,7 @@ function saveUiPreferences() {
       overviewUnitType: state.ui.overviewUnitType,
       inviteSort: state.ui.inviteSort,
       orgTreeMode: state.ui.orgTreeMode,
+      orgTreeScale: state.ui.orgTreeScale,
     }),
   );
 }
@@ -4786,19 +4794,32 @@ function renderOrganizationTree() {
   syncOrganizationTreePanel();
   els.orgTreeBody.classList.toggle("is-compact-tree", state.ui.orgTreeMode !== "vertical");
   els.orgTreeBody.classList.toggle("is-vertical-tree", state.ui.orgTreeMode === "vertical");
-  applyOrganizationTreeScale(state.ui.orgTreeMode === "vertical" ? 1 : state.ui.orgTreeScale);
 
   const districts = [...state.adminData.districts].sort(compareOrganizations);
   if (!districts.length) {
     els.orgTreeBody.innerHTML = '<div class="empty-state-card">尚未建立組織，建立後會在此顯示樹狀圖。</div>';
+    applyOrganizationTreeScale(state.ui.orgTreeScale);
     return;
   }
 
-  els.orgTreeBody.innerHTML = districts
-    .map((district) => renderOrganizationTreeDistrict(district))
-    .join("");
+  const districtColumns = getOrganizationTreeDistrictColumns(districts.length);
+  els.orgTreeBody.innerHTML = `
+    <div class="org-tree-scaled-shell">
+      <div class="org-tree-canvas" style="--org-tree-district-columns: ${districtColumns}">
+        ${districts.map((district) => renderOrganizationTreeDistrict(district)).join("")}
+      </div>
+    </div>
+  `;
   resetOrganizationTreeConnectors();
+  applyOrganizationTreeScale(state.ui.orgTreeScale, { syncConnectors: false });
   scheduleOrganizationTreeConnectorSync();
+}
+
+function getOrganizationTreeDistrictColumns(districtCount) {
+  if (districtCount <= 2) {
+    return Math.max(1, districtCount);
+  }
+  return Math.min(4, Math.ceil(Math.sqrt(districtCount)));
 }
 
 function renderOrganizationTreeDistrict(district) {
@@ -4986,12 +5007,15 @@ function syncOrganizationTreeConnectors() {
       branches.style.removeProperty("--connector-right");
       return;
     }
-    const maxInset = Math.max(8, containerRect.width - 8);
-    const left = Math.min(maxInset, Math.max(8, firstRect.left - containerRect.left + firstRect.width / 2));
+    const scale = state.ui.orgTreeMode === "vertical" ? 1 : state.ui.orgTreeScale;
+    const minInset = 8 * scale;
+    const maxInset = Math.max(minInset, containerRect.width - minInset);
+    const left =
+      Math.min(maxInset, Math.max(minInset, firstRect.left - containerRect.left + firstRect.width / 2)) / scale;
     const right = Math.min(
       maxInset,
-      Math.max(8, containerRect.right - lastRect.left - lastRect.width / 2),
-    );
+      Math.max(minInset, containerRect.right - lastRect.left - lastRect.width / 2),
+    ) / scale;
     branches.style.setProperty("--connector-left", `${left}px`);
     branches.style.setProperty("--connector-right", `${right}px`);
     branches.classList.add("has-measured-connector");
@@ -5009,17 +5033,64 @@ function resetOrganizationTreeConnectors() {
   });
 }
 
-function applyOrganizationTreeScale(scale) {
+function getOrganizationTreeCanvas() {
+  return els.orgTreeBody?.querySelector(".org-tree-canvas") || null;
+}
+
+function getOrganizationTreeScaledShell() {
+  return els.orgTreeBody?.querySelector(".org-tree-scaled-shell") || null;
+}
+
+function updateOrganizationTreeScaledShellSize() {
+  const shell = getOrganizationTreeScaledShell();
+  const canvas = getOrganizationTreeCanvas();
+  if (!shell || !canvas) {
+    return;
+  }
+  const scale = state.ui.orgTreeMode === "vertical" ? 1 : state.ui.orgTreeScale;
+  const width = Math.ceil(canvas.scrollWidth * scale);
+  const height = Math.ceil(canvas.scrollHeight * scale);
+  shell.style.width = `${Math.max(1, width)}px`;
+  shell.style.height = `${Math.max(1, height)}px`;
+}
+
+function fitOrganizationTreeToView() {
+  if (!els.orgTreeBody || state.ui.orgTreeMode === "vertical") {
+    return;
+  }
+  const canvas = getOrganizationTreeCanvas();
+  if (!canvas) {
+    return;
+  }
+  const availableWidth = Math.max(1, els.orgTreeBody.clientWidth - 20);
+  const availableHeight = Math.max(1, els.orgTreeBody.clientHeight - 20);
+  const contentWidth = Math.max(1, canvas.scrollWidth);
+  const contentHeight = Math.max(1, canvas.scrollHeight);
+  const nextScale = Math.min(1, availableWidth / contentWidth, availableHeight / contentHeight);
+  setOrganizationTreeScale(nextScale);
+  els.orgTreeBody.scrollLeft = 0;
+  els.orgTreeBody.scrollTop = 0;
+}
+
+function applyOrganizationTreeScale(scale, { syncConnectors = true } = {}) {
   const nextScale = Math.min(ORG_TREE_MAX_SCALE, Math.max(ORG_TREE_MIN_SCALE, Number(scale) || 1));
   state.ui.orgTreeScale = nextScale;
-  els.orgTreeBody?.style.setProperty("--org-tree-density", nextScale.toFixed(3));
+  const canvas = getOrganizationTreeCanvas();
+  if (canvas) {
+    const appliedScale = state.ui.orgTreeMode === "vertical" ? 1 : nextScale;
+    canvas.style.setProperty("--org-tree-scale", appliedScale.toFixed(3));
+  }
+  updateOrganizationTreeScaledShellSize();
   syncOrganizationTreeZoomControls();
-  scheduleOrganizationTreeConnectorSync();
+  if (syncConnectors) {
+    scheduleOrganizationTreeConnectorSync();
+  }
 }
 
 function setOrganizationTreeScale(scale) {
   const previousScale = state.ui.orgTreeScale;
   applyOrganizationTreeScale(scale);
+  saveUiPreferences();
   if (els.orgTreeBody && previousScale > 0) {
     const ratio = state.ui.orgTreeScale / previousScale;
     els.orgTreeBody.scrollLeft *= ratio;
@@ -5027,17 +5098,20 @@ function setOrganizationTreeScale(scale) {
   }
 }
 
-function adjustOrganizationTreeScale(delta) {
-  setOrganizationTreeScale(state.ui.orgTreeScale + delta);
-}
-
 function syncOrganizationTreeZoomControls() {
   const isVertical = state.ui.orgTreeMode === "vertical";
-  [els.orgTreeZoomOutBtn, els.orgTreeZoomResetBtn, els.orgTreeZoomInBtn].forEach((button) => {
+  [els.orgTreeFitBtn, els.orgTreeZoomResetBtn].forEach((button) => {
     if (button) {
       button.disabled = isVertical;
     }
   });
+  if (els.orgTreeZoomRange) {
+    els.orgTreeZoomRange.disabled = isVertical;
+    els.orgTreeZoomRange.value = String(Math.round(state.ui.orgTreeScale * 100));
+  }
+  if (els.orgTreeZoomValue) {
+    els.orgTreeZoomValue.textContent = `${Math.round(state.ui.orgTreeScale * 100)}%`;
+  }
 }
 
 function scheduleOrganizationTreeConnectorSync() {
@@ -5045,13 +5119,25 @@ function scheduleOrganizationTreeConnectorSync() {
     return;
   }
   window.requestAnimationFrame(() => {
+    updateOrganizationTreeScaledShellSize();
     syncOrganizationTreeConnectors();
-    window.requestAnimationFrame(syncOrganizationTreeConnectors);
+    window.requestAnimationFrame(() => {
+      updateOrganizationTreeScaledShellSize();
+      syncOrganizationTreeConnectors();
+    });
   });
-  window.setTimeout(syncOrganizationTreeConnectors, 80);
-  window.setTimeout(syncOrganizationTreeConnectors, 220);
-  window.setTimeout(syncOrganizationTreeConnectors, 500);
-  document.fonts?.ready?.then(syncOrganizationTreeConnectors).catch(() => {});
+  [80, 220, 500].forEach((delay) => {
+    window.setTimeout(() => {
+      updateOrganizationTreeScaledShellSize();
+      syncOrganizationTreeConnectors();
+    }, delay);
+  });
+  document.fonts?.ready
+    ?.then(() => {
+      updateOrganizationTreeScaledShellSize();
+      syncOrganizationTreeConnectors();
+    })
+    .catch(() => {});
 }
 
 function getTouchDistance(touches) {
@@ -5244,12 +5330,23 @@ async function handleCaptureOrganizationTree() {
   const useMobileExport = shouldUseMobileImageFallback();
   setButtonLoading(els.captureOrgTreeBtn, true, "產生中...");
   els.orgTreeBody.classList.add("is-exporting");
+  els.orgTreeBody.scrollLeft = 0;
+  els.orgTreeBody.scrollTop = 0;
 
   try {
     await document.fonts?.ready;
     await waitForNextFrame();
-    const width = Math.max(els.orgTreeBody.scrollWidth, els.orgTreeBody.offsetWidth);
-    const height = Math.max(els.orgTreeBody.scrollHeight, els.orgTreeBody.offsetHeight);
+    const canvas = getOrganizationTreeCanvas();
+    const width = Math.max(
+      els.orgTreeBody.scrollWidth,
+      els.orgTreeBody.offsetWidth,
+      canvas ? canvas.scrollWidth + 20 : 0,
+    );
+    const height = Math.max(
+      els.orgTreeBody.scrollHeight,
+      els.orgTreeBody.offsetHeight,
+      canvas ? canvas.scrollHeight + 20 : 0,
+    );
     const pixelRatio = getOrganizationTreeExportPixelRatio(width, height, useMobileExport);
     const dataUrl = await htmlToImage.toPng(els.orgTreeBody, {
       cacheBust: true,
