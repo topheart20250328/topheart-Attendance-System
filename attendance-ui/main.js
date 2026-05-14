@@ -5065,7 +5065,10 @@ function fitOrganizationTreeToView() {
   const availableHeight = Math.max(1, els.orgTreeBody.clientHeight - 20);
   const contentWidth = Math.max(1, canvas.scrollWidth);
   const contentHeight = Math.max(1, canvas.scrollHeight);
-  const nextScale = Math.min(1, availableWidth / contentWidth, availableHeight / contentHeight);
+  const nextScale =
+    state.ui.orgTreeMode === "vertical"
+      ? Math.min(1, availableWidth / contentWidth)
+      : Math.min(1, availableWidth / contentWidth, availableHeight / contentHeight);
   setOrganizationTreeScale(nextScale);
   els.orgTreeBody.scrollLeft = 0;
   els.orgTreeBody.scrollTop = 0;
