@@ -3922,7 +3922,6 @@ tbody tr:last-child td {
 .org-tree-board.is-exporting.is-vertical-tree .org-flow-row > .org-flow-column {
   width: 100%;
   box-sizing: border-box;
-  padding-left: var(--org-tree-vertical-gutter);
 }
 
 .org-tree-board.is-exporting.is-vertical-tree .org-flow-branches > .org-flow-branch {

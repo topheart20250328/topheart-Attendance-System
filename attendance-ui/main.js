@@ -5062,13 +5062,8 @@ function fitOrganizationTreeToView() {
     return;
   }
   const availableWidth = Math.max(1, els.orgTreeBody.clientWidth - 20);
-  const availableHeight = Math.max(1, els.orgTreeBody.clientHeight - 20);
   const contentWidth = Math.max(1, canvas.scrollWidth);
-  const contentHeight = Math.max(1, canvas.scrollHeight);
-  const fitScale =
-    state.ui.orgTreeMode === "vertical"
-      ? availableWidth / contentWidth
-      : Math.min(availableWidth / contentWidth, availableHeight / contentHeight);
+  const fitScale = availableWidth / contentWidth;
   const nextScale = Math.min(ORG_TREE_MAX_SCALE, Math.max(ORG_TREE_MIN_SCALE, fitScale));
   setOrganizationTreeScale(nextScale);
   els.orgTreeBody.scrollLeft = 0;
