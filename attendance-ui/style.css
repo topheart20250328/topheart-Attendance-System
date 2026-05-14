@@ -3168,7 +3168,7 @@ tbody tr:last-child td {
 
 .org-tree-zoom-control {
   display: inline-grid;
-  grid-template-columns: minmax(110px, 130px) auto auto;
+  grid-template-columns: minmax(150px, 170px) auto auto;
   align-items: center;
   gap: 4px;
   padding: 3px;
@@ -3179,12 +3179,13 @@ tbody tr:last-child td {
 
 .org-tree-zoom-field {
   display: grid;
-  grid-template-columns: auto minmax(62px, 1fr) 36px;
+  grid-template-columns: max-content minmax(76px, 1fr) 36px;
   align-items: center;
   gap: 5px;
   color: var(--muted);
   font-size: 0.74rem;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .org-tree-zoom-field input[type="range"] {
@@ -3361,7 +3362,7 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-vertical-tree .org-tree-canvas {
-  grid-template-columns: repeat(var(--org-tree-district-columns, 1), minmax(192px, max-content));
+  grid-template-columns: repeat(var(--org-tree-district-columns, 1), var(--org-tree-vertical-column-width, 208px));
   justify-content: start;
 }
 
@@ -3721,6 +3722,7 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-vertical-tree {
+  --org-tree-vertical-column-width: 208px;
   justify-items: stretch;
 }
 
@@ -3730,9 +3732,10 @@ tbody tr:last-child td {
   grid-template-columns: 1fr;
   justify-items: start;
   gap: 8px;
-  width: max-content;
-  min-width: 0;
-  max-width: 220px;
+  width: var(--org-tree-vertical-column-width);
+  min-width: var(--org-tree-vertical-column-width);
+  max-width: var(--org-tree-vertical-column-width);
+  box-sizing: border-box;
 }
 
 .org-tree-board.is-vertical-tree .org-flow-row {
@@ -3745,10 +3748,17 @@ tbody tr:last-child td {
   justify-content: start;
   gap: 8px;
   padding-top: 0;
-  padding-left: 12px;
+  padding-left: 10px;
   border-left: 2px solid rgba(43, 111, 243, 0.16);
-  width: max-content;
-  max-width: 190px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.org-tree-board.is-vertical-tree .org-flow-branches > .org-flow-branch {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .org-tree-board.is-vertical-tree .org-flow-row > .org-flow-branches::before,
@@ -3768,16 +3778,18 @@ tbody tr:last-child td {
   min-height: 32px;
   padding: 6px 9px;
   text-align: left;
+  box-sizing: border-box;
 }
 
 .org-tree-board.is-vertical-tree .org-flow-members {
   display: grid;
   grid-template-columns: repeat(2, 78px);
   gap: 5px;
-  width: max-content;
+  width: 100%;
   min-width: 0;
-  max-width: 166px;
-  justify-content: flex-start;
+  max-width: 100%;
+  box-sizing: border-box;
+  justify-content: center;
   justify-items: stretch;
 }
 
