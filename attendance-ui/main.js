@@ -5335,7 +5335,7 @@ async function handleCaptureOrganizationTree() {
   els.orgTreeBody.scrollTop = 0;
 
   try {
-    await document.fonts?.ready;
+    await withTimeout(document.fonts?.ready || Promise.resolve(), 5000, "字型載入逾時");
     await waitForNextFrame();
     const canvas = getOrganizationTreeCanvas();
     const width = Math.max(
@@ -5349,19 +5349,23 @@ async function handleCaptureOrganizationTree() {
       canvas ? canvas.scrollHeight + 20 : 0,
     );
     const pixelRatio = getOrganizationTreeExportPixelRatio(width, height, useMobileExport);
-    const dataUrl = await htmlToImage.toPng(els.orgTreeBody, {
-      cacheBust: true,
-      pixelRatio,
-      skipAutoScale: true,
-      width,
-      height,
-      style: {
-        width: `${width}px`,
-        height: `${height}px`,
-        overflow: "visible",
-        background: "#ffffff",
-      },
-    });
+    const dataUrl = await withTimeout(
+      htmlToImage.toPng(els.orgTreeBody, {
+        cacheBust: true,
+        pixelRatio,
+        skipAutoScale: true,
+        width,
+        height,
+        style: {
+          width: `${width}px`,
+          height: `${height}px`,
+          overflow: "visible",
+          background: "#ffffff",
+        },
+      }),
+      30000,
+      "截圖產生逾時",
+    );
     await saveOrganizationTreeImage(dataUrl, fileName);
     showToast("已產生組織樹截圖。");
   } catch (error) {
@@ -5373,6 +5377,14 @@ async function handleCaptureOrganizationTree() {
     els.orgTreeBody.scrollTop = previousScrollTop;
     setButtonLoading(els.captureOrgTreeBtn, false);
   }
+}
+
+function withTimeout(promise, timeoutMs, message) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
 }
 
 function getOrganizationTreeExportPixelRatio(width, height, useMobileExport) {
