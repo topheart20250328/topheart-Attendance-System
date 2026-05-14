@@ -110,6 +110,8 @@ const DEFAULT_PROJECT_URL = "https://aiifotwroawqxkcsfjzi.supabase.co";
 const NOTE_MAX_LENGTH = 1000;
 const LAYOUT_SIZES = ["small", "medium", "large"];
 const ORG_TREE_MODES = ["compact", "vertical"];
+const ORG_TREE_MIN_SCALE = 0.55;
+const ORG_TREE_MAX_SCALE = 1.6;
 const V2_API_ACTIONS = new Set([
   "attendance-overview",
   "create-members-batch",
@@ -348,6 +350,7 @@ const state = {
     editingOrgId: null,
     orgFocusTarget: null,
     orgTreeMode: "compact",
+    orgTreeScale: 1,
     orgTreePanelCollapsed: false,
     orgTreeCollapsedKeys: new Set(),
     peopleSearch: "",
@@ -379,6 +382,16 @@ const orgTreeDrag = {
   scrollTop: 0,
   isDragging: false,
   suppressClick: false,
+};
+
+const orgTreePinch = {
+  isActive: false,
+  startDistance: 0,
+  startScale: 1,
+  centerX: 0,
+  centerY: 0,
+  scrollLeft: 0,
+  scrollTop: 0,
 };
 
 boot()
@@ -510,6 +523,10 @@ function bindEvents() {
   els.orgTreeBody?.addEventListener("pointermove", handleOrganizationTreePointerMove);
   els.orgTreeBody?.addEventListener("pointerup", handleOrganizationTreePointerUp);
   els.orgTreeBody?.addEventListener("pointercancel", handleOrganizationTreePointerUp);
+  els.orgTreeBody?.addEventListener("touchstart", handleOrganizationTreeTouchStart, { passive: false });
+  els.orgTreeBody?.addEventListener("touchmove", handleOrganizationTreeTouchMove, { passive: false });
+  els.orgTreeBody?.addEventListener("touchend", handleOrganizationTreeTouchEnd);
+  els.orgTreeBody?.addEventListener("touchcancel", handleOrganizationTreeTouchEnd);
   els.captureOrgTreeBtn?.addEventListener("click", handleCaptureOrganizationTree);
   els.toggleOrgTreePanelBtn?.addEventListener("click", toggleOrganizationTreePanel);
   els.closeOrgEditorBtn.addEventListener("click", closeOrgEditor);
@@ -4763,6 +4780,7 @@ function renderOrganizationTree() {
   syncOrganizationTreePanel();
   els.orgTreeBody.classList.toggle("is-compact-tree", state.ui.orgTreeMode !== "vertical");
   els.orgTreeBody.classList.toggle("is-vertical-tree", state.ui.orgTreeMode === "vertical");
+  applyOrganizationTreeScale(state.ui.orgTreeMode === "vertical" ? 1 : state.ui.orgTreeScale);
 
   const districts = [...state.adminData.districts].sort(compareOrganizations);
   if (!districts.length) {
@@ -4985,6 +5003,13 @@ function resetOrganizationTreeConnectors() {
   });
 }
 
+function applyOrganizationTreeScale(scale) {
+  const nextScale = Math.min(ORG_TREE_MAX_SCALE, Math.max(ORG_TREE_MIN_SCALE, Number(scale) || 1));
+  state.ui.orgTreeScale = nextScale;
+  els.orgTreeBody?.style.setProperty("--org-tree-scale", nextScale.toFixed(3));
+  scheduleOrganizationTreeConnectorSync();
+}
+
 function scheduleOrganizationTreeConnectorSync() {
   if (!els.orgTreeBody || state.ui.orgTreeMode === "vertical") {
     return;
@@ -4997,6 +5022,60 @@ function scheduleOrganizationTreeConnectorSync() {
   window.setTimeout(syncOrganizationTreeConnectors, 220);
   window.setTimeout(syncOrganizationTreeConnectors, 500);
   document.fonts?.ready?.then(syncOrganizationTreeConnectors).catch(() => {});
+}
+
+function getTouchDistance(touches) {
+  const [first, second] = touches;
+  return Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+}
+
+function getTouchCenter(touches) {
+  const [first, second] = touches;
+  return {
+    x: (first.clientX + second.clientX) / 2,
+    y: (first.clientY + second.clientY) / 2,
+  };
+}
+
+function handleOrganizationTreeTouchStart(event) {
+  if (!els.orgTreeBody || state.ui.orgTreeMode === "vertical" || event.touches.length !== 2) {
+    return;
+  }
+  const rect = els.orgTreeBody.getBoundingClientRect();
+  const center = getTouchCenter(event.touches);
+  orgTreePinch.isActive = true;
+  orgTreePinch.startDistance = getTouchDistance(event.touches);
+  orgTreePinch.startScale = state.ui.orgTreeScale;
+  orgTreePinch.centerX = center.x - rect.left;
+  orgTreePinch.centerY = center.y - rect.top;
+  orgTreePinch.scrollLeft = els.orgTreeBody.scrollLeft;
+  orgTreePinch.scrollTop = els.orgTreeBody.scrollTop;
+  event.preventDefault();
+}
+
+function handleOrganizationTreeTouchMove(event) {
+  if (!els.orgTreeBody || !orgTreePinch.isActive || event.touches.length !== 2) {
+    return;
+  }
+  const distance = getTouchDistance(event.touches);
+  if (!orgTreePinch.startDistance || !distance) {
+    return;
+  }
+  const nextScale = Math.min(
+    ORG_TREE_MAX_SCALE,
+    Math.max(ORG_TREE_MIN_SCALE, orgTreePinch.startScale * (distance / orgTreePinch.startDistance)),
+  );
+  const ratio = nextScale / orgTreePinch.startScale;
+  applyOrganizationTreeScale(nextScale);
+  els.orgTreeBody.scrollLeft = (orgTreePinch.scrollLeft + orgTreePinch.centerX) * ratio - orgTreePinch.centerX;
+  els.orgTreeBody.scrollTop = (orgTreePinch.scrollTop + orgTreePinch.centerY) * ratio - orgTreePinch.centerY;
+  event.preventDefault();
+}
+
+function handleOrganizationTreeTouchEnd(event) {
+  if (event.touches.length < 2) {
+    orgTreePinch.isActive = false;
+  }
 }
 
 function handleOrganizationTreeClick(event) {
@@ -5140,9 +5219,10 @@ async function handleCaptureOrganizationTree() {
     await waitForNextFrame();
     const width = Math.max(els.orgTreeBody.scrollWidth, els.orgTreeBody.offsetWidth);
     const height = Math.max(els.orgTreeBody.scrollHeight, els.orgTreeBody.offsetHeight);
+    const pixelRatio = getOrganizationTreeExportPixelRatio(width, height, useMobileExport);
     const dataUrl = await htmlToImage.toPng(els.orgTreeBody, {
       cacheBust: true,
-      pixelRatio: useMobileExport ? 1 : 2,
+      pixelRatio,
       skipAutoScale: true,
       width,
       height,
@@ -5164,6 +5244,13 @@ async function handleCaptureOrganizationTree() {
     els.orgTreeBody.scrollTop = previousScrollTop;
     setButtonLoading(els.captureOrgTreeBtn, false);
   }
+}
+
+function getOrganizationTreeExportPixelRatio(width, height, useMobileExport) {
+  const desiredRatio = useMobileExport ? 2 : 3;
+  const maxPixels = useMobileExport ? 18000000 : 36000000;
+  const area = Math.max(1, width * height);
+  return Math.max(1, Math.min(desiredRatio, Math.sqrt(maxPixels / area)));
 }
 
 async function saveOrganizationTreeImage(dataUrl, fileName) {

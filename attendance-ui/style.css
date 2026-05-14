@@ -3197,6 +3197,7 @@ tbody tr:last-child td {
 }
 
 .org-tree-board {
+  --org-tree-scale: 1;
   display: grid;
   align-items: start;
   gap: 12px;
@@ -5000,6 +5001,22 @@ body.is-authenticated .toast {
 
   #attendanceView .attendance-save-meta {
     display: none;
+  }
+
+  #orgsView .org-tree-board.is-compact-tree {
+    justify-items: start;
+    touch-action: pan-x pan-y;
+  }
+
+  #orgsView .org-tree-board.is-compact-tree .org-flow-row {
+    justify-self: start;
+    margin-inline: 0;
+    zoom: var(--org-tree-scale, 1);
+    transform-origin: top left;
+  }
+
+  #orgsView .org-tree-board.is-compact-tree .org-flow-branches {
+    justify-content: flex-start;
   }
 
   #peopleView > .muted,
