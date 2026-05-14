@@ -3722,7 +3722,7 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-vertical-tree {
-  --org-tree-vertical-column-width: 208px;
+  --org-tree-vertical-column-width: 210px;
   justify-items: stretch;
 }
 
@@ -3741,6 +3741,12 @@ tbody tr:last-child td {
 .org-tree-board.is-vertical-tree .org-flow-row {
   padding: 9px;
   justify-self: start;
+}
+
+.org-tree-board.is-vertical-tree .org-flow-row > .org-flow-column,
+.org-tree-board.is-vertical-tree .org-flow-branch > .org-flow-column {
+  width: 100%;
+  min-width: 0;
 }
 
 .org-tree-board.is-vertical-tree .org-flow-branches {
@@ -3791,6 +3797,7 @@ tbody tr:last-child td {
   box-sizing: border-box;
   justify-content: center;
   justify-items: stretch;
+  padding-inline: 7px;
 }
 
 .org-tree-board.is-vertical-tree .org-member-pill {
@@ -3856,6 +3863,7 @@ tbody tr:last-child td {
   min-width: var(--org-tree-vertical-column-width);
   width: var(--org-tree-vertical-column-width);
   max-width: var(--org-tree-vertical-column-width);
+  box-sizing: border-box;
 }
 
 .org-tree-board.is-exporting.is-vertical-tree .org-flow-members {
@@ -3864,7 +3872,9 @@ tbody tr:last-child td {
   width: 100% !important;
   min-width: 0 !important;
   max-width: 100% !important;
+  box-sizing: border-box;
   justify-content: center;
+  padding-inline: 7px;
 }
 
 .org-tree-board.is-exporting.is-vertical-tree .org-member-pill {
