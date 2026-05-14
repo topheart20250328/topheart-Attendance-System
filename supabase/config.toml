@@ -4,6 +4,9 @@ verify_jwt = false
 [functions.app-api-v2]
 verify_jwt = false
 
+[functions.member-equipment-progress]
+verify_jwt = false
+
 [functions.line-login-start]
 verify_jwt = false
 

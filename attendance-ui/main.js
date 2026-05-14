@@ -4541,11 +4541,25 @@ async function handleSaveMember(event) {
 
   setButtonLoading(els.memberSubmitBtn, true);
   try {
-    await apiRequest(action, {
+    const data = await apiRequest(action, {
       method: "POST",
       authMode: "app",
       body: requestBody,
     });
+    const updatedMemberId = mode === "create"
+      ? Number(data?.member?.id || 0)
+      : Number(state.ui.editingMemberId || 0);
+    if (updatedMemberId) {
+      await apiRequest("update-equipment-progress", {
+        method: "POST",
+        authMode: "app",
+        functionName: "member-equipment-progress",
+        body: {
+          member_id: updatedMemberId,
+          equipment_progress: body.equipment_progress,
+        },
+      });
+    }
 
     closeMemberEditor();
     await Promise.all([loadAdminPanel(), loadDashboard({ skipDirtyCheck: true })]);
