@@ -3170,26 +3170,24 @@ tbody tr:last-child td {
 
 .org-tree-zoom-control {
   display: inline-grid;
-  grid-template-columns: max-content auto auto;
+  grid-template-columns: minmax(150px, 164px) auto auto;
   align-items: center;
   gap: 4px;
-  padding: 0;
-  min-height: 0;
+  padding: 3px;
+  min-height: 34px;
   box-sizing: border-box;
-  border: 0;
-  background: transparent;
+  border: 1px solid rgba(217, 226, 240, 0.92);
+  border-radius: 999px;
+  background: #f8fbff;
 }
 
 .org-tree-zoom-field {
   display: grid;
-  grid-template-columns: max-content 84px 34px;
+  grid-template-columns: max-content minmax(74px, 1fr) 34px;
   align-items: center;
   gap: 5px;
-  min-height: 34px;
-  padding: 3px 8px;
-  border: 1px solid rgba(217, 226, 240, 0.92);
-  border-radius: 999px;
-  background: #f8fbff;
+  min-height: 24px;
+  padding: 0 3px;
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 800;
@@ -3260,8 +3258,8 @@ tbody tr:last-child td {
 }
 
 .org-tree-zoom-control > button {
-  min-height: 34px;
-  padding: 0.2rem 0.56rem;
+  min-height: 24px;
+  padding: 0.18rem 0.42rem;
   border-radius: 999px;
   box-shadow: none;
   font-size: 0.76rem;
@@ -3300,13 +3298,18 @@ tbody tr:last-child td {
 
   .org-tree-zoom-control {
     grid-template-columns: 1fr 1fr;
+    border: 1px solid rgba(217, 226, 240, 0.92);
     border-radius: 18px;
+    background: #f8fbff;
     gap: 6px;
     padding: 5px;
   }
 
   .org-tree-zoom-field {
     grid-column: 1 / -1;
+    grid-template-columns: auto minmax(86px, 1fr) 42px;
+    min-height: 30px;
+    padding: 0;
   }
 
   .org-tree-actions > button {
@@ -3918,6 +3921,8 @@ tbody tr:last-child td {
 
 .org-tree-board.is-exporting.is-vertical-tree .org-flow-row > .org-flow-column {
   width: 100%;
+  box-sizing: border-box;
+  padding-left: var(--org-tree-vertical-gutter);
 }
 
 .org-tree-board.is-exporting.is-vertical-tree .org-flow-branches > .org-flow-branch {
