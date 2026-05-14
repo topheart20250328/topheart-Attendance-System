@@ -3851,6 +3851,27 @@ tbody tr:last-child td {
   white-space: nowrap;
 }
 
+.org-tree-board.is-exporting.is-vertical-tree .org-flow-row,
+.org-tree-board.is-exporting.is-vertical-tree .org-flow-branch {
+  min-width: var(--org-tree-vertical-column-width);
+  width: var(--org-tree-vertical-column-width);
+  max-width: var(--org-tree-vertical-column-width);
+}
+
+.org-tree-board.is-exporting.is-vertical-tree .org-flow-members {
+  grid-template-columns: repeat(2, 78px);
+  gap: 5px;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  justify-content: center;
+}
+
+.org-tree-board.is-exporting.is-vertical-tree .org-member-pill {
+  width: 78px;
+  min-width: 78px;
+}
+
 .image-save-panel {
   position: fixed;
   inset: 0;
