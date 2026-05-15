@@ -3752,6 +3752,7 @@ tbody tr:last-child td {
   border-radius: 0;
   background: transparent;
   box-sizing: border-box;
+  justify-self: center;
 }
 
 .org-flow-leader-strip::before {
@@ -3792,7 +3793,7 @@ tbody tr:last-child td {
   display: grid;
   justify-items: center;
   align-items: start;
-  gap: 8px;
+  gap: 0;
   width: max-content;
   min-width: max-content;
 }
@@ -3801,14 +3802,18 @@ tbody tr:last-child td {
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  min-height: 66px;
+  min-height: 82px;
   width: 100%;
+  padding: 8px 12px;
+  border: 1px solid rgba(109, 40, 217, 0.18);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(245, 243, 255, 0.88) 100%);
+  box-shadow: 0 8px 20px rgba(76, 29, 149, 0.08);
   box-sizing: border-box;
 }
 
 .org-flow-district-group.has-no-pastor .org-flow-district-group-pastor {
-  visibility: hidden;
-  pointer-events: none;
+  display: none;
 }
 
 .org-flow-district-group-connector {
@@ -3827,7 +3832,7 @@ tbody tr:last-child td {
   content: "";
   position: absolute;
   top: 0;
-  bottom: 6px;
+  bottom: 0;
   left: 50%;
   width: 2px;
   border-radius: 999px;
@@ -3837,9 +3842,9 @@ tbody tr:last-child td {
 .org-flow-district-group.has-pastor .org-flow-district-group-connector.has-multiple-districts::after {
   content: "";
   position: absolute;
-  right: 66px;
-  bottom: 6px;
-  left: 66px;
+  right: var(--pastor-connector-right, 66px);
+  bottom: 0;
+  left: var(--pastor-connector-left, 66px);
   height: 2px;
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0.42), rgba(99, 102, 241, 0.08));
@@ -3858,7 +3863,7 @@ tbody tr:last-child td {
 
 .org-flow-district-group-item {
   position: relative;
-  padding-top: 16px;
+  padding-top: 14px;
 }
 
 .org-flow-district-group.has-pastor .org-flow-district-group-item::before {
@@ -3874,6 +3879,11 @@ tbody tr:last-child td {
 
 .org-flow-district-group-rows .org-flow-row {
   margin-top: 0;
+}
+
+.org-flow-row.is-collapsed > .org-flow-column > .org-flow-leader-strip,
+.org-flow-branch.is-collapsed > .org-flow-column > .org-flow-leader-strip {
+  display: none;
 }
 
 .org-tree-board.is-compact-tree {
@@ -4121,6 +4131,7 @@ tbody tr:last-child td {
   align-items: center;
   min-height: auto;
   width: 100%;
+  padding: 6px;
 }
 
 .org-tree-board.is-vertical-tree .org-flow-district-group-connector {
@@ -4133,6 +4144,7 @@ tbody tr:last-child td {
 
 .org-tree-board.is-vertical-tree .org-flow-district-group-rows {
   display: grid;
+  grid-template-columns: 1fr;
   justify-content: start;
   gap: 8px;
   width: 100%;
@@ -4147,6 +4159,8 @@ tbody tr:last-child td {
 
 .org-tree-board.is-vertical-tree .org-flow-district-group-item {
   padding-top: 0;
+  width: 100%;
+  min-width: 0;
 }
 
 .org-tree-board.is-vertical-tree .org-flow-district-group.has-pastor .org-flow-district-group-item::before {

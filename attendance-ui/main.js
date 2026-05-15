@@ -5587,6 +5587,42 @@ function syncOrganizationTreeConnectors() {
     branches.style.setProperty("--connector-right", `${right}px`);
     branches.classList.add("has-measured-connector");
   });
+
+  els.orgTreeBody.querySelectorAll(".org-flow-district-group-rows").forEach((rows) => {
+    const children = Array.from(rows.children).filter((child) =>
+      child.classList.contains("org-flow-district-group-item"),
+    );
+    rows.classList.toggle("has-single-district", children.length === 1);
+    rows.classList.toggle("has-multiple-districts", children.length > 1);
+    rows.classList.remove("has-measured-pastor-connector");
+
+    if (children.length <= 1) {
+      rows.style.removeProperty("--pastor-connector-left");
+      rows.style.removeProperty("--pastor-connector-right");
+      return;
+    }
+
+    const containerRect = rows.getBoundingClientRect();
+    const firstRect = children[0].getBoundingClientRect();
+    const lastRect = children[children.length - 1].getBoundingClientRect();
+    if (containerRect.width <= 0 || firstRect.width <= 0 || lastRect.width <= 0) {
+      rows.style.removeProperty("--pastor-connector-left");
+      rows.style.removeProperty("--pastor-connector-right");
+      return;
+    }
+    const scale = state.ui.orgTreeScale;
+    const minInset = 8 * scale;
+    const maxInset = Math.max(minInset, containerRect.width - minInset);
+    const left =
+      Math.min(maxInset, Math.max(minInset, firstRect.left - containerRect.left + firstRect.width / 2)) / scale;
+    const right = Math.min(
+      maxInset,
+      Math.max(minInset, containerRect.right - lastRect.left - lastRect.width / 2),
+    ) / scale;
+    rows.style.setProperty("--pastor-connector-left", `${left}px`);
+    rows.style.setProperty("--pastor-connector-right", `${right}px`);
+    rows.classList.add("has-measured-pastor-connector");
+  });
 }
 
 function resetOrganizationTreeConnectors() {
@@ -5597,6 +5633,11 @@ function resetOrganizationTreeConnectors() {
     branches.classList.remove("has-measured-connector");
     branches.style.removeProperty("--connector-left");
     branches.style.removeProperty("--connector-right");
+  });
+  els.orgTreeBody.querySelectorAll(".org-flow-district-group-rows").forEach((rows) => {
+    rows.classList.remove("has-measured-pastor-connector");
+    rows.style.removeProperty("--pastor-connector-left");
+    rows.style.removeProperty("--pastor-connector-right");
   });
 }
 
