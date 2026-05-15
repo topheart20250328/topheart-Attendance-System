@@ -4882,17 +4882,25 @@ function renderOrganizationTree() {
   els.orgTreeBody.classList.toggle("is-vertical-tree", state.ui.orgTreeMode === "vertical");
 
   const districts = [...state.adminData.districts].sort(compareOrganizations);
-  if (!districts.length) {
+  const unassignedMembers = sortMembers(
+    state.adminData.members.filter(isOrganizationTreeUnassignedMember),
+  );
+  const rootItems = [
+    unassignedMembers.length ? renderOrganizationTreeUnassignedMembers(unassignedMembers) : "",
+    ...districts.map((district) => renderOrganizationTreeDistrict(district)),
+  ].filter(Boolean);
+
+  if (!rootItems.length) {
     els.orgTreeBody.innerHTML = '<div class="empty-state-card">尚未建立組織，建立後會在此顯示樹狀圖。</div>';
     applyOrganizationTreeScale(state.ui.orgTreeScale);
     return;
   }
 
-  const districtColumns = getOrganizationTreeDistrictColumns(districts.length);
+  const districtColumns = getOrganizationTreeDistrictColumns(rootItems.length);
   els.orgTreeBody.innerHTML = `
     <div class="org-tree-scaled-shell">
       <div class="org-tree-canvas" style="--org-tree-district-columns: ${districtColumns}">
-        ${districts.map((district) => renderOrganizationTreeDistrict(district)).join("")}
+        ${rootItems.join("")}
       </div>
     </div>
   `;
@@ -4908,7 +4916,23 @@ function getOrganizationTreeDistrictColumns(districtCount) {
   return Math.min(4, Math.ceil(Math.sqrt(districtCount)));
 }
 
+function renderOrganizationTreeUnassignedMembers(members) {
+  return `
+    <article class="org-flow-row org-flow-unassigned">
+      <div class="org-flow-column org-flow-column-unassigned">
+        ${renderOrganizationFlowNode("unassigned", "特殊職務／待安排")}
+      </div>
+      <div class="org-flow-members org-flow-unassigned-members">
+        ${members.map(renderOrganizationTreeMember).join("")}
+      </div>
+    </article>
+  `;
+}
+
 function renderOrganizationTreeDistrict(district) {
+  const districtLeaders = sortMembers(
+    state.adminData.members.filter((member) => isOrganizationTreeDistrictLeader(member, district.id)),
+  );
   const bigFamilies = state.adminData.bigFamilies
     .filter((bigFamily) => bigFamily.district_id === district.id)
     .sort(compareOrganizations);
@@ -4921,7 +4945,8 @@ function renderOrganizationTreeDistrict(district) {
         member.is_active !== false &&
         member.district_id === district.id &&
         !member.big_family_id &&
-        !member.small_group_id,
+        !member.small_group_id &&
+        !isOrganizationTreeDistrictLeader(member, district.id),
     ),
   );
   const nodeKey = getOrganizationTreeKey("district", district.id);
@@ -4938,6 +4963,7 @@ function renderOrganizationTreeDistrict(district) {
     <article class="org-flow-row ${district.is_active ? "" : "is-archived"} ${isCollapsed ? "is-collapsed" : ""}">
       <div class="org-flow-column org-flow-column-district">
         ${renderOrganizationFlowNode("district", district.name, { isActive: district.is_active, nodeKey, isCollapsed })}
+        ${renderOrganizationTreeLeaderStrip("區領袖", districtLeaders)}
       </div>
       <div class="org-flow-branches org-flow-children ${childClass}">
         ${bigFamilies.map((bigFamily) => renderOrganizationTreeBigFamily(bigFamily)).join("")}
@@ -4950,6 +4976,9 @@ function renderOrganizationTreeDistrict(district) {
 }
 
 function renderOrganizationTreeBigFamily(bigFamily) {
+  const bigFamilyLeaders = sortMembers(
+    state.adminData.members.filter((member) => isOrganizationTreeBigFamilyLeader(member, bigFamily.id)),
+  );
   const smallGroups = state.adminData.smallGroups
     .filter((smallGroup) => smallGroup.big_family_id === bigFamily.id)
     .sort(compareOrganizations);
@@ -4958,7 +4987,8 @@ function renderOrganizationTreeBigFamily(bigFamily) {
       (member) =>
         member.is_active !== false &&
         member.big_family_id === bigFamily.id &&
-        !member.small_group_id,
+        !member.small_group_id &&
+        !isOrganizationTreeBigFamilyLeader(member, bigFamily.id),
     ),
   );
   const nodeKey = getOrganizationTreeKey("big_family", bigFamily.id);
@@ -4969,6 +4999,7 @@ function renderOrganizationTreeBigFamily(bigFamily) {
     <div class="org-flow-branch ${bigFamily.is_active ? "" : "is-archived"} ${isCollapsed ? "is-collapsed" : ""}">
       <div class="org-flow-column org-flow-column-big">
         ${renderOrganizationFlowNode("big_family", bigFamily.name, { isActive: bigFamily.is_active, nodeKey, isCollapsed })}
+        ${renderOrganizationTreeLeaderStrip("大家領袖", bigFamilyLeaders)}
       </div>
       <div class="org-flow-branches org-flow-small-branches org-flow-children ${getOrganizationTreeChildrenClass(childCount)}">
         ${smallGroups.map((smallGroup) => renderOrganizationTreeSmallGroup(smallGroup)).join("")}
@@ -4997,7 +5028,9 @@ function renderOrganizationTreeSmallGroup(smallGroup) {
     state.adminData.members.filter(
       (member) =>
         member.is_active !== false &&
-        member.small_group_id === smallGroup.id,
+        member.small_group_id === smallGroup.id &&
+        !isOrganizationTreeDistrictLeader(member, smallGroup.district_id) &&
+        !isOrganizationTreeBigFamilyLeader(member, smallGroup.big_family_id),
     ),
   );
   const nodeKey = getOrganizationTreeKey("small_group", smallGroup.id);
@@ -5012,6 +5045,20 @@ function renderOrganizationTreeSmallGroup(smallGroup) {
         ${members.length
           ? members.map(renderOrganizationTreeMember).join("")
           : '<span class="org-flow-empty">尚無人員</span>'}
+      </div>
+    </div>
+  `;
+}
+
+function renderOrganizationTreeLeaderStrip(label, members) {
+  if (!members.length) {
+    return "";
+  }
+  return `
+    <div class="org-flow-leader-strip" aria-label="${escapeHtml(label)}">
+      <span class="org-flow-leader-label">${escapeHtml(label)}</span>
+      <div class="org-flow-leaders">
+        ${members.map(renderOrganizationTreeMember).join("")}
       </div>
     </div>
   `;
@@ -5036,6 +5083,42 @@ function getOrganizationTreeGenderClass(gender) {
     return "gender-sister";
   }
   return "gender-unknown";
+}
+
+function isOrganizationTreeActiveMember(member) {
+  return Boolean(member && member.is_active !== false);
+}
+
+function isOrganizationTreeUnassignedMember(member) {
+  return (
+    isOrganizationTreeActiveMember(member) &&
+    !member.district_id &&
+    !member.big_family_id &&
+    !member.small_group_id &&
+    !getDistrictPastorDistrictIds(member).length
+  );
+}
+
+function isOrganizationTreeDistrictLeader(member, districtId) {
+  if (!isOrganizationTreeActiveMember(member) || !districtId) {
+    return false;
+  }
+  if (member.role === "district_pastor") {
+    const districtIds = getDistrictPastorDistrictIds(member);
+    return districtIds.includes(Number(districtId)) || Number(member.district_id || 0) === Number(districtId);
+  }
+  return member.role === "district_leader" && Number(member.district_id || 0) === Number(districtId);
+}
+
+function isOrganizationTreeBigFamilyLeader(member, bigFamilyId) {
+  if (!bigFamilyId) {
+    return false;
+  }
+  return (
+    isOrganizationTreeActiveMember(member) &&
+    BIG_FAMILY_LEADER_ROLES.includes(member.role) &&
+    Number(member.big_family_id || 0) === Number(bigFamilyId || 0)
+  );
 }
 
 function renderOrganizationFlowNode(type, name, { isActive = true, nodeKey = "", isCollapsed = false } = {}) {

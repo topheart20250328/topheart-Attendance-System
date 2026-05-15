@@ -3694,6 +3694,12 @@ tbody tr:last-child td {
   color: #475569;
 }
 
+.org-flow-node-unassigned {
+  border-color: rgba(120, 113, 108, 0.28);
+  background: linear-gradient(180deg, #ffffff 0%, #f5f1eb 100%);
+  color: #5f554a;
+}
+
 .org-flow-node.is-archived,
 .org-flow-row.is-archived,
 .org-flow-branch.is-archived {
@@ -3720,6 +3726,50 @@ tbody tr:last-child td {
   border: 1px dashed rgba(148, 163, 184, 0.36);
   border-radius: 12px;
   background: rgba(248, 250, 252, 0.78);
+}
+
+.org-flow-leader-strip {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  width: 132px;
+  max-width: 132px;
+  margin-top: 5px;
+  padding: 5px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+  box-sizing: border-box;
+}
+
+.org-flow-leader-label {
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.org-flow-leaders {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+
+.org-flow-leader-strip .org-member-pill {
+  width: 78px;
+  min-width: 78px;
+}
+
+.org-flow-unassigned {
+  border-color: rgba(120, 113, 108, 0.24);
+  background: linear-gradient(180deg, #ffffff 0%, #faf7f2 100%);
+}
+
+.org-flow-unassigned-members {
+  width: auto;
+  min-width: 96px;
+  max-width: 196px;
+  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
 }
 
 .org-tree-board.is-compact-tree {
@@ -3951,6 +4001,20 @@ tbody tr:last-child td {
   min-width: 0;
 }
 
+.org-tree-board.is-vertical-tree .org-flow-leader-strip {
+  width: 100%;
+  max-width: 100%;
+  justify-items: start;
+  padding: 5px 6px;
+}
+
+.org-tree-board.is-vertical-tree .org-flow-leaders {
+  grid-template-columns: repeat(2, 78px);
+  justify-content: center;
+  justify-items: stretch;
+  width: 100%;
+}
+
 .org-tree-board.is-vertical-tree .org-flow-branches {
   position: relative;
   display: grid;
@@ -4037,6 +4101,10 @@ tbody tr:last-child td {
   padding: 6px 4px;
   background: #f8fafc;
   background-clip: padding-box;
+}
+
+.org-tree-board.is-vertical-tree .org-flow-unassigned-members {
+  grid-template-columns: repeat(2, 78px);
 }
 
 .org-tree-board.is-vertical-tree .org-member-pill {
