@@ -5210,16 +5210,13 @@ function renderOrganizationTree() {
   els.orgTreeBody.classList.toggle("is-vertical-tree", state.ui.orgTreeMode === "vertical");
 
   const districts = [...state.adminData.districts].sort(compareOrganizations);
-  const districtPastors = sortMembers(
-    state.adminData.members.filter(isOrganizationTreeDistrictPastor),
-  );
+  const districtGroups = buildOrganizationTreeDistrictGroups(districts);
   const unassignedMembers = sortMembers(
     state.adminData.members.filter(isOrganizationTreeUnassignedMember),
   );
   const rootItems = [
-    districtPastors.length ? renderOrganizationTreeRootLeaders("跨區領袖", districtPastors) : "",
     unassignedMembers.length ? renderOrganizationTreeUnassignedMembers(unassignedMembers) : "",
-    ...districts.map((district) => renderOrganizationTreeDistrict(district)),
+    ...districtGroups.map((group) => renderOrganizationTreeDistrictGroup(group)),
   ].filter(Boolean);
 
   if (!rootItems.length) {
@@ -5248,6 +5245,51 @@ function getOrganizationTreeDistrictColumns(districtCount) {
   return Math.min(4, Math.ceil(Math.sqrt(districtCount)));
 }
 
+function buildOrganizationTreeDistrictGroups(districts) {
+  const districtById = new Map(districts.map((district, index) => [
+    Number(district.id),
+    { district, index },
+  ]));
+  const assignedDistrictIds = new Set();
+  const groups = [];
+
+  const districtPastors = sortMembers(
+    state.adminData.members.filter(isOrganizationTreeDistrictPastor),
+  );
+  for (const pastor of districtPastors) {
+    const managedDistrictIds = getDistrictPastorDistrictIds(pastor);
+    const fallbackDistrictId = Number(pastor.district_id || 0);
+    const districtIds = (managedDistrictIds.length ? managedDistrictIds : [fallbackDistrictId])
+      .filter((districtId) => districtById.has(districtId) && !assignedDistrictIds.has(districtId));
+    if (!districtIds.length) {
+      continue;
+    }
+
+    const groupDistricts = districtIds
+      .map((districtId) => districtById.get(districtId))
+      .sort((left, right) => left.index - right.index);
+    groupDistricts.forEach(({ district }) => assignedDistrictIds.add(Number(district.id)));
+    groups.push({
+      key: `pastor:${pastor.id}`,
+      pastor,
+      districts: groupDistricts.map(({ district }) => district),
+      displayOrder: groupDistricts[0]?.index ?? districts.length,
+    });
+  }
+
+  const unmanagedDistricts = districts.filter((district) => !assignedDistrictIds.has(Number(district.id)));
+  if (unmanagedDistricts.length) {
+    groups.push({
+      key: "districts:unmanaged",
+      pastor: null,
+      districts: unmanagedDistricts,
+      displayOrder: districts.findIndex((district) => Number(district.id) === Number(unmanagedDistricts[0].id)),
+    });
+  }
+
+  return groups.sort((left, right) => left.displayOrder - right.displayOrder);
+}
+
 function renderOrganizationTreeUnassignedMembers(members) {
   return `
     <article class="org-flow-row org-flow-unassigned">
@@ -5261,16 +5303,19 @@ function renderOrganizationTreeUnassignedMembers(members) {
   `;
 }
 
-function renderOrganizationTreeRootLeaders(label, members) {
+function renderOrganizationTreeDistrictGroup(group) {
+  const hasPastor = Boolean(group.pastor);
+  const pastorLabel = hasPastor ? `${group.pastor.full_name} 管理區群` : "";
+  const rowClass = group.districts.length > 1 ? "has-multiple-districts" : "has-single-district";
   return `
-    <article class="org-flow-row org-flow-root-leaders">
-      <div class="org-flow-column org-flow-column-unassigned">
-        ${renderOrganizationFlowNode("leader_root", label)}
+    <section class="org-flow-district-group ${hasPastor ? "has-pastor" : "has-no-pastor"}" data-district-group-key="${escapeHtml(group.key)}">
+      <div class="org-flow-district-group-pastor" ${hasPastor ? `aria-label="${escapeHtml(pastorLabel)}"` : 'aria-hidden="true"'}>
+        ${hasPastor ? renderOrganizationTreeMember(group.pastor) : ""}
       </div>
-      <div class="org-flow-members org-flow-unassigned-members">
-        ${members.map(renderOrganizationTreeMember).join("")}
+      <div class="org-flow-district-group-rows ${rowClass}">
+        ${group.districts.map((district) => renderOrganizationTreeDistrict(district)).join("")}
       </div>
-    </article>
+    </section>
   `;
 }
 
