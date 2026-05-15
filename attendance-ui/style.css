@@ -1987,48 +1987,48 @@ tbody tr:last-child td {
   max-width: 100%;
   align-self: flex-start;
   flex: 0 0 auto;
-  padding: 0.2rem 0.55rem;
+  padding: 0.18rem 0.48rem;
   border-radius: 999px;
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   font-weight: 800;
   line-height: 1.2;
   white-space: nowrap;
 }
 
 .equipment-badge.equipment-growth {
-  background: #e8f7ed;
-  color: #247044;
+  background: #d8f3e1;
+  color: #166534;
 }
 
 .equipment-badge.equipment-disciple {
-  background: #fff1e5;
-  color: #97521a;
+  background: #ffe4c7;
+  color: #9a3412;
 }
 
 .equipment-badge.equipment-leader {
-  background: #f1edff;
-  color: #6045a6;
+  background: #e7ddff;
+  color: #5b35a3;
 }
 
 #attendanceView .attendance-card.equipment-growth,
 #overviewView .overview-member-details.equipment-growth,
 .org-member-pill.equipment-growth {
-  border-color: rgba(34, 197, 94, 0.18);
-  background: linear-gradient(180deg, #ffffff 0%, #f4fbf6 100%);
+  border-color: rgba(34, 197, 94, 0.3);
+  background: linear-gradient(180deg, #f8fef9 0%, #dcf5e5 100%);
 }
 
 #attendanceView .attendance-card.equipment-disciple,
 #overviewView .overview-member-details.equipment-disciple,
 .org-member-pill.equipment-disciple {
-  border-color: rgba(249, 115, 22, 0.18);
-  background: linear-gradient(180deg, #ffffff 0%, #fff8f1 100%);
+  border-color: rgba(249, 115, 22, 0.3);
+  background: linear-gradient(180deg, #fffdf8 0%, #ffe4c7 100%);
 }
 
 #attendanceView .attendance-card.equipment-leader,
 #overviewView .overview-member-details.equipment-leader,
 .org-member-pill.equipment-leader {
-  border-color: rgba(139, 92, 246, 0.18);
-  background: linear-gradient(180deg, #ffffff 0%, #f8f6ff 100%);
+  border-color: rgba(139, 92, 246, 0.3);
+  background: linear-gradient(180deg, #fbfaff 0%, #e8ddff 100%);
 }
 
 .row-actions {
@@ -5640,7 +5640,8 @@ body.is-authenticated .toast {
   }
 
   #peopleView .member-card-head {
-    flex-direction: row;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(118px, 34vw);
     align-items: center;
     gap: 6px;
   }
@@ -5650,12 +5651,21 @@ body.is-authenticated .toast {
   }
 
   #peopleView .member-card-title {
-    flex-wrap: nowrap;
+    display: grid;
+    grid-template-columns: repeat(3, max-content);
+    align-items: center;
     gap: 4px;
+    max-width: 100%;
   }
 
   #peopleView .member-card-title strong {
+    grid-column: 1 / -1;
+    min-width: 0;
+    max-width: 100%;
     font-size: 0.92rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.2;
   }
 
   #peopleView .member-card-chips {
@@ -5666,9 +5676,11 @@ body.is-authenticated .toast {
 
   #peopleView .role-pill,
   #peopleView .status-chip,
-  #peopleView .gender-badge {
-    padding: 0.13rem 0.36rem;
-    font-size: 0.72rem;
+  #peopleView .gender-badge,
+  #peopleView .equipment-badge {
+    padding: 0.12rem 0.32rem;
+    font-size: 0.68rem;
+    line-height: 1.15;
   }
 
   #peopleView .member-card-path {
@@ -5678,9 +5690,10 @@ body.is-authenticated .toast {
 
   #peopleView .row-actions {
     display: grid;
-    grid-template-columns: repeat(2, minmax(64px, 1fr));
-    gap: 8px;
-    width: min(160px, 42vw);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+    width: 100%;
+    min-width: 0;
   }
 
   #peopleView .row-actions > * {
@@ -5688,9 +5701,11 @@ body.is-authenticated .toast {
   }
 
   #peopleView .row-actions button {
-    min-height: 38px;
-    padding: 0.34rem 0.48rem;
-    font-size: 0.78rem;
+    min-width: 0;
+    min-height: 34px;
+    padding: 0.3rem 0.28rem;
+    font-size: 0.74rem;
+    white-space: nowrap;
   }
 
   #memberEditorCard,
@@ -6033,6 +6048,7 @@ body.is-authenticated .toast {
   #peopleView .role-pill,
   #peopleView .status-chip,
   #peopleView .gender-badge,
+  #peopleView .equipment-badge,
   #peopleView .member-card-path {
     font-size: 0.68rem;
   }
