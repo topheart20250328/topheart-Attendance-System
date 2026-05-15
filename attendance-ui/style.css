@@ -3882,26 +3882,29 @@ tbody tr:last-child td {
 }
 
 .org-member-pill.equipment-growth:not(.is-inactive) {
-  border-color: rgba(22, 163, 74, 0.58);
+  border-color: #15803d;
   background: linear-gradient(180deg, #f4fff7 0%, #bff0cf 100%);
   box-shadow:
-    inset 0 0 0 2px rgba(22, 163, 74, 0.18),
+    inset 0 0 0 2px rgba(21, 128, 61, 0.34),
+    0 0 0 2px rgba(21, 128, 61, 0.22),
     0 4px 10px rgba(15, 23, 42, 0.04);
 }
 
 .org-member-pill.equipment-disciple:not(.is-inactive) {
-  border-color: rgba(234, 88, 12, 0.58);
+  border-color: #c2410c;
   background: linear-gradient(180deg, #fffaf2 0%, #ffd3a6 100%);
   box-shadow:
-    inset 0 0 0 2px rgba(234, 88, 12, 0.18),
+    inset 0 0 0 2px rgba(194, 65, 12, 0.34),
+    0 0 0 2px rgba(194, 65, 12, 0.22),
     0 4px 10px rgba(15, 23, 42, 0.04);
 }
 
 .org-member-pill.equipment-leader:not(.is-inactive) {
-  border-color: rgba(124, 58, 237, 0.58);
+  border-color: #6d28d9;
   background: linear-gradient(180deg, #fbf8ff 0%, #d5c2ff 100%);
   box-shadow:
-    inset 0 0 0 2px rgba(124, 58, 237, 0.18),
+    inset 0 0 0 2px rgba(109, 40, 217, 0.34),
+    0 0 0 2px rgba(109, 40, 217, 0.22),
     0 4px 10px rgba(15, 23, 42, 0.04);
 }
 
