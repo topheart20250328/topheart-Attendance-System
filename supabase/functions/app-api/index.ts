@@ -1501,7 +1501,9 @@ async function handleCreateMember(
     return jsonResponse({ error: "Invalid hierarchy scope for this role." }, 400);
   }
 
-  if (!canManageDistrict(sessionContext.member, scope.district_id)) {
+  const createScopeMode = normalizeCreateScopeMode(body?.create_scope_mode);
+  const isEmptyManagedCreate = isManagedOrganizationRole(role) && createScopeMode === "empty" && scope.district_id === null;
+  if (!isEmptyManagedCreate && !canManageDistrict(sessionContext.member, scope.district_id)) {
     return jsonResponse({ error: "No permission to create in this district." }, 403);
   }
 
@@ -3542,6 +3544,7 @@ async function resolveMemberScope(
   const explicitDistrictId = toPositiveInt(body?.district_id);
   const explicitBigFamilyId = toPositiveInt(body?.big_family_id);
   const explicitSmallGroupId = toPositiveInt(body?.small_group_id);
+  const createScopeMode = options.autoCreate ? normalizeCreateScopeMode(body?.create_scope_mode) : "existing";
 
   if (PREACHER_ROLES.has(role)) {
     if (explicitSmallGroupId) {
@@ -3620,6 +3623,13 @@ async function resolveMemberScope(
   }
 
   if (DISTRICT_LEADER_ROLES.has(role)) {
+    if (options.autoCreate && createScopeMode === "empty") {
+      return {
+        district_id: null,
+        big_family_id: null,
+        small_group_id: null,
+      };
+    }
     if (explicitDistrictId) {
       const district = await fetchDistrict(adminClient, explicitDistrictId);
       if (!district) {
@@ -3652,6 +3662,10 @@ async function resolveMemberScope(
       return null;
     }
 
+    if (createScopeMode === "existing") {
+      return null;
+    }
+
     const { data: createdDistrict, error } = await adminClient
       .from("districts")
       .insert({
@@ -3673,6 +3687,13 @@ async function resolveMemberScope(
   }
 
   if (BIG_FAMILY_LEADER_ROLES.has(role)) {
+    if (options.autoCreate && createScopeMode === "empty") {
+      return {
+        district_id: null,
+        big_family_id: null,
+        small_group_id: null,
+      };
+    }
     if (explicitBigFamilyId) {
       const bigFamily = await fetchBigFamily(adminClient, explicitBigFamilyId);
       if (!bigFamily || !bigFamily.district_id) {
@@ -3744,6 +3765,10 @@ async function resolveMemberScope(
       return null;
     }
 
+    if (createScopeMode === "existing") {
+      return null;
+    }
+
     const { data: createdBigFamily, error } = await adminClient
       .from("big_families")
       .insert({
@@ -3766,6 +3791,13 @@ async function resolveMemberScope(
   }
 
   if (SMALL_GROUP_LEADER_ROLES.has(role)) {
+    if (options.autoCreate && createScopeMode === "empty") {
+      return {
+        district_id: null,
+        big_family_id: null,
+        small_group_id: null,
+      };
+    }
     if (explicitSmallGroupId) {
       const smallGroup = await fetchSmallGroup(adminClient, explicitSmallGroupId);
       if (!smallGroup) {
@@ -3899,6 +3931,10 @@ async function resolveMemberScope(
     }
 
     if (!options.fullName) {
+      return null;
+    }
+
+    if (createScopeMode === "existing") {
       return null;
     }
 
@@ -4070,6 +4106,17 @@ function normalizeEquipmentProgress(value: unknown) {
   return ["none", "growth", "disciple", "leader"].includes(normalized)
     ? normalized
     : "none";
+}
+
+function normalizeCreateScopeMode(value: unknown) {
+  const normalized = String(value || "").trim();
+  return ["empty", "create", "existing"].includes(normalized)
+    ? normalized
+    : "create";
+}
+
+function isManagedOrganizationRole(role: string) {
+  return DISTRICT_LEADER_ROLES.has(role) || BIG_FAMILY_LEADER_ROLES.has(role) || SMALL_GROUP_LEADER_ROLES.has(role);
 }
 
 function normalizeNote(value: unknown) {

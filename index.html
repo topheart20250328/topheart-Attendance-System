@@ -29,7 +29,7 @@
       content="牧區點名・出席｜LINE 登入"
     />
     <title>topheart 牧區點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260515-org-leader-cards-v85" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260515-create-scope-mode-v86" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -451,6 +451,14 @@
                   <span>所屬區</span>
                   <select id="memberDistrictSelect" required></select>
                 </label>
+                <label id="memberCreateScopeModeLabel" class="hidden">
+                  <span>歸屬方式</span>
+                  <select id="memberCreateScopeModeSelect">
+                    <option value="empty">留空</option>
+                    <option value="create">新建同名組織</option>
+                    <option value="existing">既有組織</option>
+                  </select>
+                </label>
                 <label id="memberBigFamilyLabel">
                   <span>所屬大家</span>
                   <select id="memberBigFamilySelect"></select>
@@ -520,6 +528,14 @@
                   <label>
                     <span>預設職分</span>
                     <select id="bulkRoleSelect" required></select>
+                  </label>
+                  <label id="bulkCreateScopeModeLabel" class="hidden">
+                    <span>預設歸屬方式</span>
+                    <select id="bulkCreateScopeModeSelect">
+                      <option value="empty">留空</option>
+                      <option value="create">新建同名組織</option>
+                      <option value="existing">既有組織</option>
+                    </select>
                   </label>
                   <label>
                     <span>預設性別</span>
@@ -869,6 +885,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js" defer></script>
-    <script type="module" src="./attendance-ui/main.js?v=20260515-org-leader-cards-v85"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260515-create-scope-mode-v86"></script>
   </body>
 </html>

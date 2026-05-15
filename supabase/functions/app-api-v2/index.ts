@@ -102,6 +102,7 @@ const ROLE_PERMISSION_TIER: Record<string, number> = {
 };
 const VALID_STATUS = new Set(["unknown", "present", "absent"]);
 const EQUIPMENT_PROGRESS_VALUES = new Set(["none", "growth", "disciple", "leader"]);
+const CREATE_SCOPE_MODES = new Set(["empty", "create", "existing"]);
 const NOTE_MAX_LENGTH = 1000;
 const HISTORY_RANGES = [
   { key: "month", label: "本月", weeksBack: 0 },
@@ -297,6 +298,15 @@ function normalizeEquipmentProgress(value: unknown) {
   return EQUIPMENT_PROGRESS_VALUES.has(progress) ? progress : "none";
 }
 
+function normalizeCreateScopeMode(value: unknown) {
+  const mode = String(value || "").trim();
+  return CREATE_SCOPE_MODES.has(mode) ? mode : "create";
+}
+
+function isManagedOrganizationRole(role: string) {
+  return DISTRICT_LEADER_ROLES.has(role) || BIG_FAMILY_LEADER_ROLES.has(role) || SMALL_GROUP_LEADER_ROLES.has(role);
+}
+
 function getDistrictPastorDistrictIds(member: MemberRow) {
   return (member.district_pastor_district_ids || [])
     .map((value) => Number(value))
@@ -399,7 +409,9 @@ async function createMemberFromBody(
   if (!scope) {
     return { status: 400, body: { error: "Invalid hierarchy scope for this role." } };
   }
-  if (!canManageDistrict(viewer, scope.district_id)) {
+  const createScopeMode = normalizeCreateScopeMode(body?.create_scope_mode);
+  const isEmptyManagedCreate = isManagedOrganizationRole(role) && createScopeMode === "empty" && scope.district_id === null;
+  if (!isEmptyManagedCreate && !canManageDistrict(viewer, scope.district_id)) {
     return { status: 403, body: { error: "No permission to create in this district." } };
   }
 
@@ -613,6 +625,7 @@ async function resolveScope(
   const districtId = toPositiveInt(body?.district_id);
   const bigFamilyId = toPositiveInt(body?.big_family_id);
   const smallGroupId = toPositiveInt(body?.small_group_id);
+  const createScopeMode = options.autoCreate ? normalizeCreateScopeMode(body?.create_scope_mode) : "existing";
 
   if (PREACHER_ROLES.has(role)) {
     if (smallGroupId) {
@@ -640,11 +653,17 @@ async function resolveScope(
   }
 
   if (DISTRICT_LEADER_ROLES.has(role)) {
+    if (options.autoCreate && createScopeMode === "empty") {
+      return { district_id: null, big_family_id: null, small_group_id: null };
+    }
     if (districtId) {
       return { district_id: districtId, big_family_id: null, small_group_id: null };
     }
     if (!options.autoCreate) {
       return { district_id: null, big_family_id: null, small_group_id: null };
+    }
+    if (createScopeMode === "existing") {
+      return null;
     }
     const district = await insertOne(db, "districts", {
       name: `${options.fullName}區`,
@@ -654,6 +673,9 @@ async function resolveScope(
   }
 
   if (BIG_FAMILY_LEADER_ROLES.has(role)) {
+    if (options.autoCreate && createScopeMode === "empty") {
+      return { district_id: null, big_family_id: null, small_group_id: null };
+    }
     if (bigFamilyId) {
       const bigFamily = await getOne(db, "big_families", bigFamilyId);
       return bigFamily?.district_id
@@ -666,6 +688,9 @@ async function resolveScope(
     if (!options.autoCreate) {
       return { district_id: districtId, big_family_id: null, small_group_id: null };
     }
+    if (createScopeMode === "existing") {
+      return null;
+    }
     const bigFamily = await insertOne(db, "big_families", {
       district_id: districtId,
       name: `${options.fullName}大家`,
@@ -675,6 +700,9 @@ async function resolveScope(
   }
 
   if (SMALL_GROUP_LEADER_ROLES.has(role) || MEMBER_ROLES.has(role)) {
+    if (SMALL_GROUP_LEADER_ROLES.has(role) && options.autoCreate && createScopeMode === "empty") {
+      return { district_id: null, big_family_id: null, small_group_id: null };
+    }
     if (smallGroupId) {
       const smallGroup = await getOne(db, "small_groups", smallGroupId);
       if (!smallGroup?.district_id) {
@@ -703,6 +731,9 @@ async function resolveScope(
       }
       if (!options.autoCreate) {
         return { district_id: districtId, big_family_id: bigFamilyId || null, small_group_id: null };
+      }
+      if (createScopeMode === "existing") {
+        return null;
       }
       const smallGroup = await insertOne(db, "small_groups", {
         district_id: districtId,

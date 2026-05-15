@@ -98,6 +98,7 @@ const SMALL_GROUP_LEADER_ROLES = [
 ];
 
 const MEMBER_ROLES = ["member", "best"];
+const CREATE_SCOPE_MODES = ["empty", "create", "existing"];
 
 const MANAGEMENT_CREATE_ROLES = [
   "district_leader",
@@ -240,6 +241,8 @@ const els = {
   memberEquipmentProgressSelect: document.querySelector("#memberEquipmentProgressSelect"),
   memberDistrictLabel: document.querySelector("#memberDistrictLabel"),
   memberDistrictSelect: document.querySelector("#memberDistrictSelect"),
+  memberCreateScopeModeLabel: document.querySelector("#memberCreateScopeModeLabel"),
+  memberCreateScopeModeSelect: document.querySelector("#memberCreateScopeModeSelect"),
   memberBigFamilyLabel: document.querySelector("#memberBigFamilyLabel"),
   memberBigFamilySelect: document.querySelector("#memberBigFamilySelect"),
   memberSmallGroupLabel: document.querySelector("#memberSmallGroupLabel"),
@@ -259,6 +262,8 @@ const els = {
   bulkMemberForm: document.querySelector("#bulkMemberForm"),
   bulkRoleSelect: document.querySelector("#bulkRoleSelect"),
   bulkGenderSelect: document.querySelector("#bulkGenderSelect"),
+  bulkCreateScopeModeLabel: document.querySelector("#bulkCreateScopeModeLabel"),
+  bulkCreateScopeModeSelect: document.querySelector("#bulkCreateScopeModeSelect"),
   bulkDistrictLabel: document.querySelector("#bulkDistrictLabel"),
   bulkDistrictSelect: document.querySelector("#bulkDistrictSelect"),
   bulkBigFamilyLabel: document.querySelector("#bulkBigFamilyLabel"),
@@ -494,7 +499,17 @@ function bindEvents() {
     const editingMember = state.ui.editingMemberId
       ? state.adminData.members.find((member) => member.id === state.ui.editingMemberId)
       : null;
+    if (state.ui.editorMode === "create") {
+      els.memberCreateScopeModeSelect.value = "empty";
+    }
     populateDistrictOptions(editingMember);
+    syncEditorBigFamilyOptions();
+    syncEditorSmallGroupOptions();
+    syncMemberFormScope();
+  });
+  els.memberCreateScopeModeSelect?.addEventListener("change", () => {
+    els.memberBigFamilySelect.value = "";
+    els.memberSmallGroupSelect.value = "";
     syncEditorBigFamilyOptions();
     syncEditorSmallGroupOptions();
     syncMemberFormScope();
@@ -511,7 +526,15 @@ function bindEvents() {
     syncEditorSmallGroupOptions();
     syncMemberFormScope();
   });
-  els.bulkRoleSelect?.addEventListener("change", syncBulkDefaultScope);
+  els.bulkRoleSelect?.addEventListener("change", () => {
+    els.bulkCreateScopeModeSelect.value = "empty";
+    syncBulkDefaultScope();
+  });
+  els.bulkCreateScopeModeSelect?.addEventListener("change", () => {
+    els.bulkBigFamilySelect.value = "";
+    els.bulkSmallGroupSelect.value = "";
+    syncBulkDefaultScope();
+  });
   els.bulkDistrictSelect?.addEventListener("change", () => {
     els.bulkBigFamilySelect.value = "";
     els.bulkSmallGroupSelect.value = "";
@@ -3671,6 +3694,7 @@ function openBulkMemberEditor() {
   populateBulkRoleOptions();
   populateBulkDistrictOptions();
   els.bulkGenderSelect.value = "";
+  els.bulkCreateScopeModeSelect.value = "empty";
   els.bulkNamesInput.value = "";
   els.bulkActiveSelect.value = "true";
   syncBulkDefaultScope();
@@ -3737,8 +3761,11 @@ function syncBulkDefaultScope() {
   }
 
   const role = els.bulkRoleSelect.value;
+  const createScopeMode = getBulkCreateScopeMode(role);
+  const selectedBigFamilyId = Number(els.bulkBigFamilySelect.value || 0);
+  const selectedSmallGroupId = Number(els.bulkSmallGroupSelect.value || 0);
   const districtId = Number(els.bulkDistrictSelect.value || 0);
-  const availableBigFamilies = getSelectableBigFamilies(districtId);
+  const availableBigFamilies = getSelectableBigFamilies(districtId, selectedBigFamilyId);
   fillSelect(
     els.bulkBigFamilySelect,
     availableBigFamilies.map((bigFamily) => ({
@@ -3747,12 +3774,16 @@ function syncBulkDefaultScope() {
     })),
     { placeholder: availableBigFamilies.length ? "可留空（無大家）" : "可留空（無大家）" },
   );
+  if (selectedBigFamilyId) {
+    els.bulkBigFamilySelect.value = String(selectedBigFamilyId);
+  }
 
   const bigFamilyId = Number(els.bulkBigFamilySelect.value || 0);
   const availableSmallGroups = getSelectableSmallGroups({
     role,
     districtId,
     bigFamilyId,
+    includeSmallGroupId: selectedSmallGroupId,
   });
   fillSelect(
     els.bulkSmallGroupSelect,
@@ -3766,13 +3797,29 @@ function syncBulkDefaultScope() {
     })),
     { placeholder: availableSmallGroups.length ? "請選擇小家" : "尚無可選小家" },
   );
+  if (selectedSmallGroupId) {
+    els.bulkSmallGroupSelect.value = String(selectedSmallGroupId);
+  }
 
-  const isDistrictLeaderCreate = role === "district_leader";
-  const isBigFamilyLeaderCreate = BIG_FAMILY_LEADER_ROLES.includes(role);
-  const isSmallGroupRole = SMALL_GROUP_LEADER_ROLES.includes(role);
-  setHidden(els.bulkDistrictLabel, false);
-  setHidden(els.bulkBigFamilyLabel, isDistrictLeaderCreate);
-  setHidden(els.bulkSmallGroupLabel, isDistrictLeaderCreate || isBigFamilyLeaderCreate || isSmallGroupRole);
+  const isManagedCreateRole = isManagedOrganizationCreateRole(role);
+  const showDistrictField = !isManagedCreateRole || createScopeMode !== "empty";
+  const showBigFamilyField = isManagedCreateRole
+    ? (
+        (BIG_FAMILY_LEADER_ROLES.includes(role) && createScopeMode === "existing") ||
+        (SMALL_GROUP_LEADER_ROLES.includes(role) && createScopeMode !== "empty")
+      )
+    : true;
+  const showSmallGroupField = isManagedCreateRole
+    ? SMALL_GROUP_LEADER_ROLES.includes(role) && createScopeMode === "existing"
+    : true;
+  setHidden(els.bulkCreateScopeModeLabel, !isManagedCreateRole);
+  setHidden(els.bulkDistrictLabel, !showDistrictField);
+  setHidden(els.bulkBigFamilyLabel, !showBigFamilyField);
+  setHidden(els.bulkSmallGroupLabel, !showSmallGroupField);
+  els.bulkCreateScopeModeSelect.disabled = !isManagedCreateRole;
+  if (isManagedCreateRole) {
+    els.bulkCreateScopeModeSelect.value = createScopeMode;
+  }
 }
 
 function parseBulkNames(value) {
@@ -3800,18 +3847,42 @@ function createBulkMemberDraft(name, index) {
   const smallGroup = state.adminData.smallGroups.find((item) => item.id === smallGroupId);
   const bigFamilyId = smallGroup?.big_family_id || Number(els.bulkBigFamilySelect.value || 0) || null;
   const districtId = smallGroup?.district_id || Number(els.bulkDistrictSelect.value || 0) || null;
+  const role = els.bulkRoleSelect.value || "member";
+  const createScopeMode = getBulkCreateScopeMode(role);
 
-  return {
+  return applyBulkCreateScopeMode({
     client_id: `bulk-${Date.now()}-${index}`,
     full_name: name,
-    role: els.bulkRoleSelect.value || "member",
+    role,
+    create_scope_mode: createScopeMode,
     gender: els.bulkGenderSelect.value || "",
     district_id: districtId,
     big_family_id: bigFamilyId,
     small_group_id: smallGroupId || null,
     is_active: els.bulkActiveSelect.value !== "false",
     error: "",
-  };
+  });
+}
+
+function applyBulkCreateScopeMode(member) {
+  member.create_scope_mode = getBulkCreateScopeMode(member.role, member.create_scope_mode);
+  if (!isManagedOrganizationCreateRole(member.role)) {
+    member.create_scope_mode = "existing";
+    return member;
+  }
+
+  if (member.create_scope_mode === "empty" || member.create_scope_mode === "create") {
+    member.small_group_id = null;
+    if (member.role === "district_leader" || BIG_FAMILY_LEADER_ROLES.includes(member.role)) {
+      member.big_family_id = null;
+    }
+    if (member.create_scope_mode === "empty" || member.role === "district_leader") {
+      member.district_id = null;
+      member.big_family_id = null;
+    }
+  }
+
+  return member;
 }
 
 function handleBulkPreviewInput(event) {
@@ -3826,6 +3897,13 @@ function handleBulkPreviewInput(event) {
     member.full_name = event.target.value.trimStart();
   } else if (field === "role") {
     member.role = event.target.value;
+    member.create_scope_mode = getBulkCreateScopeMode(member.role, "empty");
+    member.district_id = null;
+    member.big_family_id = null;
+    member.small_group_id = null;
+  } else if (field === "create_scope_mode") {
+    member.create_scope_mode = getBulkCreateScopeMode(member.role, event.target.value);
+    member.district_id = null;
     member.big_family_id = null;
     member.small_group_id = null;
   } else if (field === "gender") {
@@ -3847,6 +3925,7 @@ function handleBulkPreviewInput(event) {
     }
   }
 
+  applyBulkCreateScopeMode(member);
   validateBulkMembers();
   renderBulkPreview();
 }
@@ -3890,14 +3969,34 @@ function getBulkMemberError(member) {
   ) {
     return "沒有權限新增此職分。";
   }
-  if (!state.currentMember?.is_admin && !canManageMemberDistrict(state.currentMember, member.district_id)) {
+  if (
+    !state.currentMember?.is_admin &&
+    member.district_id &&
+    !canManageMemberDistrict(state.currentMember, member.district_id)
+  ) {
     return "只能新增到自己的轄區。";
   }
-  if (BIG_FAMILY_LEADER_ROLES.includes(member.role) && !member.district_id) {
-    return "新增大家長需要選擇所屬區。";
-  }
-  if (SMALL_GROUP_LEADER_ROLES.includes(member.role) && !member.district_id) {
-    return "新增小家長需要選擇所屬區。";
+  const createScopeMode = getBulkCreateScopeMode(member.role, member.create_scope_mode);
+  if (isManagedOrganizationCreateRole(member.role)) {
+    if (createScopeMode === "create") {
+      if (BIG_FAMILY_LEADER_ROLES.includes(member.role) && !member.district_id) {
+        return "新建同名大家需要選擇所屬區。";
+      }
+      if (SMALL_GROUP_LEADER_ROLES.includes(member.role) && !member.district_id) {
+        return "新建同名小家需要選擇所屬區。";
+      }
+    }
+    if (createScopeMode === "existing") {
+      if (member.role === "district_leader" && !member.district_id) {
+        return "加入既有區需要選擇所屬區。";
+      }
+      if (BIG_FAMILY_LEADER_ROLES.includes(member.role) && !member.big_family_id) {
+        return "加入既有大家需要選擇所屬大家。";
+      }
+      if (SMALL_GROUP_LEADER_ROLES.includes(member.role) && !member.small_group_id) {
+        return "加入既有小家需要選擇所屬小家。";
+      }
+    }
   }
   if (MEMBER_ROLES.includes(member.role) && !member.small_group_id) {
     return "新增小家人或新朋友需要選擇小家。";
@@ -3927,9 +4026,24 @@ function renderBulkPreview() {
 
 function renderBulkMemberCard(member, index) {
   const roleOptions = getBulkRoleOptions(member.role);
+  const showCreateScopeMode = isManagedOrganizationCreateRole(member.role);
+  const createScopeModeOptions = showCreateScopeMode
+    ? getCreateScopeModeOptions(member.role, member.create_scope_mode)
+    : "";
   const districtOptions = getBulkDistrictOptions(member.district_id);
   const bigFamilyOptions = getBulkBigFamilyOptions(member);
   const smallGroupOptions = getBulkSmallGroupOptions(member);
+  const createScopeMode = getBulkCreateScopeMode(member.role, member.create_scope_mode);
+  const showDistrictField = !showCreateScopeMode || createScopeMode !== "empty";
+  const showBigFamilyField = showCreateScopeMode
+    ? (
+        (BIG_FAMILY_LEADER_ROLES.includes(member.role) && createScopeMode === "existing") ||
+        (SMALL_GROUP_LEADER_ROLES.includes(member.role) && createScopeMode !== "empty")
+      )
+    : true;
+  const showSmallGroupField = showCreateScopeMode
+    ? SMALL_GROUP_LEADER_ROLES.includes(member.role) && createScopeMode === "existing"
+    : true;
   return `
     <article class="bulk-member-card${member.error ? " has-error" : ""}">
       <div class="bulk-member-head">
@@ -3945,24 +4059,30 @@ function renderBulkMemberCard(member, index) {
           <span>職分</span>
           <select data-bulk-index="${index}" data-bulk-field="role" required>${roleOptions}</select>
         </label>
+        ${showCreateScopeMode ? `
+        <label>
+          <span>歸屬方式</span>
+          <select data-bulk-index="${index}" data-bulk-field="create_scope_mode">${createScopeModeOptions}</select>
+        </label>
+        ` : ""}
         <label>
           <span>性別</span>
           <select data-bulk-index="${index}" data-bulk-field="gender">${getGenderOptions(member.gender)}</select>
         </label>
       </div>
       <div class="bulk-member-scope-grid">
-        <label>
+        ${showDistrictField ? `<label>
           <span>所屬區</span>
           <select data-bulk-index="${index}" data-bulk-field="district_id">${districtOptions}</select>
-        </label>
-        <label>
+        </label>` : ""}
+        ${showBigFamilyField ? `<label>
           <span>所屬大家</span>
           <select data-bulk-index="${index}" data-bulk-field="big_family_id">${bigFamilyOptions}</select>
-        </label>
-        <label>
+        </label>` : ""}
+        ${showSmallGroupField ? `<label>
           <span>所屬小家</span>
           <select data-bulk-index="${index}" data-bulk-field="small_group_id">${smallGroupOptions}</select>
-        </label>
+        </label>` : ""}
       </div>
       ${member.error ? `<p class="bulk-row-error">${escapeHtml(member.error)}</p>` : ""}
     </article>
@@ -3986,6 +4106,24 @@ function getGenderOptions(selectedValue) {
     ],
     selectedValue,
     "未設定",
+  );
+}
+
+function getCreateScopeModeOptions(role, selectedValue) {
+  const targetLabel = role === "district_leader"
+    ? "區"
+    : BIG_FAMILY_LEADER_ROLES.includes(role)
+      ? "大家"
+      : "小家";
+  return renderSelectOptions(
+    [
+      { value: "empty", label: "留空" },
+      { value: "create", label: `新建同名${targetLabel}` },
+      { value: "existing", label: `既有${targetLabel}` },
+    ],
+    normalizeCreateScopeMode(selectedValue),
+    "留空",
+    { includePlaceholder: false },
   );
 }
 
@@ -4031,16 +4169,18 @@ function getBulkSmallGroupOptions(member) {
   return renderSelectOptions(options, member.small_group_id ? String(member.small_group_id) : "", "請選擇小家");
 }
 
-function renderSelectOptions(items, selectedValue, placeholder) {
+function renderSelectOptions(items, selectedValue, placeholder, options = {}) {
   const selected = String(selectedValue || "");
-  const options = [`<option value=""${selected ? "" : " selected"}>${escapeHtml(placeholder)}</option>`];
+  const renderedOptions = options.includePlaceholder === false
+    ? []
+    : [`<option value=""${selected ? "" : " selected"}>${escapeHtml(placeholder)}</option>`];
   for (const item of items) {
     const value = String(item.value);
-    options.push(
+    renderedOptions.push(
       `<option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>${escapeHtml(item.label)}</option>`,
     );
   }
-  return options.join("");
+  return renderedOptions.join("");
 }
 
 async function handleSaveBulkMembers(event) {
@@ -4106,6 +4246,7 @@ function serializeBulkMember(member) {
   return {
     full_name: member.full_name,
     role: member.role,
+    create_scope_mode: getBulkCreateScopeMode(member.role, member.create_scope_mode),
     gender: member.gender || null,
     district_id: member.district_id || null,
     big_family_id: member.big_family_id || null,
@@ -4195,6 +4336,30 @@ function getCreateRoleOptions() {
     return MANAGEMENT_CREATE_ROLES;
   }
   return MANAGEMENT_CREATE_ROLES.filter((role) => role !== "district_leader");
+}
+
+function isManagedOrganizationCreateRole(role) {
+  return (
+    role === "district_leader" ||
+    BIG_FAMILY_LEADER_ROLES.includes(role) ||
+    SMALL_GROUP_LEADER_ROLES.includes(role)
+  );
+}
+
+function normalizeCreateScopeMode(value) {
+  const mode = String(value || "").trim();
+  return CREATE_SCOPE_MODES.includes(mode) ? mode : "empty";
+}
+
+function getMemberCreateScopeMode(role) {
+  if (state.ui.editorMode !== "create" || !isManagedOrganizationCreateRole(role)) {
+    return "existing";
+  }
+  return normalizeCreateScopeMode(els.memberCreateScopeModeSelect?.value);
+}
+
+function getBulkCreateScopeMode(role, value = els.bulkCreateScopeModeSelect?.value) {
+  return isManagedOrganizationCreateRole(role) ? normalizeCreateScopeMode(value) : "existing";
 }
 
 function getOrganizationDisplayName(name, isActive) {
@@ -4398,11 +4563,12 @@ function fillMemberForm(mode, member) {
   if (mode === "create") {
     els.memberEditorTitle.textContent = "新增人員";
     els.memberEditorHint.textContent = state.currentMember?.is_admin
-      ? "管理員可建立所有職分；新增區長、大家長、小家長或實習小家長時，系統會自動建立對應組織。"
-      : "區長可建立自己轄區內的大/小家長、小家人與新朋友；新增管理職時會自動建立同名組織。";
+      ? "管理員可建立所有職分；新增區長、大家長或小家長時可選留空、新建同名或加入既有組織。"
+      : "區長可建立自己轄區內的大/小家長、小家人與新朋友；新增管理職時可選留空、新建同名或加入既有組織。";
     els.memberNameInput.value = "";
     els.memberGenderSelect.value = "";
     els.memberEquipmentProgressSelect.value = "none";
+    els.memberCreateScopeModeSelect.value = "empty";
     els.memberNoteInput.value = "";
     els.memberActiveSelect.value = "true";
     els.memberIsAdminInput.checked = false;
@@ -4435,31 +4601,48 @@ function syncMemberFormScope() {
   const editingMember = isEditMode
     ? state.adminData.members.find((member) => member.id === state.ui.editingMemberId)
     : null;
+  const createScopeMode = getMemberCreateScopeMode(role);
+  const isManagedCreateRole = isCreateMode && isManagedOrganizationCreateRole(role);
   const needsBigFamily =
-    MEMBER_ROLES.includes(role)
-      ? isEditMode
-      : PREACHER_ROLES.includes(role)
-        ? true
-        : BIG_FAMILY_LEADER_ROLES.includes(role)
-          ? !isCreateMode
-          : SMALL_GROUP_LEADER_ROLES.includes(role)
-            ? true
-            : false;
+    isManagedCreateRole
+      ? (
+          (BIG_FAMILY_LEADER_ROLES.includes(role) && createScopeMode === "existing") ||
+          (SMALL_GROUP_LEADER_ROLES.includes(role) && createScopeMode !== "empty")
+        )
+      : MEMBER_ROLES.includes(role)
+        ? isEditMode
+        : PREACHER_ROLES.includes(role)
+          ? true
+          : BIG_FAMILY_LEADER_ROLES.includes(role)
+            ? !isCreateMode
+            : SMALL_GROUP_LEADER_ROLES.includes(role)
+              ? true
+              : false;
   const showSmallGroupField =
-    PREACHER_ROLES.includes(role) ||
-    MEMBER_ROLES.includes(role) ||
-    (SMALL_GROUP_LEADER_ROLES.includes(role) && !isCreateMode);
+    isManagedCreateRole
+      ? SMALL_GROUP_LEADER_ROLES.includes(role) && createScopeMode === "existing"
+      : PREACHER_ROLES.includes(role) ||
+        MEMBER_ROLES.includes(role) ||
+        (SMALL_GROUP_LEADER_ROLES.includes(role) && !isCreateMode);
   const showDistrictField =
-    !DISTRICT_PASTOR_ROLES.includes(role) &&
-    (!(role === "district_leader" && isCreateMode) &&
-      (!MEMBER_ROLES.includes(role) || isEditMode));
+    isManagedCreateRole
+      ? createScopeMode !== "empty"
+      : !DISTRICT_PASTOR_ROLES.includes(role) &&
+        (!(role === "district_leader" && isCreateMode) &&
+          (!MEMBER_ROLES.includes(role) || isEditMode));
   const showManagedDistricts = usesMultiDistrictSelect(role);
   const districtRequired =
-    PREACHER_ROLES.includes(role)
+    isManagedCreateRole
+      ? (
+          createScopeMode === "create" &&
+          (BIG_FAMILY_LEADER_ROLES.includes(role) || SMALL_GROUP_LEADER_ROLES.includes(role))
+        )
+      : PREACHER_ROLES.includes(role)
       ? false
       : isCreateMode && (BIG_FAMILY_LEADER_ROLES.includes(role) || SMALL_GROUP_LEADER_ROLES.includes(role));
 
   setHidden(els.memberDistrictLabel, !showDistrictField);
+  setHidden(els.memberCreateScopeModeLabel, !isManagedCreateRole);
   setHidden(els.memberBigFamilyLabel, !needsBigFamily);
   setHidden(els.memberSmallGroupLabel, !showSmallGroupField);
   setHidden(els.memberManagedDistrictWrap, !showManagedDistricts);
@@ -4474,8 +4657,13 @@ function syncMemberFormScope() {
   renderManagedDistrictOptions(editingMember);
   els.memberBigFamilySelect.required = false;
   els.memberSmallGroupSelect.required =
-    isCreateMode && MEMBER_ROLES.includes(role);
+    (isCreateMode && MEMBER_ROLES.includes(role)) ||
+    (isManagedCreateRole && SMALL_GROUP_LEADER_ROLES.includes(role) && createScopeMode === "existing");
   els.memberIsAdminInput.disabled = !canEditAdminPermission;
+  els.memberCreateScopeModeSelect.disabled = !isManagedCreateRole;
+  if (isManagedCreateRole) {
+    els.memberCreateScopeModeSelect.value = createScopeMode;
+  }
 
   if (!canEditAdminPermission) {
     els.memberIsAdminInput.checked = false;
@@ -4489,19 +4677,19 @@ function syncMemberFormScope() {
     trainee_preacher: "實習傳道人與傳道人同權限；可放在未設定區，也可指定區、大家或小家作為所屬。",
     district_pastor: "區牧可管理多個指定區；若暫時不指定，可保持空白不要選任何區。",
     district_leader: isCreateMode
-      ? "新增區長時，系統會自動建立「姓名區」。"
+      ? "新增區長可留空、選既有區，或新建「姓名區」。"
       : "編輯區長時，可調整基本資料；所屬區也可留空。",
     big_family_leader: isCreateMode
-      ? "新增大家長時，只需選區；系統會自動建立「姓名大家」。"
+      ? "新增大家長可留空、加入既有大家，或選區後新建「姓名大家」。"
       : "編輯大家長時，可調整基本資料；所屬區/大家可留空。",
     trainee_big_family_leader: isCreateMode
-      ? "新增實習大家長時，只需選區；系統會自動建立「姓名大家」。"
+      ? "新增實習大家長可留空、加入既有大家，或選區後新建「姓名大家」。"
       : "實習大家長與大家長同權限；可調整基本資料與大家歸屬。",
     small_group_leader: isCreateMode
-      ? "新增小家長時，只需選區，大家可留空；系統會自動建立「姓名小家」。"
+      ? "新增小家長可留空、加入既有小家，或選區後新建「姓名小家」。"
       : "編輯小家長時，可調整基本資料；區、大家與小家都可暫時留空。",
     trainee_small_group_leader: isCreateMode
-      ? "新增實習小家長時，只需選區，大家可留空；系統會自動建立「姓名小家」。"
+      ? "新增實習小家長可留空、加入既有小家，或選區後新建「姓名小家」。"
       : "實習小家長與小家長同權限；可調整基本資料與小家歸屬。",
     member: isCreateMode
       ? "新增小家人時，只要選小家，系統會自動帶出上層歸屬。"
@@ -4522,9 +4710,11 @@ async function handleSaveMember(event) {
 
   const role = els.memberRoleSelect.value;
   const usesManagedDistricts = usesMultiDistrictSelect(role);
+  const createScopeMode = getMemberCreateScopeMode(role);
   const body = {
     full_name: els.memberNameInput.value.trim(),
     role,
+    create_scope_mode: mode === "create" ? createScopeMode : undefined,
     gender: els.memberGenderSelect.value || null,
     equipment_progress: normalizeEquipmentProgress(els.memberEquipmentProgressSelect.value),
     note: els.memberNoteInput.value.trim(),
@@ -4543,6 +4733,21 @@ async function handleSaveMember(event) {
     is_admin: els.memberIsAdminInput.checked,
     is_active: els.memberActiveSelect.value === "true",
   };
+  if (mode === "create" && isManagedOrganizationCreateRole(body.role)) {
+    if (createScopeMode === "empty") {
+      body.district_id = null;
+      body.big_family_id = null;
+      body.small_group_id = null;
+    } else if (createScopeMode === "create") {
+      body.small_group_id = null;
+      if (body.role === "district_leader") {
+        body.district_id = null;
+        body.big_family_id = null;
+      } else if (BIG_FAMILY_LEADER_ROLES.includes(body.role)) {
+        body.big_family_id = null;
+      }
+    }
+  }
 
   if (!body.full_name || !body.role) {
     showToast("請完整填寫姓名與身分。");
@@ -4552,10 +4757,36 @@ async function handleSaveMember(event) {
   if (
     (BIG_FAMILY_LEADER_ROLES.includes(body.role) || SMALL_GROUP_LEADER_ROLES.includes(body.role)) &&
     !body.district_id &&
-    state.ui.editorMode === "create"
+    state.ui.editorMode === "create" &&
+    !isManagedOrganizationCreateRole(body.role)
   ) {
     showToast("此身分至少需要指定所屬區。");
     return;
+  }
+
+  if (mode === "create" && isManagedOrganizationCreateRole(body.role)) {
+    if (
+      createScopeMode === "create" &&
+      (BIG_FAMILY_LEADER_ROLES.includes(body.role) || SMALL_GROUP_LEADER_ROLES.includes(body.role)) &&
+      !body.district_id
+    ) {
+      showToast("新建同名大家或小家時，請先選擇所屬區。");
+      return;
+    }
+    if (createScopeMode === "existing") {
+      if (body.role === "district_leader" && !body.district_id) {
+        showToast("加入既有區時，請選擇所屬區。");
+        return;
+      }
+      if (BIG_FAMILY_LEADER_ROLES.includes(body.role) && !body.big_family_id) {
+        showToast("加入既有大家時，請選擇所屬大家。");
+        return;
+      }
+      if (SMALL_GROUP_LEADER_ROLES.includes(body.role) && !body.small_group_id) {
+        showToast("加入既有小家時，請選擇所屬小家。");
+        return;
+      }
+    }
   }
 
   if (MEMBER_ROLES.includes(body.role) && !body.small_group_id && mode === "create") {
