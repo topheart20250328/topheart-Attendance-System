@@ -29,7 +29,7 @@
       content="牧區點名・出席｜LINE 登入"
     />
     <title>topheart 牧區點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260515-equipment-contrast-v78" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260515-label-permission-v79" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -84,6 +84,44 @@
         <p class="muted small-text">
           大字模式會放大文字與操作按鈕，盡量保留目前卡片版面的清楚度。
         </p>
+        <details class="label-guide">
+          <summary>標籤圖例</summary>
+          <div class="label-guide-section">
+            <strong>組織層級</strong>
+            <div class="label-guide-row">
+              <span class="overview-level-badge">區</span>
+              <span class="overview-level-badge guide-big-family">大家</span>
+              <span class="overview-level-badge guide-small-group">小家</span>
+            </div>
+          </div>
+          <div class="label-guide-section">
+            <strong>職分</strong>
+            <div class="label-guide-row">
+              <span class="role-pill role-preacher">傳道人</span>
+              <span class="role-pill role-trainee_preacher">實習傳道人</span>
+              <span class="role-pill role-district_pastor">區牧</span>
+              <span class="role-pill role-district_leader">區長</span>
+              <span class="role-pill role-big_family_leader">大家長</span>
+              <span class="role-pill role-trainee_big_family_leader">實習大家長</span>
+              <span class="role-pill role-small_group_leader">小家長</span>
+              <span class="role-pill role-trainee_small_group_leader">實習小家長</span>
+              <span class="role-pill role-member">小家人</span>
+              <span class="role-pill role-best">新朋友</span>
+            </div>
+          </div>
+          <div class="label-guide-section">
+            <strong>其他標籤</strong>
+            <div class="label-guide-row">
+              <span class="gender-badge brother">弟兄</span>
+              <span class="gender-badge sister">姊妹</span>
+              <span class="equipment-badge equipment-growth">成長班</span>
+              <span class="equipment-badge equipment-disciple">門徒班</span>
+              <span class="equipment-badge equipment-leader">領袖班</span>
+              <span class="status-chip success">已綁定</span>
+              <span class="status-chip warning">待綁定</span>
+            </div>
+          </div>
+        </details>
       </section>
 
       <section id="setupCard" class="card hidden system-only">
@@ -831,6 +869,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js" defer></script>
-    <script type="module" src="./attendance-ui/main.js?v=20260515-equipment-contrast-v78"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260515-label-permission-v79"></script>
   </body>
 </html>

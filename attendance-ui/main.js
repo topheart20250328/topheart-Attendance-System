@@ -3362,9 +3362,13 @@ function renderPeopleMemberCard(member) {
         : LOGIN_ROLES.includes(member.role)
           ? "尚待綁定"
           : "";
+      const canEdit = canEditProfile(member);
       const canDelete = canDeleteMember(member);
       const canRestore = canRestoreMember(member);
       const canPurge = canPurgeMember(member);
+      const readonlyChip = canEdit
+        ? ""
+        : '<span class="status-chip neutral">僅檢視</span>';
 
       return `
         <article class="member-card${member.is_active ? "" : " is-inactive"}">
@@ -3378,11 +3382,14 @@ function renderPeopleMemberCard(member) {
               <div class="member-card-chips">
                 <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
                 ${lineStatus}
+                ${readonlyChip}
               </div>
               ${path ? `<div class="member-card-path muted small-text">${escapeHtml(path)}</div>` : ""}
             </div>
             <div class="row-actions">
-              <button type="button" class="secondary people-edit-btn" data-member-id="${member.id}">編輯</button>
+              ${canEdit
+                ? `<button type="button" class="secondary people-edit-btn" data-member-id="${member.id}">編輯</button>`
+                : ""}
               ${canRestore
                 ? `<button type="button" class="danger-button people-restore-btn" data-member-id="${member.id}" data-member-name="${escapeHtml(member.full_name)}">恢復啟用</button>`
                 : ""}
@@ -5799,6 +5806,10 @@ function canEditOrganization(orgType) {
   return canUseManagement();
 }
 
+function canReorderOrganization() {
+  return Boolean(state.currentMember?.is_admin);
+}
+
 function getOrganizationActionSlug(orgType) {
   return {
     district: "district",
@@ -5819,7 +5830,7 @@ function renderOrganizationCard(orgType, organization) {
   const summary = getOrganizationDependencySummary(orgType, organization.id);
   const actionButtons = [];
 
-  if (canEditOrganization(orgType)) {
+  if (canReorderOrganization()) {
     actionButtons.push(`
       <button
         type="button"
@@ -5844,6 +5855,9 @@ function renderOrganizationCard(orgType, organization) {
         下移
       </button>
     `);
+  }
+
+  if (canEditOrganization(orgType)) {
     actionButtons.push(`
       <button
         type="button"

@@ -24,6 +24,56 @@
   --danger: #991b1b;
   --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
   --radius: 18px;
+  --chip-neutral-bg: #eff4ff;
+  --chip-neutral-text: #36528b;
+  --chip-success-bg: #dcfce7;
+  --chip-warning-bg: #ffedd5;
+  --chip-danger-bg: #fee2e2;
+  --org-district-bg: #f3f7ff;
+  --org-district-bg-strong: #dde9ff;
+  --org-district-text: #224c97;
+  --org-district-border: rgba(43, 111, 243, 0.24);
+  --org-big-family-bg: #fbf8ff;
+  --org-big-family-bg-strong: #ede6ff;
+  --org-big-family-text: #5e3ea5;
+  --org-big-family-border: rgba(94, 62, 165, 0.22);
+  --org-small-group-bg: #f5fbff;
+  --org-small-group-bg-strong: #e6f7ff;
+  --org-small-group-text: #17607c;
+  --org-small-group-border: rgba(23, 96, 124, 0.22);
+  --role-preacher-bg: #fde68a;
+  --role-preacher-text: #7c2d12;
+  --role-trainee-preacher-bg: #fef3c7;
+  --role-trainee-preacher-text: #92400e;
+  --role-district-pastor-bg: #e0e7ff;
+  --role-district-pastor-text: #3730a3;
+  --role-district-leader-bg: var(--org-district-bg-strong);
+  --role-district-leader-text: var(--org-district-text);
+  --role-big-family-leader-bg: var(--org-big-family-bg-strong);
+  --role-big-family-leader-text: var(--org-big-family-text);
+  --role-trainee-big-family-leader-bg: #f3e8ff;
+  --role-trainee-big-family-leader-text: #6b21a8;
+  --role-small-group-leader-bg: var(--org-small-group-bg-strong);
+  --role-small-group-leader-text: var(--org-small-group-text);
+  --role-trainee-small-group-leader-bg: #effaff;
+  --role-trainee-small-group-leader-text: #24708d;
+  --role-member-bg: #eaf7ea;
+  --role-member-text: #2e6e36;
+  --role-best-bg: #fff2df;
+  --role-best-text: #9a5d09;
+  --gender-brother-bg: #e0ecff;
+  --gender-brother-text: #2757a5;
+  --gender-sister-bg: #ffe4ef;
+  --gender-sister-text: #a23c68;
+  --equipment-growth-bg: #d8f3e1;
+  --equipment-growth-text: #166534;
+  --equipment-growth-border: rgba(34, 197, 94, 0.3);
+  --equipment-disciple-bg: #ffe4c7;
+  --equipment-disciple-text: #9a3412;
+  --equipment-disciple-border: rgba(249, 115, 22, 0.3);
+  --equipment-leader-bg: #e7ddff;
+  --equipment-leader-text: #5b35a3;
+  --equipment-leader-border: rgba(139, 92, 246, 0.3);
 }
 
 html {
@@ -454,6 +504,8 @@ body:not(.is-authenticated) #attendanceSaveBar {
   right: max(12px, env(safe-area-inset-right));
   z-index: 12;
   width: min(420px, calc(100vw - 24px));
+  max-height: calc(100dvh - 96px);
+  overflow: auto;
   margin: 0;
 }
 
@@ -491,6 +543,47 @@ body:not(.is-authenticated) #attendanceSaveBar {
   min-height: 0;
   margin: 0;
   padding: 0;
+}
+
+.label-guide {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-alt);
+}
+
+.label-guide summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.label-guide-section {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.label-guide-section > strong {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.label-guide-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.label-guide .guide-big-family {
+  background: var(--org-big-family-bg-strong);
+  color: var(--org-big-family-text);
+}
+
+.label-guide .guide-small-group {
+  background: var(--org-small-group-bg-strong);
+  color: var(--org-small-group-text);
 }
 
 body.layout-large .app-header h1 {
@@ -1864,68 +1957,72 @@ tbody tr:last-child td {
 
 .role-pill,
 .status-chip.neutral {
-  background: #eff4ff;
-  color: #36528b;
+  background: var(--chip-neutral-bg);
+  color: var(--chip-neutral-text);
 }
 
 .role-pill.role-district_leader {
-  background: #dde9ff;
-  color: #224c97;
+  background: var(--role-district-leader-bg);
+  color: var(--role-district-leader-text);
 }
 
 .role-pill.role-preacher {
-  background: #fde68a;
-  color: #7c2d12;
+  background: var(--role-preacher-bg);
+  color: var(--role-preacher-text);
 }
 
 .role-pill.role-trainee_preacher {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--role-trainee-preacher-bg);
+  color: var(--role-trainee-preacher-text);
 }
 
 .role-pill.role-district_pastor {
-  background: #e0e7ff;
-  color: #3730a3;
+  background: var(--role-district-pastor-bg);
+  color: var(--role-district-pastor-text);
 }
 
 .role-pill.role-big_family_leader {
-  background: #ede6ff;
-  color: #5e3ea5;
+  background: var(--role-big-family-leader-bg);
+  color: var(--role-big-family-leader-text);
 }
 
 .role-pill.role-trainee_big_family_leader {
-  background: #f3e8ff;
-  color: #6b21a8;
+  background: var(--role-trainee-big-family-leader-bg);
+  color: var(--role-trainee-big-family-leader-text);
 }
 
-.role-pill.role-small_group_leader,
+.role-pill.role-small_group_leader {
+  background: var(--role-small-group-leader-bg);
+  color: var(--role-small-group-leader-text);
+}
+
 .role-pill.role-trainee_small_group_leader {
-  background: #e6f7ff;
-  color: #17607c;
+  background: var(--role-trainee-small-group-leader-bg);
+  color: var(--role-trainee-small-group-leader-text);
 }
 
 .role-pill.role-member {
-  background: #eaf7ea;
-  color: #2e6e36;
+  background: var(--role-member-bg);
+  color: var(--role-member-text);
 }
 
 .role-pill.role-best {
-  background: #fff2df;
-  color: #9a5d09;
+  background: var(--role-best-bg);
+  color: var(--role-best-text);
 }
 
 .status-chip.success {
-  background: #dcfce7;
+  background: var(--chip-success-bg);
   color: var(--success);
 }
 
 .status-chip.warning {
-  background: #ffedd5;
+  background: var(--chip-warning-bg);
   color: var(--warning);
 }
 
 .status-chip.archived {
-  background: #fee2e2;
+  background: var(--chip-danger-bg);
   color: var(--danger);
 }
 
@@ -1948,13 +2045,13 @@ tbody tr:last-child td {
 }
 
 .gender-badge.brother {
-  background: #e0ecff;
-  color: #2757a5;
+  background: var(--gender-brother-bg);
+  color: var(--gender-brother-text);
 }
 
 .gender-badge.sister {
-  background: #ffe4ef;
-  color: #a23c68;
+  background: var(--gender-sister-bg);
+  color: var(--gender-sister-text);
 }
 
 .name-card {
@@ -1967,13 +2064,13 @@ tbody tr:last-child td {
 }
 
 .name-card.gender-brother {
-  background: #eef5ff;
-  color: #1f4f96;
+  background: var(--gender-brother-bg);
+  color: var(--gender-brother-text);
 }
 
 .name-card.gender-sister {
-  background: #fff0f6;
-  color: #934264;
+  background: var(--gender-sister-bg);
+  color: var(--gender-sister-text);
 }
 
 .name-card.gender-unknown {
@@ -1996,39 +2093,39 @@ tbody tr:last-child td {
 }
 
 .equipment-badge.equipment-growth {
-  background: #d8f3e1;
-  color: #166534;
+  background: var(--equipment-growth-bg);
+  color: var(--equipment-growth-text);
 }
 
 .equipment-badge.equipment-disciple {
-  background: #ffe4c7;
-  color: #9a3412;
+  background: var(--equipment-disciple-bg);
+  color: var(--equipment-disciple-text);
 }
 
 .equipment-badge.equipment-leader {
-  background: #e7ddff;
-  color: #5b35a3;
+  background: var(--equipment-leader-bg);
+  color: var(--equipment-leader-text);
 }
 
 #attendanceView .attendance-card.equipment-growth,
 #overviewView .overview-member-details.equipment-growth,
 .org-member-pill.equipment-growth {
-  border-color: rgba(34, 197, 94, 0.3);
-  background: linear-gradient(180deg, #f8fef9 0%, #dcf5e5 100%);
+  border-color: var(--equipment-growth-border);
+  background: linear-gradient(180deg, #f8fef9 0%, var(--equipment-growth-bg) 100%);
 }
 
 #attendanceView .attendance-card.equipment-disciple,
 #overviewView .overview-member-details.equipment-disciple,
 .org-member-pill.equipment-disciple {
-  border-color: rgba(249, 115, 22, 0.3);
-  background: linear-gradient(180deg, #fffdf8 0%, #ffe4c7 100%);
+  border-color: var(--equipment-disciple-border);
+  background: linear-gradient(180deg, #fffdf8 0%, var(--equipment-disciple-bg) 100%);
 }
 
 #attendanceView .attendance-card.equipment-leader,
 #overviewView .overview-member-details.equipment-leader,
 .org-member-pill.equipment-leader {
-  border-color: rgba(139, 92, 246, 0.3);
-  background: linear-gradient(180deg, #fbfaff 0%, #e8ddff 100%);
+  border-color: var(--equipment-leader-border);
+  background: linear-gradient(180deg, #fbfaff 0%, var(--equipment-leader-bg) 100%);
 }
 
 .row-actions {
@@ -2407,18 +2504,18 @@ tbody tr:last-child td {
 }
 
 .overview-level-section-district {
-  border-color: rgba(43, 111, 243, 0.22);
-  background: linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%);
+  border-color: var(--org-district-border);
+  background: linear-gradient(180deg, #ffffff 0%, var(--org-district-bg) 100%);
 }
 
 .overview-level-section-big_family {
-  border-color: rgba(94, 62, 165, 0.2);
-  background: linear-gradient(180deg, #ffffff 0%, #fbf8ff 100%);
+  border-color: var(--org-big-family-border);
+  background: linear-gradient(180deg, #ffffff 0%, var(--org-big-family-bg) 100%);
 }
 
 .overview-level-section-small_group {
-  border-color: rgba(23, 96, 124, 0.2);
-  background: linear-gradient(180deg, #ffffff 0%, #f5fbff 100%);
+  border-color: var(--org-small-group-border);
+  background: linear-gradient(180deg, #ffffff 0%, var(--org-small-group-bg) 100%);
 }
 
 .overview-level-heading {
@@ -2437,8 +2534,8 @@ tbody tr:last-child td {
   min-width: 2.4em;
   padding: 0.14rem 0.46rem;
   border-radius: 999px;
-  background: #edf3ff;
-  color: #1e3a8a;
+  background: var(--org-district-bg-strong);
+  color: var(--org-district-text);
   font-size: 0.72rem;
   font-weight: 900;
   line-height: 1.2;
@@ -2446,13 +2543,13 @@ tbody tr:last-child td {
 }
 
 .overview-level-section-big_family .overview-level-badge {
-  background: #ede6ff;
-  color: #5e3ea5;
+  background: var(--org-big-family-bg-strong);
+  color: var(--org-big-family-text);
 }
 
 .overview-level-section-small_group .overview-level-badge {
-  background: #e6f7ff;
-  color: #17607c;
+  background: var(--org-small-group-bg-strong);
+  color: var(--org-small-group-text);
 }
 
 .overview-level-count {
@@ -3091,25 +3188,38 @@ tbody tr:last-child td {
   box-shadow: none;
 }
 
-.people-level-big-family,
-.org-level-big-family {
-  border-color: rgba(217, 226, 240, 0.74);
+.people-level-district {
+  border-color: var(--org-district-border);
+  background: linear-gradient(180deg, #ffffff 0%, var(--org-district-bg) 100%);
 }
 
-.people-level-small-group {
-  border-color: rgba(217, 226, 240, 0.62);
-  background: #fbfdff;
+.people-level-big-family,
+.org-level-big-family {
+  border-color: var(--org-big-family-border);
+  background: linear-gradient(180deg, #ffffff 0%, var(--org-big-family-bg) 100%);
+}
+
+.people-level-small-group,
+.org-level-small-group {
+  border-color: var(--org-small-group-border);
+  background: linear-gradient(180deg, #ffffff 0%, var(--org-small-group-bg) 100%);
+}
+
+.people-level-district > summary {
+  padding: 8px 9px;
+  background: var(--org-district-bg);
 }
 
 .people-level-big-family > summary,
 .org-level-big-family > summary {
   padding: 8px 9px;
-  background: #fbfdff;
+  background: var(--org-big-family-bg);
 }
 
-.people-level-small-group > summary {
+.people-level-small-group > summary,
+.org-level-small-group > summary {
   padding: 7px 9px;
-  background: #fff;
+  background: var(--org-small-group-bg);
 }
 
 .people-scope-children,
