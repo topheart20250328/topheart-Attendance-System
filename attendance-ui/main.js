@@ -5550,6 +5550,7 @@ function syncOrganizationTreeConnectors() {
     resetOrganizationTreeConnectors();
     return;
   }
+  const isExporting = els.orgTreeBody.classList.contains("is-exporting");
 
   if (state.ui.orgTreeMode === "vertical") {
     els.orgTreeBody.querySelectorAll(".org-flow-branches").forEach((branches) => {
@@ -5580,7 +5581,7 @@ function syncOrganizationTreeConnectors() {
         branches.style.removeProperty("--connector-right");
         return;
       }
-      const scale = state.ui.orgTreeScale;
+      const scale = isExporting ? 1 : state.ui.orgTreeScale;
       const minInset = 8 * scale;
       const maxInset = Math.max(minInset, containerRect.width - minInset);
       const left =
@@ -5617,7 +5618,7 @@ function syncOrganizationTreeConnectors() {
       rows.style.removeProperty("--pastor-connector-right");
       return;
     }
-    const scale = state.ui.orgTreeMode === "vertical" ? 1 : state.ui.orgTreeScale;
+    const scale = isExporting ? 1 : state.ui.orgTreeScale;
     const minInset = 8 * scale;
     const maxInset = Math.max(minInset, containerRect.width - minInset);
     const left =
@@ -5953,6 +5954,8 @@ async function handleCaptureOrganizationTree() {
   try {
     await withTimeout(document.fonts?.ready || Promise.resolve(), 5000, "字型載入逾時");
     await waitForNextFrame();
+    syncOrganizationTreeConnectors();
+    await waitForNextFrame();
     const canvas = getOrganizationTreeCanvas();
     const width = Math.max(
       els.orgTreeBody.scrollWidth,
@@ -5979,6 +5982,7 @@ async function handleCaptureOrganizationTree() {
     els.orgTreeBody.classList.remove("is-exporting");
     els.orgTreeBody.scrollLeft = previousScrollLeft;
     els.orgTreeBody.scrollTop = previousScrollTop;
+    scheduleOrganizationTreeConnectorSync();
     setButtonLoading(els.captureOrgTreeBtn, false);
   }
 }

@@ -4185,14 +4185,15 @@ tbody tr:last-child td {
 .org-tree-board.is-vertical-tree .org-flow-leader-strip {
   width: 82px;
   max-width: 82px;
-  justify-items: center;
+  justify-self: start;
+  justify-items: start;
   padding: 0;
 }
 
 .org-tree-board.is-vertical-tree .org-flow-leaders {
   grid-template-columns: repeat(2, 78px);
-  justify-content: center;
-  justify-items: stretch;
+  justify-content: start;
+  justify-items: start;
   width: 100%;
 }
 
@@ -4383,6 +4384,18 @@ tbody tr:last-child td {
 .org-tree-board.is-exporting.is-vertical-tree .org-flow-row > .org-flow-column {
   width: 100%;
   box-sizing: border-box;
+}
+
+.org-tree-board.is-exporting.is-vertical-tree .org-flow-district-group {
+  width: max-content;
+  min-width: max-content;
+  max-width: none;
+}
+
+.org-tree-board.is-exporting.is-vertical-tree .org-flow-district-group-rows {
+  display: flex;
+  width: max-content;
+  min-width: max-content;
 }
 
 .org-tree-board.is-exporting.is-vertical-tree .org-flow-branches > .org-flow-branch {
