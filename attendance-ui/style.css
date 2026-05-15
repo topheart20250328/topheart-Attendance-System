@@ -3883,31 +3883,25 @@ tbody tr:last-child td {
 
 .org-member-pill.equipment-growth:not(.is-inactive) {
   border-color: #15803d;
-  outline: 3px solid #15803d;
-  outline-offset: 1px;
   background: linear-gradient(180deg, #f4fff7 0%, #bff0cf 100%);
   box-shadow:
-    inset 0 0 0 2px rgba(21, 128, 61, 0.34),
+    inset 0 0 0 2px rgba(21, 128, 61, 0.44),
     0 4px 10px rgba(15, 23, 42, 0.04);
 }
 
 .org-member-pill.equipment-disciple:not(.is-inactive) {
   border-color: #c2410c;
-  outline: 3px solid #c2410c;
-  outline-offset: 1px;
   background: linear-gradient(180deg, #fffaf2 0%, #ffd3a6 100%);
   box-shadow:
-    inset 0 0 0 2px rgba(194, 65, 12, 0.34),
+    inset 0 0 0 2px rgba(194, 65, 12, 0.44),
     0 4px 10px rgba(15, 23, 42, 0.04);
 }
 
 .org-member-pill.equipment-leader:not(.is-inactive) {
   border-color: #6d28d9;
-  outline: 3px solid #6d28d9;
-  outline-offset: 1px;
   background: linear-gradient(180deg, #fbf8ff 0%, #d5c2ff 100%);
   box-shadow:
-    inset 0 0 0 2px rgba(109, 40, 217, 0.34),
+    inset 0 0 0 2px rgba(109, 40, 217, 0.44),
     0 4px 10px rgba(15, 23, 42, 0.04);
 }
 
