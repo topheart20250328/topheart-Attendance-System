@@ -1691,13 +1691,14 @@ function renderAttendanceRows() {
         : '<span class="status-chip neutral">僅檢視</span>';
       const shouldOpenNote = window.matchMedia("(min-width: 961px)").matches || member.note.trim();
 
+      const equipmentClass = escapeHtml(getEquipmentProgressClass(member.equipment_progress));
       return `
         ${groupHeader}
-        <article class="attendance-card${member.can_edit_attendance ? "" : " is-readonly"}${member.note_priority_high ? " has-priority-note" : ""}${member.is_self ? " is-self" : ""}">
+        <article class="attendance-card equipment-surface ${equipmentClass}${member.can_edit_attendance ? "" : " is-readonly"}${member.note_priority_high ? " has-priority-note" : ""}${member.is_self ? " is-self" : ""}">
           <div class="attendance-card-head">
             <div class="row-meta">
               <div class="attendance-name-line">
-                <strong class="attendance-member-name name-card gender-${escapeHtml(member.gender || "unknown")} ${escapeHtml(getEquipmentProgressClass(member.equipment_progress))}">${escapeHtml(member.full_name)}</strong>
+                <strong class="attendance-member-name name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</strong>
                 ${renderGenderBadge(member.gender)}
               </div>
               <div class="attendance-meta-line">
@@ -2318,8 +2319,52 @@ function normalizeOverviewData(data) {
     scopeLabel: data?.scope_label || "可檢視範圍",
     selectedWeekStart,
     weeks: buildOverviewWeekOptions(data?.weeks || [], selectedWeekStart),
-    units: data?.units || [],
+    units: normalizeOverviewEquipmentProgress(data?.units || []),
   };
+}
+
+function normalizeOverviewEquipmentProgress(units) {
+  const progressByMemberId = new Map();
+  const progressByMemberName = new Map();
+  [...(state.roster || []), ...(state.adminData?.members || [])].forEach((member) => {
+    const progress = normalizeEquipmentProgress(member.equipment_progress);
+    if (member.id) {
+      progressByMemberId.set(Number(member.id), progress);
+    }
+    if (member.full_name) {
+      progressByMemberName.set(member.full_name, progress);
+    }
+  });
+
+  return units.map((unit) => ({
+    ...unit,
+    detail: Object.fromEntries(
+      Object.entries(unit.detail || {}).map(([eventType, detail]) => [
+        eventType,
+        normalizeOverviewDetailEquipmentProgress(
+          detail,
+          progressByMemberId,
+          progressByMemberName,
+        ),
+      ]),
+    ),
+  }));
+}
+
+function normalizeOverviewDetailEquipmentProgress(detail, progressByMemberId, progressByMemberName) {
+  return Object.fromEntries(
+    Object.entries(detail || {}).map(([status, members]) => [
+      status,
+      (members || []).map((member) => ({
+        ...member,
+        equipment_progress: normalizeEquipmentProgress(
+          member.equipment_progress ||
+            progressByMemberId.get(Number(member.id)) ||
+            progressByMemberName.get(member.full_name),
+        ),
+      })),
+    ]),
+  );
 }
 
 function buildOverviewWeekOptions(serverWeeks, selectedWeekStart) {
@@ -2793,12 +2838,12 @@ function renderOverviewMember(member) {
   const shouldOpen = state.ui.overviewOpenMemberKeys.has(memberKey);
   return `
     <details
-      class="overview-member-details${alerts.length ? " has-alerts" : ""}"
+      class="overview-member-details equipment-surface ${escapeHtml(getEquipmentProgressClass(member.equipment_progress))}${alerts.length ? " has-alerts" : ""}"
       data-overview-member-key="${escapeHtml(memberKey)}"
       ${shouldOpen ? "open" : ""}
     >
       <summary class="overview-member-row">
-        <span class="name-card gender-${escapeHtml(member.gender || "unknown")} ${escapeHtml(getEquipmentProgressClass(member.equipment_progress))}">${escapeHtml(member.full_name)}</span>
+        <span class="name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</span>
         <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
         ${alerts.map(renderOverviewAlertBadge).join("")}
         ${hasRegularNote ? '<span class="overview-note-badge">有備註</span>' : ""}
@@ -3328,6 +3373,7 @@ function renderPeopleMemberCard(member) {
               <div class="member-card-title">
                 <strong>${escapeHtml(member.full_name)}</strong>
                 ${renderGenderBadge(member.gender)}
+                ${renderEquipmentProgressBadge(member.equipment_progress)}
               </div>
               <div class="member-card-chips">
                 <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
@@ -4968,8 +5014,8 @@ function renderOrganizationTreeMember(member) {
   const genderClass = getOrganizationTreeGenderClass(member.gender);
   const roleClass = `role-${escapeHtml(member.role || "member")}`;
   return `
-    <span class="org-member-pill ${member.is_active ? "" : "is-inactive"}">
-      <strong class="name-card ${genderClass} ${escapeHtml(getEquipmentProgressClass(member.equipment_progress))}">${escapeHtml(member.full_name)}</strong>
+    <span class="org-member-pill equipment-surface ${escapeHtml(getEquipmentProgressClass(member.equipment_progress))} ${member.is_active ? "" : "is-inactive"}">
+      <strong class="name-card ${genderClass}">${escapeHtml(member.full_name)}</strong>
       <span class="role-pill ${roleClass}">${escapeHtml(getRoleLabel(member.role))}</span>
     </span>
   `;
@@ -6873,6 +6919,14 @@ function getRoleLabel(role) {
 
 function getGenderLabel(gender) {
   return GENDER_LABELS[gender] || "-";
+}
+
+function renderEquipmentProgressBadge(progress) {
+  const normalized = normalizeEquipmentProgress(progress);
+  if (normalized === "none") {
+    return "";
+  }
+  return `<span class="equipment-badge ${escapeHtml(getEquipmentProgressClass(normalized))}">${escapeHtml(EQUIPMENT_PROGRESS_LABELS[normalized])}</span>`;
 }
 
 function normalizeEquipmentProgress(progress) {

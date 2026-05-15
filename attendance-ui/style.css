@@ -1980,16 +1980,55 @@ tbody tr:last-child td {
   background: #f4f7fb;
 }
 
-.name-card.equipment-growth {
-  box-shadow: inset 0 0 0 2px #22c55e;
+.equipment-badge {
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  max-width: 100%;
+  align-self: flex-start;
+  flex: 0 0 auto;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
-.name-card.equipment-disciple {
-  box-shadow: inset 0 0 0 2px #f97316;
+.equipment-badge.equipment-growth {
+  background: #e8f7ed;
+  color: #247044;
 }
 
-.name-card.equipment-leader {
-  box-shadow: inset 0 0 0 2px #8b5cf6;
+.equipment-badge.equipment-disciple {
+  background: #fff1e5;
+  color: #97521a;
+}
+
+.equipment-badge.equipment-leader {
+  background: #f1edff;
+  color: #6045a6;
+}
+
+#attendanceView .attendance-card.equipment-growth,
+#overviewView .overview-member-details.equipment-growth,
+.org-member-pill.equipment-growth {
+  border-color: rgba(34, 197, 94, 0.18);
+  background: linear-gradient(180deg, #ffffff 0%, #f4fbf6 100%);
+}
+
+#attendanceView .attendance-card.equipment-disciple,
+#overviewView .overview-member-details.equipment-disciple,
+.org-member-pill.equipment-disciple {
+  border-color: rgba(249, 115, 22, 0.18);
+  background: linear-gradient(180deg, #ffffff 0%, #fff8f1 100%);
+}
+
+#attendanceView .attendance-card.equipment-leader,
+#overviewView .overview-member-details.equipment-leader,
+.org-member-pill.equipment-leader {
+  border-color: rgba(139, 92, 246, 0.18);
+  background: linear-gradient(180deg, #ffffff 0%, #f8f6ff 100%);
 }
 
 .row-actions {
@@ -2650,7 +2689,6 @@ tbody tr:last-child td {
 
 .overview-member-details.has-alerts {
   border-color: rgba(154, 52, 18, 0.24);
-  background: linear-gradient(180deg, #fff 0%, #fffaf6 100%);
 }
 
 .overview-member-details > summary {
