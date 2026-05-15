@@ -687,6 +687,16 @@ async function resolveScope(
       };
     }
 
+    if (MEMBER_ROLES.has(role)) {
+      if (bigFamilyId) {
+        const bigFamily = await getOne(db, "big_families", bigFamilyId);
+        return bigFamily?.district_id
+          ? { district_id: bigFamily.district_id, big_family_id: bigFamily.id, small_group_id: null }
+          : null;
+      }
+      return { district_id: districtId || null, big_family_id: null, small_group_id: null };
+    }
+
     if (SMALL_GROUP_LEADER_ROLES.has(role)) {
       if (!districtId) {
         return options.autoCreate ? null : { district_id: null, big_family_id: null, small_group_id: null };
