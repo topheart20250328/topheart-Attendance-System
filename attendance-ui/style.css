@@ -3874,10 +3874,10 @@ tbody tr:last-child td {
 .org-flow-district-group.has-pastor .org-flow-district-group-item::before {
   content: "";
   position: absolute;
-  top: -1px;
+  top: 2px;
   left: 50%;
   width: 2px;
-  height: 16px;
+  height: 12px;
   border-radius: 999px;
   background: linear-gradient(180deg, rgba(99, 102, 241, 0.34), rgba(99, 102, 241, 0.08));
   z-index: 2;
@@ -4171,10 +4171,10 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-vertical-tree .org-flow-district-group.has-pastor .org-flow-district-group-item::before {
-  top: -2px;
+  top: 2px;
   left: 50%;
   width: 2px;
-  height: 18px;
+  height: 12px;
   background: linear-gradient(180deg, rgba(99, 102, 241, 0.34), rgba(99, 102, 241, 0.08));
 }
 
