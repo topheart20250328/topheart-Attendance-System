@@ -5545,48 +5545,55 @@ function getOrganizationTreeChildrenClass(childCount) {
 function syncOrganizationTreeConnectors() {
   if (
     !els.orgTreeBody ||
-    state.ui.orgTreeMode === "vertical" ||
     els.orgTreeBody.offsetParent === null
   ) {
     resetOrganizationTreeConnectors();
     return;
   }
 
-  els.orgTreeBody.querySelectorAll(".org-flow-branches").forEach((branches) => {
-    const children = Array.from(branches.children).filter((child) =>
-      child.classList.contains("org-flow-branch"),
-    );
-    branches.classList.toggle("has-single-child", children.length === 1);
-    branches.classList.toggle("has-multiple-children", children.length > 1);
-    branches.classList.remove("has-measured-connector");
-
-    if (children.length <= 1) {
+  if (state.ui.orgTreeMode === "vertical") {
+    els.orgTreeBody.querySelectorAll(".org-flow-branches").forEach((branches) => {
+      branches.classList.remove("has-measured-connector");
       branches.style.removeProperty("--connector-left");
       branches.style.removeProperty("--connector-right");
-      return;
-    }
+    });
+  } else {
+    els.orgTreeBody.querySelectorAll(".org-flow-branches").forEach((branches) => {
+      const children = Array.from(branches.children).filter((child) =>
+        child.classList.contains("org-flow-branch"),
+      );
+      branches.classList.toggle("has-single-child", children.length === 1);
+      branches.classList.toggle("has-multiple-children", children.length > 1);
+      branches.classList.remove("has-measured-connector");
 
-    const containerRect = branches.getBoundingClientRect();
-    const firstRect = children[0].getBoundingClientRect();
-    const lastRect = children[children.length - 1].getBoundingClientRect();
-    if (containerRect.width <= 0 || firstRect.width <= 0 || lastRect.width <= 0) {
-      branches.style.removeProperty("--connector-left");
-      branches.style.removeProperty("--connector-right");
-      return;
-    }
-    const scale = state.ui.orgTreeMode === "vertical" ? 1 : state.ui.orgTreeScale;
-    const minInset = 8 * scale;
-    const maxInset = Math.max(minInset, containerRect.width - minInset);
-    const left =
-      Math.min(maxInset, Math.max(minInset, firstRect.left - containerRect.left + firstRect.width / 2)) / scale;
-    const right = Math.min(
-      maxInset,
-      Math.max(minInset, containerRect.right - lastRect.left - lastRect.width / 2),
-    ) / scale;
-    branches.style.setProperty("--connector-left", `${left}px`);
-    branches.style.setProperty("--connector-right", `${right}px`);
-    branches.classList.add("has-measured-connector");
-  });
+      if (children.length <= 1) {
+        branches.style.removeProperty("--connector-left");
+        branches.style.removeProperty("--connector-right");
+        return;
+      }
+
+      const containerRect = branches.getBoundingClientRect();
+      const firstRect = children[0].getBoundingClientRect();
+      const lastRect = children[children.length - 1].getBoundingClientRect();
+      if (containerRect.width <= 0 || firstRect.width <= 0 || lastRect.width <= 0) {
+        branches.style.removeProperty("--connector-left");
+        branches.style.removeProperty("--connector-right");
+        return;
+      }
+      const scale = state.ui.orgTreeScale;
+      const minInset = 8 * scale;
+      const maxInset = Math.max(minInset, containerRect.width - minInset);
+      const left =
+        Math.min(maxInset, Math.max(minInset, firstRect.left - containerRect.left + firstRect.width / 2)) / scale;
+      const right = Math.min(
+        maxInset,
+        Math.max(minInset, containerRect.right - lastRect.left - lastRect.width / 2),
+      ) / scale;
+      branches.style.setProperty("--connector-left", `${left}px`);
+      branches.style.setProperty("--connector-right", `${right}px`);
+      branches.classList.add("has-measured-connector");
+    });
+  }
 
   els.orgTreeBody.querySelectorAll(".org-flow-district-group-rows").forEach((rows) => {
     const children = Array.from(rows.children).filter((child) =>
@@ -5610,7 +5617,7 @@ function syncOrganizationTreeConnectors() {
       rows.style.removeProperty("--pastor-connector-right");
       return;
     }
-    const scale = state.ui.orgTreeScale;
+    const scale = state.ui.orgTreeMode === "vertical" ? 1 : state.ui.orgTreeScale;
     const minInset = 8 * scale;
     const maxInset = Math.max(minInset, containerRect.width - minInset);
     const left =
