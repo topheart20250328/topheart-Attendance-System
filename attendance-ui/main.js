@@ -5312,8 +5312,13 @@ function renderOrganizationTreeDistrictGroup(group) {
       <div class="org-flow-district-group-pastor" ${hasPastor ? `aria-label="${escapeHtml(pastorLabel)}"` : 'aria-hidden="true"'}>
         ${hasPastor ? renderOrganizationTreeMember(group.pastor) : ""}
       </div>
+      <div class="org-flow-district-group-connector ${rowClass}" aria-hidden="true"></div>
       <div class="org-flow-district-group-rows ${rowClass}">
-        ${group.districts.map((district) => renderOrganizationTreeDistrict(district)).join("")}
+        ${group.districts.map((district) => `
+          <div class="org-flow-district-group-item">
+            ${renderOrganizationTreeDistrict(district)}
+          </div>
+        `).join("")}
       </div>
     </section>
   `;
