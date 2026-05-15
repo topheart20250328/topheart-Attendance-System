@@ -3863,6 +3863,7 @@ tbody tr:last-child td {
   height: 2px;
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0.42), rgba(99, 102, 241, 0.08));
+  z-index: 2;
 }
 
 .org-flow-district-group-item {
@@ -3873,12 +3874,13 @@ tbody tr:last-child td {
 .org-flow-district-group.has-pastor .org-flow-district-group-item::before {
   content: "";
   position: absolute;
-  top: 0;
+  top: -1px;
   left: 50%;
   width: 2px;
-  height: 14px;
+  height: 16px;
   border-radius: 999px;
   background: linear-gradient(180deg, rgba(99, 102, 241, 0.34), rgba(99, 102, 241, 0.08));
+  z-index: 2;
 }
 
 .org-flow-district-group-rows .org-flow-row {
@@ -4169,10 +4171,10 @@ tbody tr:last-child td {
 }
 
 .org-tree-board.is-vertical-tree .org-flow-district-group.has-pastor .org-flow-district-group-item::before {
-  top: 0;
+  top: -2px;
   left: 50%;
   width: 2px;
-  height: 14px;
+  height: 18px;
   background: linear-gradient(180deg, rgba(99, 102, 241, 0.34), rgba(99, 102, 241, 0.08));
 }
 
