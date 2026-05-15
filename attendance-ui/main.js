@@ -3185,10 +3185,14 @@ function renderPeopleTable(editableMembers) {
   }
 
   const shouldOpenGroups = Boolean(state.ui.peopleSearch || state.ui.peopleRole);
+  const hierarchy = buildPeopleHierarchy(activeRows);
   const activeHtml = activeRows.length
-    ? buildPeopleHierarchy(activeRows)
-      .map((district) => renderPeopleDistrictGroup(district, shouldOpenGroups))
-      .join("")
+    ? [
+        hierarchy.rootLeaders.length
+          ? renderPeopleLeaderGroup("跨區領袖", hierarchy.rootLeaders, "people:root-leaders", shouldOpenGroups)
+          : "",
+        ...hierarchy.districts.map((district) => renderPeopleDistrictGroup(district, shouldOpenGroups)),
+      ].filter(Boolean).join("")
     : '<div class="empty-state-card">目前沒有符合篩選的啟用人員。</div>';
   els.peopleTableBody.innerHTML = `
     ${activeHtml}
@@ -3197,19 +3201,13 @@ function renderPeopleTable(editableMembers) {
 }
 
 function buildPeopleHierarchy(rows) {
+  const rootLeaders = [];
   const districts = new Map();
 
-  for (const member of rows) {
-    const districtKey = member.district_id || `name:${member.district_name || "其他"}`;
-    const districtLabel = member.district_name || "未設定區";
-    const bigFamilyKey = member.big_family_id || `name:${member.big_family_name || "未設定大家"}`;
-    const bigFamilyLabel = member.big_family_name || "未設定大家";
-    const smallGroupKey = member.small_group_id || `name:${member.small_group_name || "未設定小家"}`;
-    const smallGroupLabel = member.small_group_name || "未設定小家";
-    const districtRecord = state.adminData.districts.find((item) => item.id === member.district_id);
-    const bigFamilyRecord = state.adminData.bigFamilies.find((item) => item.id === member.big_family_id);
-    const smallGroupRecord = state.adminData.smallGroups.find((item) => item.id === member.small_group_id);
-
+  const ensureDistrict = (member, districtId = member.district_id, districtName = member.district_name) => {
+    const districtRecord = state.adminData.districts.find((item) => item.id === districtId);
+    const districtLabel = districtRecord?.name || districtName || "未設定區";
+    const districtKey = districtId || `name:${districtLabel}`;
     if (!districts.has(districtKey)) {
       districts.set(districtKey, {
         key: `district:${districtKey}`,
@@ -3217,64 +3215,128 @@ function buildPeopleHierarchy(rows) {
         displayOrder: districtRecord?.display_order,
         isActive: districtRecord?.is_active !== false,
         count: 0,
+        leaders: [],
         bigFamilies: new Map(),
         smallGroups: new Map(),
       });
     }
-    const district = districts.get(districtKey);
-    district.count += 1;
+    return districts.get(districtKey);
+  };
 
-    if (!member.big_family_id && !member.big_family_name) {
-      if (!district.smallGroups.has(smallGroupKey)) {
-        district.smallGroups.set(smallGroupKey, {
-          key: `district:${districtKey}:small:${smallGroupKey}`,
-          label: smallGroupLabel,
-          displayOrder: smallGroupRecord?.display_order,
-          isActive: smallGroupRecord?.is_active !== false,
-          members: [],
-        });
-      }
-      district.smallGroups.get(smallGroupKey).members.push(member);
-      continue;
-    }
-
+  const ensureBigFamily = (district, member) => {
+    const bigFamilyRecord = state.adminData.bigFamilies.find((item) => item.id === member.big_family_id);
+    const bigFamilyLabel = bigFamilyRecord?.name || member.big_family_name || "未設定大家";
+    const bigFamilyKey = member.big_family_id || `name:${bigFamilyLabel}`;
     if (!district.bigFamilies.has(bigFamilyKey)) {
       district.bigFamilies.set(bigFamilyKey, {
-        key: `district:${districtKey}:big:${bigFamilyKey}`,
+        key: `${district.key}:big:${bigFamilyKey}`,
         label: bigFamilyLabel,
         displayOrder: bigFamilyRecord?.display_order,
         isActive: bigFamilyRecord?.is_active !== false,
         count: 0,
+        leaders: [],
         smallGroups: new Map(),
       });
     }
-    const bigFamily = district.bigFamilies.get(bigFamilyKey);
-    bigFamily.count += 1;
+    return district.bigFamilies.get(bigFamilyKey);
+  };
 
-    if (!bigFamily.smallGroups.has(smallGroupKey)) {
-      bigFamily.smallGroups.set(smallGroupKey, {
-        key: `district:${districtKey}:big:${bigFamilyKey}:small:${smallGroupKey}`,
+  const ensureSmallGroup = (container, member, keyPrefix) => {
+    const smallGroupRecord = state.adminData.smallGroups.find((item) => item.id === member.small_group_id);
+    const smallGroupLabel = smallGroupRecord?.name || member.small_group_name || "直屬人員";
+    const smallGroupKey = member.small_group_id || `name:${smallGroupLabel}`;
+    if (!container.smallGroups.has(smallGroupKey)) {
+      container.smallGroups.set(smallGroupKey, {
+        key: `${keyPrefix}:small:${smallGroupKey}`,
         label: smallGroupLabel,
         displayOrder: smallGroupRecord?.display_order,
         isActive: smallGroupRecord?.is_active !== false,
+        leaders: [],
         members: [],
       });
     }
-    bigFamily.smallGroups.get(smallGroupKey).members.push(member);
+    return container.smallGroups.get(smallGroupKey);
+  };
+
+  for (const member of rows) {
+    if (member.role === "district_pastor") {
+      const managedDistrictIds = getDistrictPastorDistrictIds(member);
+      const singleDistrictId = managedDistrictIds.length === 1
+        ? managedDistrictIds[0]
+        : Number(member.district_id || 0);
+      if (managedDistrictIds.length <= 1 && singleDistrictId) {
+        const district = ensureDistrict(member, singleDistrictId, member.district_name);
+        district.count += 1;
+        district.leaders.push(member);
+      } else {
+        rootLeaders.push(member);
+      }
+      continue;
+    }
+
+    if (!member.district_id && !member.district_name && isPeopleLeaderRole(member.role)) {
+      rootLeaders.push(member);
+      continue;
+    }
+    const district = ensureDistrict(member);
+    district.count += 1;
+
+    if (member.role === "district_leader") {
+      district.leaders.push(member);
+      continue;
+    }
+
+    if (BIG_FAMILY_LEADER_ROLES.includes(member.role) && !member.big_family_id && !member.big_family_name) {
+      district.leaders.push(member);
+      continue;
+    }
+
+    if (!member.big_family_id && !member.big_family_name) {
+      const smallGroup = ensureSmallGroup(district, member, district.key);
+      if (SMALL_GROUP_LEADER_ROLES.includes(member.role)) {
+        smallGroup.leaders.push(member);
+      } else {
+        smallGroup.members.push(member);
+      }
+      continue;
+    }
+
+    const bigFamily = ensureBigFamily(district, member);
+    bigFamily.count += 1;
+
+    if (BIG_FAMILY_LEADER_ROLES.includes(member.role)) {
+      bigFamily.leaders.push(member);
+      continue;
+    }
+
+    if (!member.small_group_id && !member.small_group_name && SMALL_GROUP_LEADER_ROLES.includes(member.role)) {
+      bigFamily.leaders.push(member);
+      continue;
+    }
+
+    const smallGroup = ensureSmallGroup(bigFamily, member, bigFamily.key);
+    if (SMALL_GROUP_LEADER_ROLES.includes(member.role)) {
+      smallGroup.leaders.push(member);
+    } else {
+      smallGroup.members.push(member);
+    }
   }
 
-  return Array.from(districts.values())
+  const districtList = Array.from(districts.values())
     .sort(compareHierarchyGroups)
     .map((district) => ({
       ...district,
+      leaders: sortMembers(district.leaders),
       bigFamilies: Array.from(district.bigFamilies.values())
         .sort(compareHierarchyGroups)
         .map((bigFamily) => ({
           ...bigFamily,
+          leaders: sortMembers(bigFamily.leaders),
           smallGroups: Array.from(bigFamily.smallGroups.values())
             .sort(compareHierarchyGroups)
             .map((smallGroup) => ({
               ...smallGroup,
+              leaders: sortMembers(smallGroup.leaders),
               members: sortMembers(smallGroup.members),
             })),
         })),
@@ -3282,9 +3344,23 @@ function buildPeopleHierarchy(rows) {
         .sort(compareHierarchyGroups)
         .map((smallGroup) => ({
           ...smallGroup,
+          leaders: sortMembers(smallGroup.leaders),
           members: sortMembers(smallGroup.members),
         })),
     }));
+  return {
+    rootLeaders: sortMembers(rootLeaders),
+    districts: districtList,
+  };
+}
+
+function isPeopleLeaderRole(role) {
+  return (
+    role === "district_pastor" ||
+    role === "district_leader" ||
+    BIG_FAMILY_LEADER_ROLES.includes(role) ||
+    SMALL_GROUP_LEADER_ROLES.includes(role)
+  );
 }
 
 function compareHierarchyGroups(left, right) {
@@ -3316,6 +3392,7 @@ function renderPeopleDistrictGroup(district, shouldOpen = false) {
         <span class="status-chip neutral">${district.count}</span>
       </summary>
       <div class="people-scope-children">
+        ${renderPeopleLeaderGroup("領袖", district.leaders, `${groupKey}:leaders`, shouldOpen)}
         ${district.bigFamilies.map((bigFamily) => renderPeopleBigFamilyGroup(bigFamily, shouldOpen)).join("")}
         ${district.smallGroups.map((smallGroup) => renderPeopleSmallGroup(smallGroup, shouldOpen)).join("")}
       </div>
@@ -3333,6 +3410,7 @@ function renderPeopleBigFamilyGroup(bigFamily, shouldOpen = false) {
         <span class="status-chip neutral">${bigFamily.count}</span>
       </summary>
       <div class="people-scope-children">
+        ${renderPeopleLeaderGroup("領袖", bigFamily.leaders, `${groupKey}:leaders`, shouldOpen)}
         ${bigFamily.smallGroups.map((smallGroup) => renderPeopleSmallGroup(smallGroup, shouldOpen)).join("")}
       </div>
     </details>
@@ -3346,10 +3424,29 @@ function renderPeopleSmallGroup(smallGroup, shouldOpen = false) {
     <details class="people-scope-group people-level-small-group" data-people-group-key="${escapeHtml(groupKey)}" ${isOpen ? "open" : ""}>
       <summary>
         <span class="people-scope-title">${escapeHtml(smallGroup.label)}</span>
-        <span class="status-chip neutral">${smallGroup.members.length}</span>
+        <span class="status-chip neutral">${smallGroup.leaders.length + smallGroup.members.length}</span>
       </summary>
       <div class="people-scope-members">
+        ${renderPeopleLeaderGroup("領袖", smallGroup.leaders, `${groupKey}:leaders`, shouldOpen)}
         ${smallGroup.members.map(renderPeopleMemberCard).join("")}
+      </div>
+    </details>
+  `;
+}
+
+function renderPeopleLeaderGroup(label, members, groupKey, shouldOpen = false) {
+  if (!members.length) {
+    return "";
+  }
+  const isOpen = shouldOpen || state.ui.peopleOpenGroups.has(groupKey);
+  return `
+    <details class="people-scope-group people-level-leaders" data-people-group-key="${escapeHtml(groupKey)}" ${isOpen ? "open" : ""}>
+      <summary>
+        <span class="people-scope-title">${escapeHtml(label)}</span>
+        <span class="status-chip neutral">${members.length}</span>
+      </summary>
+      <div class="people-scope-members">
+        ${members.map(renderPeopleMemberCard).join("")}
       </div>
     </details>
   `;
@@ -5113,10 +5210,14 @@ function renderOrganizationTree() {
   els.orgTreeBody.classList.toggle("is-vertical-tree", state.ui.orgTreeMode === "vertical");
 
   const districts = [...state.adminData.districts].sort(compareOrganizations);
+  const districtPastors = sortMembers(
+    state.adminData.members.filter(isOrganizationTreeDistrictPastor),
+  );
   const unassignedMembers = sortMembers(
     state.adminData.members.filter(isOrganizationTreeUnassignedMember),
   );
   const rootItems = [
+    districtPastors.length ? renderOrganizationTreeRootLeaders("跨區領袖", districtPastors) : "",
     unassignedMembers.length ? renderOrganizationTreeUnassignedMembers(unassignedMembers) : "",
     ...districts.map((district) => renderOrganizationTreeDistrict(district)),
   ].filter(Boolean);
@@ -5160,6 +5261,19 @@ function renderOrganizationTreeUnassignedMembers(members) {
   `;
 }
 
+function renderOrganizationTreeRootLeaders(label, members) {
+  return `
+    <article class="org-flow-row org-flow-root-leaders">
+      <div class="org-flow-column org-flow-column-unassigned">
+        ${renderOrganizationFlowNode("leader_root", label)}
+      </div>
+      <div class="org-flow-members org-flow-unassigned-members">
+        ${members.map(renderOrganizationTreeMember).join("")}
+      </div>
+    </article>
+  `;
+}
+
 function renderOrganizationTreeDistrict(district) {
   const districtLeaders = sortMembers(
     state.adminData.members.filter((member) => isOrganizationTreeDistrictLeader(member, district.id)),
@@ -5174,6 +5288,7 @@ function renderOrganizationTreeDistrict(district) {
     state.adminData.members.filter(
       (member) =>
         member.is_active !== false &&
+        !isOrganizationTreeDistrictPastor(member) &&
         member.district_id === district.id &&
         !member.big_family_id &&
         !member.small_group_id &&
@@ -5217,6 +5332,7 @@ function renderOrganizationTreeBigFamily(bigFamily) {
     state.adminData.members.filter(
       (member) =>
         member.is_active !== false &&
+        !isOrganizationTreeDistrictPastor(member) &&
         member.big_family_id === bigFamily.id &&
         !member.small_group_id &&
         !isOrganizationTreeBigFamilyLeader(member, bigFamily.id),
@@ -5259,6 +5375,7 @@ function renderOrganizationTreeSmallGroup(smallGroup) {
     state.adminData.members.filter(
       (member) =>
         member.is_active !== false &&
+        !isOrganizationTreeDistrictPastor(member) &&
         member.small_group_id === smallGroup.id &&
         !isOrganizationTreeDistrictLeader(member, smallGroup.district_id) &&
         !isOrganizationTreeBigFamilyLeader(member, smallGroup.big_family_id),
@@ -5287,7 +5404,6 @@ function renderOrganizationTreeLeaderStrip(label, members) {
   }
   return `
     <div class="org-flow-leader-strip" aria-label="${escapeHtml(label)}">
-      <span class="org-flow-leader-label">${escapeHtml(label)}</span>
       <div class="org-flow-leaders">
         ${members.map(renderOrganizationTreeMember).join("")}
       </div>
@@ -5323,6 +5439,7 @@ function isOrganizationTreeActiveMember(member) {
 function isOrganizationTreeUnassignedMember(member) {
   return (
     isOrganizationTreeActiveMember(member) &&
+    !isOrganizationTreeDistrictPastor(member) &&
     !member.district_id &&
     !member.big_family_id &&
     !member.small_group_id &&
@@ -5330,13 +5447,13 @@ function isOrganizationTreeUnassignedMember(member) {
   );
 }
 
+function isOrganizationTreeDistrictPastor(member) {
+  return isOrganizationTreeActiveMember(member) && member.role === "district_pastor";
+}
+
 function isOrganizationTreeDistrictLeader(member, districtId) {
   if (!isOrganizationTreeActiveMember(member) || !districtId) {
     return false;
-  }
-  if (member.role === "district_pastor") {
-    const districtIds = getDistrictPastorDistrictIds(member);
-    return districtIds.includes(Number(districtId)) || Number(member.district_id || 0) === Number(districtId);
   }
   return member.role === "district_leader" && Number(member.district_id || 0) === Number(districtId);
 }

@@ -3183,6 +3183,7 @@ tbody tr:last-child td {
 
 .people-level-big-family,
 .people-level-small-group,
+.people-level-leaders,
 .org-level-big-family {
   border-radius: 12px;
   box-shadow: none;
@@ -3205,6 +3206,11 @@ tbody tr:last-child td {
   background: linear-gradient(180deg, #ffffff 0%, var(--org-small-group-bg) 100%);
 }
 
+.people-level-leaders {
+  border-color: rgba(55, 48, 163, 0.22);
+  background: linear-gradient(180deg, #ffffff 0%, var(--role-district-pastor-bg) 100%);
+}
+
 .people-level-district > summary {
   padding: 8px 9px;
   background: var(--org-district-bg);
@@ -3220,6 +3226,11 @@ tbody tr:last-child td {
 .org-level-small-group > summary {
   padding: 7px 9px;
   background: var(--org-small-group-bg);
+}
+
+.people-level-leaders > summary {
+  padding: 7px 9px;
+  background: var(--role-district-pastor-bg);
 }
 
 .people-scope-children,
@@ -3742,13 +3753,6 @@ tbody tr:last-child td {
   box-sizing: border-box;
 }
 
-.org-flow-leader-label {
-  color: var(--muted);
-  font-size: 0.64rem;
-  font-weight: 900;
-  line-height: 1.1;
-}
-
 .org-flow-leaders {
   display: grid;
   justify-items: center;
@@ -3763,6 +3767,11 @@ tbody tr:last-child td {
 .org-flow-unassigned {
   border-color: rgba(120, 113, 108, 0.24);
   background: linear-gradient(180deg, #ffffff 0%, #faf7f2 100%);
+}
+
+.org-flow-root-leaders {
+  border-color: rgba(109, 40, 217, 0.24);
+  background: linear-gradient(180deg, #ffffff 0%, #f6f2ff 100%);
 }
 
 .org-flow-unassigned-members {
