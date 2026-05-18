@@ -3184,6 +3184,15 @@ function renderManagement() {
     return;
   }
 
+  const canCreate = canCreateMembers();
+  setHidden(els.newMemberBtn, !canCreate);
+  setHidden(els.bulkMemberBtn, !canCreate);
+  if (!canCreate) {
+    closeBulkMemberEditor();
+    if (state.ui.editorMode === "create") {
+      closeMemberEditor();
+    }
+  }
   const editableMembers = getEditableManagementMembers();
   renderPeopleFilters(editableMembers);
   renderPeopleTable(editableMembers);
@@ -3865,6 +3874,10 @@ function renderMemberEditor() {
 }
 
 function openMemberEditor(mode, memberId = null) {
+  if (mode === "create" && !canCreateMembers()) {
+    showToast("小家長不可新增人員，請由大家長或以上職分新增。");
+    return;
+  }
   closeBulkMemberEditor();
   state.ui.editorMode = mode;
   state.ui.editingMemberId = memberId;
@@ -3904,6 +3917,10 @@ function closeMemberEditor() {
 }
 
 function openBulkMemberEditor() {
+  if (!canCreateMembers()) {
+    showToast("小家長不可新增人員，請由大家長或以上職分新增。");
+    return;
+  }
   closeMemberEditor();
   state.bulkMembers = [];
   populateBulkRoleOptions();
@@ -4926,6 +4943,7 @@ function syncMemberFormScope() {
   const role = els.memberRoleSelect.value;
   const isCreateMode = state.ui.editorMode === "create";
   const isEditMode = state.ui.editorMode === "edit";
+  const isMemberRole = MEMBER_ROLES.includes(role);
   const editingMember = isEditMode
     ? state.adminData.members.find((member) => member.id === state.ui.editingMemberId)
     : null;
@@ -4937,8 +4955,8 @@ function syncMemberFormScope() {
           (BIG_FAMILY_LEADER_ROLES.includes(role) && createScopeMode === "existing") ||
           (SMALL_GROUP_LEADER_ROLES.includes(role) && createScopeMode !== "empty")
         )
-      : MEMBER_ROLES.includes(role)
-        ? isEditMode
+      : isMemberRole
+        ? true
         : PREACHER_ROLES.includes(role)
           ? true
           : BIG_FAMILY_LEADER_ROLES.includes(role)
@@ -4950,14 +4968,14 @@ function syncMemberFormScope() {
     isManagedCreateRole
       ? SMALL_GROUP_LEADER_ROLES.includes(role) && createScopeMode === "existing"
       : PREACHER_ROLES.includes(role) ||
-        MEMBER_ROLES.includes(role) ||
+        isMemberRole ||
         (SMALL_GROUP_LEADER_ROLES.includes(role) && !isCreateMode);
   const showDistrictField =
     isManagedCreateRole
       ? createScopeMode !== "empty"
-      : !DISTRICT_PASTOR_ROLES.includes(role) &&
-        (!(role === "district_leader" && isCreateMode) &&
-          (!MEMBER_ROLES.includes(role) || isEditMode));
+      : isMemberRole ||
+        (!DISTRICT_PASTOR_ROLES.includes(role) &&
+          !(role === "district_leader" && isCreateMode));
   const showManagedDistricts = usesMultiDistrictSelect(role);
   const districtRequired =
     isManagedCreateRole
@@ -4967,7 +4985,8 @@ function syncMemberFormScope() {
         )
       : PREACHER_ROLES.includes(role)
       ? false
-      : isCreateMode && (BIG_FAMILY_LEADER_ROLES.includes(role) || SMALL_GROUP_LEADER_ROLES.includes(role));
+      : isCreateMode &&
+        (isMemberRole || BIG_FAMILY_LEADER_ROLES.includes(role) || SMALL_GROUP_LEADER_ROLES.includes(role));
 
   setHidden(els.memberDistrictLabel, !showDistrictField);
   setHidden(els.memberCreateScopeModeLabel, !isManagedCreateRole);
@@ -4985,8 +5004,11 @@ function syncMemberFormScope() {
   renderManagedDistrictOptions(editingMember);
   els.memberBigFamilySelect.required = false;
   els.memberSmallGroupSelect.required =
-    (isCreateMode && MEMBER_ROLES.includes(role)) ||
+    isMemberRole ||
     (isManagedCreateRole && SMALL_GROUP_LEADER_ROLES.includes(role) && createScopeMode === "existing");
+  const canEditActiveStatus = canEditMemberActiveStatus(editingMember);
+  setHidden(els.memberActiveLabel, !canEditActiveStatus);
+  els.memberActiveSelect.disabled = !canEditActiveStatus;
   els.memberIsAdminInput.disabled = !canEditAdminPermission;
   els.memberCreateScopeModeSelect.disabled = !isManagedCreateRole;
   if (isManagedCreateRole) {
@@ -5083,6 +5105,11 @@ async function handleSaveMember(event) {
     return;
   }
 
+  if (mode === "create" && !canCreateMembers()) {
+    showToast("小家長不可新增人員，請由大家長或以上職分新增。");
+    return;
+  }
+
   if (
     (BIG_FAMILY_LEADER_ROLES.includes(body.role) || SMALL_GROUP_LEADER_ROLES.includes(body.role)) &&
     !body.district_id &&
@@ -5140,6 +5167,9 @@ async function handleSaveMember(event) {
     const originalMember = state.adminData.members.find(
       (member) => member.id === state.ui.editingMemberId,
     );
+    if (originalMember && !canEditMemberActiveStatus(originalMember)) {
+      body.is_active = Boolean(originalMember.is_active);
+    }
     if (
       originalMember &&
       !originalMember.is_admin &&
@@ -7416,6 +7446,32 @@ function canUseManagement() {
   );
 }
 
+function canCreateMembers() {
+  const viewer = getPermissionCurrentMember();
+  return Boolean(
+    viewer &&
+      canUseManagement() &&
+      !SMALL_GROUP_LEADER_ROLES.includes(viewer.role),
+  );
+}
+
+function canEditMemberActiveStatus(member = null) {
+  const viewer = getPermissionCurrentMember();
+  if (!viewer) {
+    return false;
+  }
+  if (viewer.is_admin) {
+    return true;
+  }
+  if (SMALL_GROUP_LEADER_ROLES.includes(viewer.role)) {
+    return false;
+  }
+  return !member || (
+    canManageMemberScope(viewer, member) &&
+    canManageRole(viewer.role, member.role)
+  );
+}
+
 function canUseOrganizationManagement() {
   return canUseManagement();
 }
@@ -7484,6 +7540,10 @@ function canDeleteMember(member) {
     return true;
   }
 
+  if (SMALL_GROUP_LEADER_ROLES.includes(viewer.role)) {
+    return false;
+  }
+
   return (
     member.is_active &&
     canManageMemberScope(viewer, member) &&
@@ -7501,6 +7561,10 @@ function canRestoreMember(member) {
     return true;
   }
 
+  if (SMALL_GROUP_LEADER_ROLES.includes(viewer.role)) {
+    return false;
+  }
+
   return (
     canManageMemberScope(viewer, member) &&
     canManageRole(viewer.role, member.role)
@@ -7511,13 +7575,9 @@ function canPurgeMember(member) {
   const viewer = getPermissionCurrentMember();
   return Boolean(
     viewer &&
+      viewer.is_admin &&
       !member.is_active &&
-      member.id !== getRealCurrentMember()?.id &&
-      (
-        viewer.is_admin ||
-        (canManageMemberScope(viewer, member) &&
-          canManageRole(viewer.role, member.role))
-      ),
+      member.id !== getRealCurrentMember()?.id,
   );
 }
 

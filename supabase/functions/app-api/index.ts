@@ -1473,7 +1473,7 @@ async function handleCreateMember(
     return jsonResponse({ error: "Unauthorized." }, 401);
   }
 
-  if (!canUseAdminPanel(sessionContext.member)) {
+  if (!canCreateMembers(sessionContext.member)) {
     return jsonResponse({ error: "Forbidden." }, 403);
   }
 
@@ -1648,6 +1648,12 @@ async function handleUpdateMember(
   ) {
     return jsonResponse({ error: "No permission to assign one or more districts." }, 403);
   }
+  const requestedIsActive = typeof body?.is_active === "boolean"
+    ? Boolean(body.is_active)
+    : Boolean(targetMember.is_active);
+  if (requestedIsActive !== Boolean(targetMember.is_active) && !canChangeMemberActiveStatus(sessionContext.member)) {
+    return jsonResponse({ error: "No permission to change member active status." }, 403);
+  }
 
   const updatePayload = {
     full_name: String(body?.full_name || targetMember.full_name).trim(),
@@ -1659,9 +1665,9 @@ async function handleUpdateMember(
     is_admin: sessionContext.member.is_admin
       ? Boolean(body?.is_admin)
       : targetMember.is_admin,
-    is_active: sessionContext.member.is_admin
-      ? Boolean(body?.is_active)
-      : Boolean(body?.is_active ?? targetMember.is_active),
+    is_active: canChangeMemberActiveStatus(sessionContext.member)
+      ? requestedIsActive
+      : targetMember.is_active,
     district_id: scope.district_id,
     big_family_id: scope.big_family_id,
     small_group_id: scope.small_group_id,
@@ -1790,7 +1796,7 @@ async function handlePurgeMember(
     return jsonResponse({ error: "Unauthorized." }, 401);
   }
 
-  if (!canUseAdminPanel(sessionContext.member)) {
+  if (!sessionContext.member.is_admin) {
     return jsonResponse({ error: "Forbidden." }, 403);
   }
 
@@ -2572,6 +2578,14 @@ function canUseAttendanceOverview(viewer: MemberDirectoryRow) {
   return viewer.is_admin || OVERVIEW_ROLES.has(viewer.role);
 }
 
+function canCreateMembers(viewer: MemberDirectoryRow) {
+  return canUseAdminPanel(viewer) && !SMALL_GROUP_LEADER_ROLES.has(viewer.role);
+}
+
+function canChangeMemberActiveStatus(viewer: MemberDirectoryRow) {
+  return canUseAdminPanel(viewer) && !SMALL_GROUP_LEADER_ROLES.has(viewer.role);
+}
+
 function canManageDistrict(viewer: MemberDirectoryRow, districtId: number | null) {
   if (viewer.is_admin) {
     return true;
@@ -2706,7 +2720,7 @@ function canCreateRole(
   if (DISTRICT_PASTOR_ROLES.has(viewer.role)) {
     return canManageAttendanceTarget(viewer.role, role);
   }
-  return canManageAttendanceTarget(viewer.role, role);
+  return !SMALL_GROUP_LEADER_ROLES.has(viewer.role) && canManageAttendanceTarget(viewer.role, role);
 }
 
 function canIssueInvite(viewer: MemberDirectoryRow, target: MemberDirectoryRow) {
@@ -2716,6 +2730,10 @@ function canIssueInvite(viewer: MemberDirectoryRow, target: MemberDirectoryRow) 
 function canEditProfile(viewer: MemberDirectoryRow, target: MemberDirectoryRow) {
   if (viewer.is_admin) {
     return true;
+  }
+
+  if (SMALL_GROUP_LEADER_ROLES.has(viewer.role)) {
+    return false;
   }
 
   return (

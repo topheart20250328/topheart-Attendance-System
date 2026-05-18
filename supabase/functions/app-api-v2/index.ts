@@ -248,6 +248,14 @@ function canUseManagement(viewer: MemberRow) {
     SMALL_GROUP_LEADER_ROLES.has(viewer.role);
 }
 
+function canCreateMembers(viewer: MemberRow) {
+  return canUseManagement(viewer) && !SMALL_GROUP_LEADER_ROLES.has(viewer.role);
+}
+
+function canChangeMemberActiveStatus(viewer: MemberRow) {
+  return canUseManagement(viewer) && !SMALL_GROUP_LEADER_ROLES.has(viewer.role);
+}
+
 function canManageDistrict(viewer: MemberRow, districtId: number | null) {
   if (viewer.is_admin) {
     return true;
@@ -388,7 +396,7 @@ function canCreateRole(viewer: MemberRow, role: string, isAdminFlag: boolean) {
     return canManageAttendanceTarget(viewer.role, role);
   }
   if (BIG_FAMILY_LEADER_ROLES.has(viewer.role) || SMALL_GROUP_LEADER_ROLES.has(viewer.role)) {
-    return canManageAttendanceTarget(viewer.role, role);
+    return BIG_FAMILY_LEADER_ROLES.has(viewer.role) && canManageAttendanceTarget(viewer.role, role);
   }
   return false;
 }
@@ -464,7 +472,7 @@ async function handleCreateMember(
   const body = await request.json().catch(() => null);
   const adminMode = getAdminModeFromBody(viewer, body);
   const effectiveViewer = getEffectiveViewer(viewer, adminMode);
-  if (!canUseManagement(effectiveViewer)) {
+  if (!canCreateMembers(effectiveViewer)) {
     return json({ error: "Forbidden." }, 403);
   }
 
@@ -480,7 +488,7 @@ async function handleCreateMembersBatch(
   const body = await request.json().catch(() => null);
   const adminMode = getAdminModeFromBody(viewer, body);
   const effectiveViewer = getEffectiveViewer(viewer, adminMode);
-  if (!canUseManagement(effectiveViewer)) {
+  if (!canCreateMembers(effectiveViewer)) {
     return json({ error: "Forbidden." }, 403);
   }
 
@@ -610,7 +618,7 @@ async function handleUpdateMember(
   const body = await request.json().catch(() => null);
   const adminMode = getAdminModeFromBody(viewer, body);
   const effectiveViewer = getEffectiveViewer(viewer, adminMode);
-  if (!canUseManagement(effectiveViewer)) {
+  if (!effectiveViewer.is_admin) {
     return json({ error: "Forbidden." }, 403);
   }
 
@@ -661,6 +669,12 @@ async function handleUpdateMember(
   if (isMultiDistrictRole(targetRole) && !districtPastorDistrictIds.every((id) => canManageDistrict(effectiveViewer, id))) {
     return json({ error: "No permission to assign one or more districts." }, 403);
   }
+  const requestedIsActive = typeof body?.is_active === "boolean"
+    ? Boolean(body.is_active)
+    : Boolean(target.is_active);
+  if (requestedIsActive !== Boolean(target.is_active) && !canChangeMemberActiveStatus(effectiveViewer)) {
+    return json({ error: "No permission to change member active status." }, 403);
+  }
 
   const { error } = await db
     .from("members")
@@ -671,7 +685,7 @@ async function handleUpdateMember(
       note,
       equipment_progress: normalizeEquipmentProgress(body?.equipment_progress ?? target.equipment_progress),
       is_admin: effectiveViewer.is_admin ? Boolean(body?.is_admin) : target.is_admin,
-      is_active: body?.is_active !== false,
+      is_active: canChangeMemberActiveStatus(effectiveViewer) ? requestedIsActive : target.is_active,
       district_id: scope.district_id,
       big_family_id: scope.big_family_id,
       small_group_id: scope.small_group_id,
@@ -737,7 +751,7 @@ async function handlePurgeMember(
   const body = await request.json().catch(() => null);
   const adminMode = getAdminModeFromBody(viewer, body);
   const effectiveViewer = getEffectiveViewer(viewer, adminMode);
-  if (!canUseManagement(effectiveViewer)) {
+  if (!effectiveViewer.is_admin) {
     return json({ error: "Forbidden." }, 403);
   }
 
