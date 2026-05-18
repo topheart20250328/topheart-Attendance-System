@@ -503,9 +503,9 @@ body:not(.is-authenticated) #attendanceSaveBar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--border);
+  border: 1px solid #2563eb;
   border-radius: 999px;
-  background: #eef4ff;
+  background: #ffffff;
   color: var(--primary-strong);
   font-weight: 800;
   cursor: pointer;

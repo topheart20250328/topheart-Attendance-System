@@ -1188,7 +1188,7 @@ function syncManageAllToggle() {
   }
   if (els.manageAllWrap) {
     const active = Boolean(canUse && state.ui.manageAll);
-    els.manageAllWrap.textContent = active ? "管理員" : "身分";
+    els.manageAllWrap.textContent = "管理員";
     els.manageAllWrap.setAttribute("aria-pressed", active ? "true" : "false");
     els.manageAllWrap.setAttribute("aria-label", active ? "切換為身分視角" : "切換為管理員視角");
     els.manageAllWrap.title = active
@@ -4261,13 +4261,13 @@ function getNonAdminScopeError(role, scope, createScopeMode, mode) {
     return "";
   }
   if (role === "district_leader" && !scope.district_id) {
-    return "非管理員需選擇所屬區。";
+    return "非管理員不能選擇留空歸屬。";
   }
   if (BIG_FAMILY_LEADER_ROLES.includes(role) && !scope.big_family_id) {
-    return "非管理員需選擇所屬大家。";
+    return "非管理員不能選擇留空歸屬。";
   }
   if ((SMALL_GROUP_LEADER_ROLES.includes(role) || MEMBER_ROLES.includes(role)) && !scope.small_group_id) {
-    return "非管理員需選擇所屬小家。";
+    return "非管理員不能選擇留空歸屬。";
   }
   return "";
 }
@@ -4892,7 +4892,8 @@ function syncEditorSmallGroupOptions(member = null) {
     })),
     {
       placeholder: available.length ? "請選擇小家" : "尚無可選小家",
-      keepEmptyOption: Boolean(viewer?.is_admin) ||
+      keepEmptyOption: !available.length ||
+        Boolean(viewer?.is_admin) ||
         !(SMALL_GROUP_LEADER_ROLES.includes(role) || MEMBER_ROLES.includes(role)),
     },
   );
@@ -7448,6 +7449,9 @@ function canUseManagement() {
 
 function canCreateMembers() {
   const viewer = getPermissionCurrentMember();
+  if (viewer?.is_admin) {
+    return true;
+  }
   return Boolean(
     viewer &&
       canUseManagement() &&

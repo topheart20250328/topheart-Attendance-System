@@ -249,6 +249,9 @@ function canUseManagement(viewer: MemberRow) {
 }
 
 function canCreateMembers(viewer: MemberRow) {
+  if (viewer.is_admin) {
+    return true;
+  }
   return canUseManagement(viewer) && !SMALL_GROUP_LEADER_ROLES.has(viewer.role);
 }
 
@@ -314,13 +317,13 @@ function getNonAdminScopeError(viewer: MemberRow, role: string, scope: Scope) {
     return "";
   }
   if (DISTRICT_LEADER_ROLES.has(role) && scope.district_id === null) {
-    return "非管理員需選擇所屬區。";
+    return "非管理員不能選擇留空歸屬。";
   }
   if (BIG_FAMILY_LEADER_ROLES.has(role) && scope.big_family_id === null) {
-    return "非管理員需選擇所屬大家。";
+    return "非管理員不能選擇留空歸屬。";
   }
   if ((SMALL_GROUP_LEADER_ROLES.has(role) || MEMBER_ROLES.has(role)) && scope.small_group_id === null) {
-    return "非管理員需選擇所屬小家。";
+    return "非管理員不能選擇留空歸屬。";
   }
   return "";
 }
