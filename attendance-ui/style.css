@@ -2128,6 +2128,24 @@ tbody tr:last-child td {
   background: linear-gradient(180deg, #fbfaff 0%, var(--equipment-leader-bg) 100%);
 }
 
+#attendanceView .attendance-card.equipment-growth,
+#overviewView .overview-member-details.equipment-growth {
+  border-color: rgba(34, 197, 94, 0.16);
+  background: linear-gradient(180deg, #ffffff 0%, #f2fbf5 100%);
+}
+
+#attendanceView .attendance-card.equipment-disciple,
+#overviewView .overview-member-details.equipment-disciple {
+  border-color: rgba(249, 115, 22, 0.16);
+  background: linear-gradient(180deg, #ffffff 0%, #fff7ed 100%);
+}
+
+#attendanceView .attendance-card.equipment-leader,
+#overviewView .overview-member-details.equipment-leader {
+  border-color: rgba(139, 92, 246, 0.16);
+  background: linear-gradient(180deg, #ffffff 0%, #f7f3ff 100%);
+}
+
 .row-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2428,6 +2446,7 @@ tbody tr:last-child td {
   margin: 6px 0 8px;
   padding-bottom: 2px;
   overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .overview-week-quick {
@@ -2478,6 +2497,8 @@ tbody tr:last-child td {
   font-size: 0.84rem;
   font-weight: 800;
   cursor: pointer;
+  overflow: hidden;
+  line-height: 1;
 }
 
 .overview-date-button.is-active {
@@ -2490,8 +2511,14 @@ tbody tr:last-child td {
   inset: 0;
   width: 100%;
   height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
   opacity: 0;
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .overview-unit-list {

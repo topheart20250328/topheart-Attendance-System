@@ -1712,7 +1712,7 @@ function renderAttendanceRows() {
       const readonlyBadge = member.can_edit_attendance
         ? ""
         : '<span class="status-chip neutral">僅檢視</span>';
-      const shouldOpenNote = window.matchMedia("(min-width: 961px)").matches || member.note.trim();
+      const shouldOpenNote = window.matchMedia("(min-width: 961px)").matches;
 
       const equipmentClass = escapeHtml(getEquipmentProgressClass(member.equipment_progress));
       return `
@@ -2886,6 +2886,7 @@ function getOverviewMemberAlerts(member) {
   const eventType = state.ui.overviewEvent;
   const monthStats = member.history?.month?.[eventType] || null;
   const threeMonthStats = member.history?.three_months?.[eventType] || null;
+  let attendanceAlert = null;
 
   if (member.note_priority_high && member.note) {
     alerts.push({
@@ -2899,29 +2900,32 @@ function getOverviewMemberAlerts(member) {
   const monthAbsent = Number(monthStats?.absent_count || 0);
   const monthConfirmed = Number(monthStats?.confirmed_count || monthPresent + monthAbsent);
   if (monthConfirmed >= 2 && monthAbsent >= 2 && monthPresent === 0) {
-    alerts.push({
+    attendanceAlert = {
       tone: "danger",
-      label: "近月連缺",
+      label: "出席率提醒",
       detail: `近一個月已填 ${monthConfirmed} 次，皆未出席。`,
-    });
+    };
   } else if (monthAbsent >= 1 && monthPresent === 0 && monthConfirmed >= 1) {
-    alerts.push({
+    attendanceAlert = {
       tone: "warning",
-      label: "最近未出席",
+      label: "出席率提醒",
       detail: `近一個月已填 ${monthConfirmed} 次，尚無出席紀錄。`,
-    });
+    };
   }
 
   const threePresent = Number(threeMonthStats?.present_count || 0);
   const threeAbsent = Number(threeMonthStats?.absent_count || 0);
   const threeConfirmed = Number(threeMonthStats?.confirmed_count || threePresent + threeAbsent);
   const threeRate = threeConfirmed ? threePresent / threeConfirmed : null;
-  if (threeConfirmed >= 4 && threeRate !== null && threeRate < 0.5) {
-    alerts.push({
+  if (!attendanceAlert && threeConfirmed >= 8 && threeRate !== null && threeRate < 0.5) {
+    attendanceAlert = {
       tone: "warning",
-      label: "近三月偏低",
-      detail: `近三個月出席率 ${formatPercent(threePresent, threeConfirmed)}（出席 ${threePresent} / 已填 ${threeConfirmed}）。`,
-    });
+      label: "出席率提醒",
+      detail: `近期出席率 ${formatPercent(threePresent, threeConfirmed)}（出席 ${threePresent} / 已填 ${threeConfirmed}）。`,
+    };
+  }
+  if (attendanceAlert) {
+    alerts.push(attendanceAlert);
   }
 
   return alerts;
@@ -3298,7 +3302,7 @@ function buildPeopleHierarchy(rows) {
 
     if (!member.big_family_id && !member.big_family_name) {
       const smallGroup = ensureSmallGroup(district, member, district.key);
-      if (SMALL_GROUP_LEADER_ROLES.includes(member.role)) {
+      if (SMALL_GROUP_LEADER_ROLES.includes(member.role) || isPastoralLeaderRole(member.role)) {
         smallGroup.leaders.push(member);
       } else {
         smallGroup.members.push(member);
@@ -3320,7 +3324,7 @@ function buildPeopleHierarchy(rows) {
     }
 
     const smallGroup = ensureSmallGroup(bigFamily, member, bigFamily.key);
-    if (SMALL_GROUP_LEADER_ROLES.includes(member.role)) {
+    if (SMALL_GROUP_LEADER_ROLES.includes(member.role) || isPastoralLeaderRole(member.role)) {
       smallGroup.leaders.push(member);
     } else {
       smallGroup.members.push(member);
