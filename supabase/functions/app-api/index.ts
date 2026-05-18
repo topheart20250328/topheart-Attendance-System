@@ -194,7 +194,7 @@ Deno.serve(async (request) => {
     }
 
     if (request.method === "GET" && action === "admin-overview") {
-      return await handleGetAdminOverview(adminClient, request.headers);
+      return await handleGetAdminOverview(adminClient, request.headers, url);
     }
 
     if (request.method === "GET" && action === "attendance-overview") {
@@ -411,17 +411,20 @@ async function handleGetDashboard(
 async function handleGetAdminOverview(
   adminClient: ReturnType<typeof createAdminClient>,
   headers: Headers,
+  url: URL,
 ) {
   const sessionContext = await getSessionContext(adminClient, headers);
   if (!sessionContext) {
     return jsonResponse({ error: "Unauthorized." }, 401);
   }
 
-  if (!canUseAdminPanel(sessionContext.member)) {
+  const adminMode = getAdminModeFromUrl(sessionContext.member, url);
+  const effectiveViewer = getEffectiveViewer(sessionContext.member, adminMode);
+  if (!canUseAdminPanel(effectiveViewer)) {
     return jsonResponse({ error: "Forbidden." }, 403);
   }
 
-  const overview = await buildAdminOverview(adminClient, sessionContext.member);
+  const overview = await buildAdminOverview(adminClient, effectiveViewer);
   return jsonResponse(overview);
 }
 
@@ -3146,6 +3149,23 @@ function getDistrictPastorDistrictIds(member: MemberDirectoryRow) {
   return (member.district_pastor_district_ids || [])
     .map((value) => Number(value))
     .filter((value) => Number.isInteger(value) && value > 0);
+}
+
+function isAdminModeEnabled(viewer: MemberDirectoryRow, value: unknown) {
+  if (!viewer.is_admin) {
+    return false;
+  }
+  return value !== false && value !== "false";
+}
+
+function getEffectiveViewer(viewer: MemberDirectoryRow, adminMode: boolean) {
+  return viewer.is_admin && !adminMode
+    ? { ...viewer, is_admin: false }
+    : viewer;
+}
+
+function getAdminModeFromUrl(viewer: MemberDirectoryRow, url: URL) {
+  return isAdminModeEnabled(viewer, url.searchParams.get("admin_mode"));
 }
 
 function normalizeDistrictIds(value: unknown) {

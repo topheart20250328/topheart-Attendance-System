@@ -60,6 +60,10 @@ Deno.serve(async (request) => {
     }
 
     const body = await request.json().catch(() => null);
+    const effectiveViewer = getEffectiveViewer(
+      viewer,
+      isAdminModeEnabled(viewer, body?.admin_mode),
+    );
     const memberId = toPositiveInt(body?.member_id);
     const equipmentProgress = normalizeEquipmentProgress(body?.equipment_progress);
     if (!memberId) {
@@ -77,7 +81,7 @@ Deno.serve(async (request) => {
     if (!target) {
       return json({ error: "Member not found." }, 404);
     }
-    if (!canEditProfile(viewer, target as MemberRow)) {
+    if (!canEditProfile(effectiveViewer, target as MemberRow)) {
       return json({ error: "No permission to edit this member." }, 403);
     }
 
@@ -161,6 +165,19 @@ async function sha256Hex(value: string) {
 
 function isLoginEnabled(member: MemberRow) {
   return member.is_active && (member.is_admin || LOGIN_ROLES.has(member.role));
+}
+
+function isAdminModeEnabled(viewer: MemberRow, value: unknown) {
+  if (!viewer.is_admin) {
+    return false;
+  }
+  return value !== false && value !== "false";
+}
+
+function getEffectiveViewer(viewer: MemberRow, adminMode: boolean) {
+  return viewer.is_admin && !adminMode
+    ? { ...viewer, is_admin: false }
+    : viewer;
 }
 
 function canEditProfile(viewer: MemberRow, target: MemberRow) {

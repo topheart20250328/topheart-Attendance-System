@@ -313,6 +313,27 @@ function getDistrictPastorDistrictIds(member: MemberRow) {
     .filter((value) => Number.isInteger(value) && value > 0);
 }
 
+function isAdminModeEnabled(viewer: MemberRow, value: unknown) {
+  if (!viewer.is_admin) {
+    return false;
+  }
+  return value !== false && value !== "false";
+}
+
+function getEffectiveViewer(viewer: MemberRow, adminMode: boolean) {
+  return viewer.is_admin && !adminMode
+    ? { ...viewer, is_admin: false }
+    : viewer;
+}
+
+function getAdminModeFromUrl(viewer: MemberRow, url: URL) {
+  return isAdminModeEnabled(viewer, url.searchParams.get("admin_mode"));
+}
+
+function getAdminModeFromBody(viewer: MemberRow, body: any) {
+  return isAdminModeEnabled(viewer, body?.admin_mode);
+}
+
 function normalizeDistrictIds(value: unknown) {
   if (!Array.isArray(value)) {
     return [];
@@ -330,12 +351,14 @@ async function handleCreateMember(
   viewer: MemberRow,
   request: Request,
 ) {
-  if (!canUseManagement(viewer)) {
+  const body = await request.json().catch(() => null);
+  const adminMode = getAdminModeFromBody(viewer, body);
+  const effectiveViewer = getEffectiveViewer(viewer, adminMode);
+  if (!canUseManagement(effectiveViewer)) {
     return json({ error: "Forbidden." }, 403);
   }
 
-  const body = await request.json().catch(() => null);
-  const result = await createMemberFromBody(db, viewer, body);
+  const result = await createMemberFromBody(db, viewer, effectiveViewer, body, adminMode);
   return json(result.body, result.status);
 }
 
@@ -344,11 +367,13 @@ async function handleCreateMembersBatch(
   viewer: MemberRow,
   request: Request,
 ) {
-  if (!canUseManagement(viewer)) {
+  const body = await request.json().catch(() => null);
+  const adminMode = getAdminModeFromBody(viewer, body);
+  const effectiveViewer = getEffectiveViewer(viewer, adminMode);
+  if (!canUseManagement(effectiveViewer)) {
     return json({ error: "Forbidden." }, 403);
   }
 
-  const body = await request.json().catch(() => null);
   const entries = Array.isArray(body?.members) ? body.members.slice(0, 100) : [];
   if (!entries.length) {
     return json({ error: "members is required." }, 400);
@@ -357,7 +382,7 @@ async function handleCreateMembersBatch(
   const results = [];
   for (const [index, entry] of entries.entries()) {
     try {
-      const result = await createMemberFromBody(db, viewer, entry);
+      const result = await createMemberFromBody(db, viewer, effectiveViewer, entry, adminMode);
       const resultBody = result.body as any;
       results.push({
         index,
@@ -385,8 +410,10 @@ async function handleCreateMembersBatch(
 
 async function createMemberFromBody(
   db: ReturnType<typeof createAdminClient>,
+  actor: MemberRow,
   viewer: MemberRow,
   body: any,
+  adminMode: boolean,
 ) {
   const fullName = String(body?.full_name || "").trim();
   const role = normalizeRole(body?.role);
@@ -438,12 +465,13 @@ async function createMemberFromBody(
 
   await syncDistrictPastorDistricts(db, data.id, role, districtPastorDistrictIds);
 
-  await writeAuditLog(db, viewer, "create_member", "members", data.id, {
+  await writeAuditLog(db, actor, "create_member", "members", data.id, {
     full_name: fullName,
     role,
     equipment_progress: equipmentProgress,
     scope,
     district_ids: districtPastorDistrictIds,
+    admin_mode: adminMode,
   });
 
   return { status: 200, body: { member: data } };
@@ -454,11 +482,13 @@ async function handleUpdateMember(
   viewer: MemberRow,
   request: Request,
 ) {
-  if (!canUseManagement(viewer)) {
+  const body = await request.json().catch(() => null);
+  const adminMode = getAdminModeFromBody(viewer, body);
+  const effectiveViewer = getEffectiveViewer(viewer, adminMode);
+  if (!canUseManagement(effectiveViewer)) {
     return json({ error: "Forbidden." }, 403);
   }
 
-  const body = await request.json().catch(() => null);
   const memberId = toPositiveInt(body?.member_id);
   if (!memberId) {
     return json({ error: "member_id is required." }, 400);
@@ -475,12 +505,12 @@ async function handleUpdateMember(
   if (!target) {
     return json({ error: "Member not found." }, 404);
   }
-  if (!canEditProfile(viewer, target as MemberRow)) {
+  if (!canEditProfile(effectiveViewer, target as MemberRow)) {
     return json({ error: "No permission to edit this member." }, 403);
   }
 
   const requestedRole = normalizeRole(body?.role);
-  const canChangeRole = viewer.is_admin || PREACHER_ROLES.has(viewer.role);
+  const canChangeRole = effectiveViewer.is_admin || PREACHER_ROLES.has(effectiveViewer.role);
   const targetRole = canChangeRole ? requestedRole || target.role : target.role;
   if (!canChangeRole && requestedRole && requestedRole !== target.role) {
     return json({ error: "No permission to change role." }, 403);
@@ -493,11 +523,11 @@ async function handleUpdateMember(
   if (!scope) {
     return json({ error: "Invalid hierarchy scope for this role." }, 400);
   }
-  if (!canManageDistrict(viewer, scope.district_id)) {
+  if (!canManageDistrict(effectiveViewer, scope.district_id)) {
     return json({ error: "No permission to edit this district." }, 403);
   }
   const districtPastorDistrictIds = normalizeDistrictIds(body?.district_ids);
-  if (isMultiDistrictRole(targetRole) && !districtPastorDistrictIds.every((id) => canManageDistrict(viewer, id))) {
+  if (isMultiDistrictRole(targetRole) && !districtPastorDistrictIds.every((id) => canManageDistrict(effectiveViewer, id))) {
     return json({ error: "No permission to assign one or more districts." }, 403);
   }
 
@@ -509,7 +539,7 @@ async function handleUpdateMember(
       gender: normalizeGender(body?.gender),
       note,
       equipment_progress: normalizeEquipmentProgress(body?.equipment_progress ?? target.equipment_progress),
-      is_admin: viewer.is_admin ? Boolean(body?.is_admin) : target.is_admin,
+      is_admin: effectiveViewer.is_admin ? Boolean(body?.is_admin) : target.is_admin,
       is_active: body?.is_active !== false,
       district_id: scope.district_id,
       big_family_id: scope.big_family_id,
@@ -562,6 +592,7 @@ async function handleUpdateMember(
       small_group_id: updated.small_group_id,
       district_ids: districtPastorDistrictIds,
     },
+    admin_mode: adminMode,
   });
 
   return json({ member: updated });
@@ -572,10 +603,13 @@ async function handlePurgeMember(
   viewer: MemberRow,
   request: Request,
 ) {
-  if (!canUseManagement(viewer)) {
+  const body = await request.json().catch(() => null);
+  const adminMode = getAdminModeFromBody(viewer, body);
+  const effectiveViewer = getEffectiveViewer(viewer, adminMode);
+  if (!canUseManagement(effectiveViewer)) {
     return json({ error: "Forbidden." }, 403);
   }
-  const body = await request.json().catch(() => null);
+
   const memberId = toPositiveInt(body?.member_id);
   if (!memberId) {
     return json({ error: "member_id is required." }, 400);
@@ -597,7 +631,7 @@ async function handlePurgeMember(
   if (target.is_active) {
     return json({ error: "Only archived members can be permanently deleted." }, 409);
   }
-  if (!canEditProfile(viewer, target as MemberRow)) {
+  if (!canEditProfile(effectiveViewer, target as MemberRow)) {
     return json({ error: "No permission to delete this member." }, 403);
   }
 
@@ -607,6 +641,7 @@ async function handlePurgeMember(
     district_id: target.district_id,
     big_family_id: target.big_family_id,
     small_group_id: target.small_group_id,
+    admin_mode: adminMode,
   });
 
   const { error } = await db.from("members").delete().eq("id", target.id);
@@ -803,8 +838,9 @@ async function handleDashboard(
 ) {
   const weekStart = getMondayIso(url.searchParams.get("week_start") || new Date());
   const week = await ensureWeek(db, weekStart);
-  const manageAll = url.searchParams.get("manage_all") === "true";
-  const members = await loadVisibleMembers(db, viewer, { manageAll });
+  const adminMode = getAdminModeFromUrl(viewer, url);
+  const effectiveViewer = getEffectiveViewer(viewer, adminMode);
+  const members = await loadVisibleMembers(db, effectiveViewer, { manageAll: adminMode });
   const memberIds = members.map((member) => member.id);
   const records = await loadRecords(db, week.id, memberIds);
   const recordMap = new Map(records.map((record) => [`${record.member_id}:${record.event_type}`, record]));
@@ -824,8 +860,8 @@ async function handleDashboard(
         getFirstRecordValue(recordMap, member.id, "note_priority_high", member.note_priority_high),
       ),
       is_self: member.id === viewer.id,
-      can_edit_attendance: canEditAttendance(viewer, member),
-      can_edit_note: canEditNote(viewer, member),
+      can_edit_attendance: canEditAttendance(effectiveViewer, member),
+      can_edit_note: canEditNote(effectiveViewer, member),
       attendance: {
         sunday_service: statusOf(recordMap.get(`${member.id}:sunday_service`)?.status),
         small_group_fellowship: statusOf(recordMap.get(`${member.id}:small_group_fellowship`)?.status),
@@ -841,14 +877,15 @@ async function handleSaveAttendance(
 ) {
   const body = await request.json().catch(() => null);
   const entries = Array.isArray(body?.entries) ? body.entries : [];
-  const manageAll = body?.manage_all === true;
+  const adminMode = getAdminModeFromBody(viewer, body);
+  const effectiveViewer = getEffectiveViewer(viewer, adminMode);
   if (!entries.length) {
     return json({ error: "entries is required." }, 400);
   }
 
   const week = await ensureWeek(db, getMondayIso(body?.week_start || new Date()));
   const visibleMembers = new Map(
-    (await loadVisibleMembers(db, viewer, { manageAll })).map((member) => [member.id, member]),
+    (await loadVisibleMembers(db, effectiveViewer, { manageAll: adminMode })).map((member) => [member.id, member]),
   );
   const nowIso = new Date().toISOString();
   const rows = [];
@@ -863,7 +900,7 @@ async function handleSaveAttendance(
 
     const note = normalizeNote(entry?.note);
     const notePriorityHigh = Boolean(note && entry?.note_priority_high);
-    if (canEditNote(viewer, target)) {
+    if (canEditNote(effectiveViewer, target)) {
       const noteCarryForward = Boolean(note && entry?.note_carry_forward === true);
       noteUpdates.push({
         member_id: memberId,
@@ -873,7 +910,7 @@ async function handleSaveAttendance(
       });
     }
 
-    if (canEditAttendance(viewer, target)) {
+    if (canEditAttendance(effectiveViewer, target)) {
       rows.push(
         {
           member_id: memberId,
@@ -910,7 +947,7 @@ async function handleSaveAttendance(
     await writeAuditLog(db, viewer, "save_attendance", "attendance_records", week.id, {
       week_start: week.week_start_date,
       member_ids: Array.from(new Set(rows.map((row) => row.member_id))),
-      manage_all: manageAll,
+      admin_mode: adminMode,
     });
   }
 
@@ -1274,14 +1311,16 @@ async function handleAttendanceOverview(
   viewer: MemberRow,
   url: URL,
 ) {
-  if (!(viewer.is_admin || PREACHER_ROLES.has(viewer.role) || DISTRICT_PASTOR_ROLES.has(viewer.role) || DISTRICT_LEADER_ROLES.has(viewer.role) || BIG_FAMILY_LEADER_ROLES.has(viewer.role))) {
+  const adminMode = getAdminModeFromUrl(viewer, url);
+  const effectiveViewer = getEffectiveViewer(viewer, adminMode);
+  if (!(effectiveViewer.is_admin || PREACHER_ROLES.has(effectiveViewer.role) || DISTRICT_PASTOR_ROLES.has(effectiveViewer.role) || DISTRICT_LEADER_ROLES.has(effectiveViewer.role) || BIG_FAMILY_LEADER_ROLES.has(effectiveViewer.role))) {
     return { scope_label: "無權限", selected_week_start: "", weeks: [], units: [] };
   }
 
   const selectedWeekStart = getMondayIso(url.searchParams.get("week_start") || new Date());
   const overviewOptions = getOverviewRequestOptions(url);
   const week = await ensureWeek(db, selectedWeekStart);
-  const members = await loadOverviewMembers(db, viewer);
+  const members = await loadOverviewMembers(db, effectiveViewer);
   const memberIds = members.map((member) => member.id);
   const records = await loadRecords(db, week.id, memberIds);
   const recordMap = new Map(records.map((record) => [`${record.member_id}:${record.event_type}`, record]));
@@ -1290,12 +1329,12 @@ async function handleAttendanceOverview(
     : createEmptyHistoryMap(memberIds, selectedWeekStart);
   const organizationRows = await loadOverviewOrganizationRows(db, members);
   const units = filterOverviewUnits(
-    buildUnits(viewer, members, recordMap, historyMap, organizationRows, overviewOptions),
+    buildUnits(effectiveViewer, members, recordMap, historyMap, organizationRows, overviewOptions),
     overviewOptions,
   );
 
   return {
-    scope_label: getScopeLabel(viewer),
+    scope_label: getScopeLabel(effectiveViewer),
     selected_week_start: selectedWeekStart,
     detail_mode: overviewOptions.includeDetail ? "full" : "summary",
     weeks: recentWeeks(selectedWeekStart, 26).map((weekStart) => ({

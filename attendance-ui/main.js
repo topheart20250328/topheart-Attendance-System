@@ -894,7 +894,15 @@ async function handleManageAllChange(event) {
 
   state.ui.manageAll = nextValue;
   state.dashboardCache.clear();
+  state.prefetchingWeeks.clear();
+  state.adminData = emptyAdminData();
+  state.overviewData = null;
+  renderLayout();
   await loadDashboard({ skipDirtyCheck: true });
+  await loadAdminPanel();
+  if (state.ui.activeTab === TABS.overview && canUseOverview()) {
+    await loadAttendanceOverview(state.ui.overviewWeekStart);
+  }
 }
 
 function handleLayoutSizeChange(event) {
@@ -1078,6 +1086,7 @@ function renderLayout() {
 }
 
 function renderTopBar() {
+  const effectiveMember = getEffectiveCurrentMember();
   const scope = [
     state.currentMember.district_name,
     state.currentMember.big_family_name,
@@ -1086,14 +1095,79 @@ function renderTopBar() {
     .filter(Boolean)
     .join(" / ");
 
+  const roleLabel = getRoleLabel(state.currentMember.role);
+  const viewLabel = state.currentMember.is_admin
+    ? `目前視角：${isAdminModeActive() ? "管理員" : roleLabel}`
+    : "";
   els.userNameText.textContent = `${state.currentMember.full_name} (${getRoleLabel(
     state.currentMember.role,
   )}${state.currentMember.is_admin ? " / 管理員" : ""})`;
-  els.userScopeText.textContent = scope
+  els.userScopeText.textContent = [scope ? `所屬牧區：${scope}` : "尚未設定牧區", viewLabel]
+    .filter(Boolean)
+    .join("｜");
+  els.userScopeText.title = effectiveMember?.is_admin ? "目前以管理員權限瀏覽" : "目前以原職分權限瀏覽";
+  setBadge(
+    els.sessionBadge,
+    state.currentMember.is_admin ? (isAdminModeActive() ? "管理員" : "身分視角") : "已登入",
+    state.currentMember.is_admin ? (isAdminModeActive() ? "success" : "neutral") : "success",
+  );
+  els.authSummary.textContent = `目前登入：${state.currentMember.full_name}`;
+}
+
+function getEffectiveCurrentMember() {
+  if (!state.currentMember) {
+    return null;
+  }
+  if (isAdminModeActive()) {
+    return state.currentMember;
+  }
+  return {
+    ...state.currentMember,
+    is_admin: false,
+  };
+}
+
+function isAdminModeActive() {
+  return Boolean(state.currentMember?.is_admin && state.ui.manageAll);
+}
+
+function getAdminModeQueryParam() {
+  return isAdminModeActive() ? "true" : "false";
+}
+
+function getAdminModeRequestBody() {
+  return {
+    admin_mode: isAdminModeActive(),
+  };
+}
+
+function getRealCurrentMember() {
+  return state.currentMember;
+}
+
+function getPermissionCurrentMember() {
+  return getEffectiveCurrentMember();
+}
+
+function getVisibleCurrentMemberLabel() {
+  const member = getPermissionCurrentMember();
+  if (!member) {
+    return "未登入";
+  }
+  return member.is_admin ? "管理員視角" : "身分視角";
+}
+
+function getScopeTextForCurrentMember() {
+  const scope = [
+    state.currentMember?.district_name,
+    state.currentMember?.big_family_name,
+    state.currentMember?.small_group_name,
+  ]
+    .filter(Boolean)
+    .join(" / ");
+  return scope
     ? `所屬牧區：${scope}`
     : "尚未設定牧區";
-  setBadge(els.sessionBadge, "已登入", "success");
-  els.authSummary.textContent = `目前登入：${state.currentMember.full_name}`;
 }
 
 function syncManageAllToggle() {
@@ -1104,6 +1178,11 @@ function syncManageAllToggle() {
   setHidden(els.manageAllWrap, !canUse);
   if (els.manageAllInput) {
     els.manageAllInput.checked = Boolean(canUse && state.ui.manageAll);
+  }
+  if (els.manageAllWrap) {
+    els.manageAllWrap.title = isAdminModeActive()
+      ? "目前使用管理員全域權限"
+      : "目前以自己的職分與轄區權限瀏覽";
   }
 }
 
@@ -1339,10 +1418,10 @@ async function loadDashboard(options = {}) {
 
 async function fetchDashboardData(weekStart) {
   const cacheKey = getDashboardCacheKey(weekStart);
-  const params = new URLSearchParams({ week_start: weekStart });
-  if (state.ui.manageAll && canUseManageAllToggle()) {
-    params.set("manage_all", "true");
-  }
+  const params = new URLSearchParams({
+    week_start: weekStart,
+    admin_mode: getAdminModeQueryParam(),
+  });
   const data = await apiRequest(
     `dashboard&${params.toString()}`,
     {
@@ -1370,7 +1449,7 @@ function applyDashboardData(data, weekStart) {
 }
 
 function getDashboardCacheKey(weekStart) {
-  return `${weekStart || ""}:${state.ui.manageAll && canUseManageAllToggle() ? "all" : "scope"}`;
+  return `${weekStart || ""}:${isAdminModeActive() ? "admin" : "role"}`;
 }
 
 function prefetchAdjacentWeeks(weekStart) {
@@ -1548,7 +1627,7 @@ function renderAttendanceHeader() {
       </div>
       <div class="info-item">
         <span class="info-label">職分</span>
-        <span class="info-value">${escapeHtml(getRoleLabel(state.currentMember.role))}${state.currentMember.is_admin ? " / 管理員" : ""}</span>
+        <span class="info-value">${escapeHtml(getRoleLabel(state.currentMember.role))}${state.currentMember.is_admin ? ` / ${escapeHtml(getVisibleCurrentMemberLabel())}` : ""}</span>
       </div>
       <div class="info-item">
         <span class="info-label">管轄範圍</span>
@@ -1574,7 +1653,7 @@ function getAttendanceScopeModeLabel() {
   if (!canUseManageAllToggle()) {
     return "依職分權限";
   }
-  return state.ui.manageAll ? "全部管理" : "直屬小家";
+  return isAdminModeActive() ? "管理員全域" : `${getRoleLabel(state.currentMember.role)}視角`;
 }
 
 function renderWeekSummary() {
@@ -1783,14 +1862,15 @@ function renderAttendanceRows() {
 }
 
 function shouldGroupAttendanceRows() {
-  if (!state.currentMember || (canUseManageAllToggle() && !state.ui.manageAll)) {
+  const viewer = getPermissionCurrentMember();
+  if (!viewer || (canUseManageAllToggle() && !isAdminModeActive())) {
     return false;
   }
 
   return Boolean(
-    state.currentMember.is_admin ||
+    viewer.is_admin ||
       ["preacher", "trainee_preacher", "district_pastor", "district_leader", "big_family_leader", "trainee_big_family_leader"].includes(
-        state.currentMember.role,
+        viewer.role,
       ),
   );
 }
@@ -1800,15 +1880,16 @@ function getAttendanceGroupLabel(member) {
     return "";
   }
 
-  if (state.currentMember?.is_admin || PREACHER_ROLES.includes(state.currentMember?.role) || DISTRICT_PASTOR_ROLES.includes(state.currentMember?.role)) {
+  const viewer = getPermissionCurrentMember();
+  if (viewer?.is_admin || PREACHER_ROLES.includes(viewer?.role) || DISTRICT_PASTOR_ROLES.includes(viewer?.role)) {
     return member.district_name || (PREACHER_ROLES.includes(member.role) ? getRoleLabel(member.role) : "其他");
   }
 
-  if (DISTRICT_LEADER_ROLES.includes(state.currentMember?.role)) {
+  if (DISTRICT_LEADER_ROLES.includes(viewer?.role)) {
     return member.big_family_name || member.small_group_name || "未設定大家 / 小家";
   }
 
-  if (BIG_FAMILY_LEADER_ROLES.includes(state.currentMember?.role)) {
+  if (BIG_FAMILY_LEADER_ROLES.includes(viewer?.role)) {
     return member.small_group_name || "未設定小家";
   }
 
@@ -2206,7 +2287,7 @@ async function handleSaveAttendance() {
       authMode: "app",
       body: {
         week_start: els.weekInput.value,
-        manage_all: state.ui.manageAll && canUseManageAllToggle(),
+        ...getAdminModeRequestBody(),
         entries,
       },
     });
@@ -2284,7 +2365,8 @@ async function loadAdminPanel() {
   }
 
   try {
-    const data = await apiRequest("admin-overview", {
+    const params = new URLSearchParams({ admin_mode: getAdminModeQueryParam() });
+    const data = await apiRequest(`admin-overview&${params.toString()}`, {
       method: "GET",
       authMode: "app",
     });
@@ -2318,8 +2400,12 @@ async function loadAttendanceOverview(weekStart = "") {
 
   try {
     const targetWeek = weekStart || state.ui.overviewWeekStart || els.weekInput.value || getMondayIso(new Date());
+    const params = new URLSearchParams({
+      week_start: targetWeek,
+      admin_mode: getAdminModeQueryParam(),
+    });
     const data = await apiRequest(
-      `attendance-overview&week_start=${encodeURIComponent(targetWeek)}`,
+      `attendance-overview&${params.toString()}`,
       {
         method: "GET",
         authMode: "app",
@@ -3137,18 +3223,19 @@ function renderPeopleFilters(editableMembers) {
 }
 
 function getEditableManagementMembers() {
-  if (!state.currentMember) {
+  const viewer = getPermissionCurrentMember();
+  if (!viewer) {
     return [];
   }
 
-  if (state.currentMember.is_admin) {
+  if (viewer.is_admin) {
     return state.adminData.members;
   }
 
   return state.adminData.members.filter(
     (member) =>
-      canManageMemberDistrict(state.currentMember, member.district_id) &&
-      canManageRole(state.currentMember.role, member.role),
+      canManageMemberDistrict(viewer, member.district_id) &&
+      canManageRole(viewer.role, member.role),
   );
 }
 
@@ -3642,6 +3729,7 @@ async function handleRestoreMember(button, memberId, memberName) {
       method: "POST",
       authMode: "app",
       body: {
+        ...getAdminModeRequestBody(),
         member_id: memberId,
         full_name: member.full_name,
         role: member.role,
@@ -3680,6 +3768,7 @@ async function handleDeleteMember(button, memberId, memberName) {
       method: "POST",
       authMode: "app",
       body: {
+        ...getAdminModeRequestBody(),
         member_id: memberId,
         full_name: member.full_name,
         role: member.role,
@@ -3721,7 +3810,7 @@ async function handlePurgeMember(button, memberId, memberName) {
     const data = await apiRequest("purge-member", {
       method: "POST",
       authMode: "app",
-      body: { member_id: memberId },
+      body: { ...getAdminModeRequestBody(), member_id: memberId },
     }).catch((error) => {
       if (!isMissingActionError(error)) {
         throw error;
@@ -3729,7 +3818,7 @@ async function handlePurgeMember(button, memberId, memberName) {
       return apiRequest("purge-member", {
         method: "POST",
         authMode: "app",
-        body: { member_id: memberId },
+        body: { ...getAdminModeRequestBody(), member_id: memberId },
         functionName: "app-api",
       });
     });
@@ -3848,8 +3937,9 @@ function populateBulkDistrictOptions() {
     return;
   }
 
+  const viewer = getPermissionCurrentMember();
   const districtOptions = getSelectableDistricts().filter(
-    (district) => canManageMemberDistrict(state.currentMember, district.id),
+    (district) => canManageMemberDistrict(viewer, district.id),
   ).map((district) => ({
     value: String(district.id),
     label: getOrganizationDisplayName(district.name, district.is_active),
@@ -3858,10 +3948,10 @@ function populateBulkDistrictOptions() {
     placeholder: districtOptions.length ? "可留空（無區）" : "尚無可選區",
   });
 
-  if (state.currentMember?.is_admin || PREACHER_ROLES.includes(state.currentMember?.role) || DISTRICT_PASTOR_ROLES.includes(state.currentMember?.role)) {
+  if (viewer?.is_admin || PREACHER_ROLES.includes(viewer?.role) || DISTRICT_PASTOR_ROLES.includes(viewer?.role)) {
     els.bulkDistrictSelect.disabled = false;
   } else {
-    els.bulkDistrictSelect.value = String(state.currentMember?.district_id || "");
+    els.bulkDistrictSelect.value = String(viewer?.district_id || "");
     els.bulkDistrictSelect.disabled = true;
   }
 }
@@ -4065,6 +4155,7 @@ function validateBulkMembers() {
 }
 
 function getBulkMemberError(member) {
+  const viewer = getPermissionCurrentMember();
   if (!member.full_name) {
     return "姓名不可空白。";
   }
@@ -4072,18 +4163,18 @@ function getBulkMemberError(member) {
     return "請選擇職分。";
   }
   if (
-    !state.currentMember?.is_admin &&
-    (!canManageRole(state.currentMember?.role, member.role) ||
+    !viewer?.is_admin &&
+    (!canManageRole(viewer?.role, member.role) ||
       (member.role === "district_leader" &&
-        !DISTRICT_PASTOR_ROLES.includes(state.currentMember?.role) &&
-        !PREACHER_ROLES.includes(state.currentMember?.role)))
+        !DISTRICT_PASTOR_ROLES.includes(viewer?.role) &&
+        !PREACHER_ROLES.includes(viewer?.role)))
   ) {
     return "沒有權限新增此職分。";
   }
   if (
-    !state.currentMember?.is_admin &&
+    !viewer?.is_admin &&
     member.district_id &&
-    !canManageMemberDistrict(state.currentMember, member.district_id)
+    !canManageMemberDistrict(viewer, member.district_id)
   ) {
     return "只能新增到自己的轄區。";
   }
@@ -4201,7 +4292,8 @@ function renderBulkMemberCard(member, index) {
 }
 
 function getBulkRoleOptions(selectedValue) {
-  const roles = state.currentMember?.is_admin ? ADMIN_CREATE_ROLES : MANAGEMENT_CREATE_ROLES;
+  const viewer = getPermissionCurrentMember();
+  const roles = viewer?.is_admin ? ADMIN_CREATE_ROLES : MANAGEMENT_CREATE_ROLES;
   return renderSelectOptions(
     roles.map((role) => ({ value: role, label: getRoleLabel(role) })),
     selectedValue,
@@ -4239,10 +4331,11 @@ function getCreateScopeModeOptions(role, selectedValue) {
 }
 
 function getBulkDistrictOptions(selectedValue) {
-  const districts = state.currentMember?.is_admin
+  const viewer = getPermissionCurrentMember();
+  const districts = viewer?.is_admin
     ? getSelectableDistricts()
-    : getSelectableDistricts(state.currentMember?.district_id || 0).filter(
-        (district) => district.id === state.currentMember?.district_id,
+    : getSelectableDistricts(viewer?.district_id || 0).filter(
+        (district) => district.id === viewer?.district_id,
       );
   return renderSelectOptions(
     districts.map((district) => ({
@@ -4318,6 +4411,7 @@ async function handleSaveBulkMembers(event) {
         method: "POST",
         authMode: "app",
         body: {
+          ...getAdminModeRequestBody(),
           members: payload,
         },
       });
@@ -4378,7 +4472,10 @@ async function createBulkMembersIndividually(payload) {
       const data = await apiRequest("create-member", {
         method: "POST",
         authMode: "app",
-        body: member,
+        body: {
+          ...getAdminModeRequestBody(),
+          ...member,
+        },
       });
       results.push({
         index,
@@ -4418,11 +4515,12 @@ function formatPeopleScopeSummary(member) {
 }
 
 function populateRoleOptions(mode, member) {
+  const viewer = getPermissionCurrentMember();
   let roles;
   if (mode === "create") {
     roles = getCreateRoleOptions();
   } else {
-    if (state.currentMember?.is_admin || PREACHER_ROLES.includes(state.currentMember?.role)) {
+    if (viewer?.is_admin || PREACHER_ROLES.includes(viewer?.role)) {
       roles = getCreateRoleOptions();
     } else {
       roles = [member.role];
@@ -4436,14 +4534,15 @@ function populateRoleOptions(mode, member) {
   );
 
   els.memberRoleSelect.disabled =
-    mode === "edit" && !(state.currentMember?.is_admin || PREACHER_ROLES.includes(state.currentMember?.role));
+    mode === "edit" && !(viewer?.is_admin || PREACHER_ROLES.includes(viewer?.role));
 }
 
 function getCreateRoleOptions() {
-  if (state.currentMember?.is_admin || PREACHER_ROLES.includes(state.currentMember?.role)) {
+  const viewer = getPermissionCurrentMember();
+  if (viewer?.is_admin || PREACHER_ROLES.includes(viewer?.role)) {
     return ADMIN_CREATE_ROLES;
   }
-  if (DISTRICT_PASTOR_ROLES.includes(state.currentMember?.role)) {
+  if (DISTRICT_PASTOR_ROLES.includes(viewer?.role)) {
     return MANAGEMENT_CREATE_ROLES;
   }
   return MANAGEMENT_CREATE_ROLES.filter((role) => role !== "district_leader");
@@ -4523,6 +4622,7 @@ function getSelectableSmallGroups({
 }
 
 function populateDistrictOptions(member) {
+  const viewer = getPermissionCurrentMember();
   const includeDistrictId =
     state.ui.editorMode === "edit" ? Number(member?.district_id || 0) : 0;
   els.memberDistrictSelect.multiple = false;
@@ -4535,18 +4635,18 @@ function populateDistrictOptions(member) {
     keepEmptyOption: true,
   });
 
-  if (state.currentMember?.is_admin) {
+  if (viewer?.is_admin) {
     els.memberDistrictSelect.disabled = false;
     if (member?.district_id) {
       els.memberDistrictSelect.value = String(member.district_id);
     }
   } else {
-    els.memberDistrictSelect.disabled = DISTRICT_LEADER_ROLES.includes(state.currentMember?.role);
-    if (DISTRICT_PASTOR_ROLES.includes(state.currentMember?.role)) {
-      const allowedDistrictIds = getDistrictPastorDistrictIds(state.currentMember);
+    els.memberDistrictSelect.disabled = DISTRICT_LEADER_ROLES.includes(viewer?.role);
+    if (DISTRICT_PASTOR_ROLES.includes(viewer?.role)) {
+      const allowedDistrictIds = getDistrictPastorDistrictIds(viewer);
       els.memberDistrictSelect.value = allowedDistrictIds[0] ? String(allowedDistrictIds[0]) : "";
     } else {
-      const districtId = String(state.currentMember?.district_id || "");
+      const districtId = String(viewer?.district_id || "");
       els.memberDistrictSelect.value = districtId;
     }
   }
@@ -4582,6 +4682,7 @@ function renderManagedDistrictOptions(member = null) {
     return;
   }
 
+  const viewer = getPermissionCurrentMember();
   const role = els.memberRoleSelect.value || "";
   const memberKey = String(member?.id || "new");
   const shouldPreserveSelection =
@@ -4592,7 +4693,8 @@ function renderManagedDistrictOptions(member = null) {
     : member
       ? getDistrictPastorDistrictIds(member)
       : [];
-  const districtOptions = getSelectableDistricts();
+  const districtOptions = getSelectableDistricts()
+    .filter((district) => canManageMemberDistrict(viewer, district.id));
   els.memberManagedDistrictList.innerHTML = districtOptions.length
     ? districtOptions
       .map(
@@ -4671,9 +4773,10 @@ function syncEditorSmallGroupOptions(member = null) {
 }
 
 function fillMemberForm(mode, member) {
+  const viewer = getPermissionCurrentMember();
   if (mode === "create") {
     els.memberEditorTitle.textContent = "新增人員";
-    els.memberEditorHint.textContent = state.currentMember?.is_admin
+    els.memberEditorHint.textContent = viewer?.is_admin
       ? "管理員可建立所有職分；新增區長、大家長或小家長時可選留空、新建同名或加入既有組織。"
       : "區長可建立自己轄區內的大/小家長、小家人與新朋友；新增管理職時可選留空、新建同名或加入既有組織。";
     els.memberNameInput.value = "";
@@ -4691,7 +4794,7 @@ function fillMemberForm(mode, member) {
     }
   } else {
     els.memberEditorTitle.textContent = `編輯：${member.full_name}`;
-    els.memberEditorHint.textContent = state.currentMember?.is_admin
+    els.memberEditorHint.textContent = viewer?.is_admin
       ? "管理員可調整所有資料與職分。"
       : "區長可編輯轄區內小家人與新朋友的基本資料與所屬。";
     els.memberNameInput.value = member.full_name || "";
@@ -4706,6 +4809,7 @@ function fillMemberForm(mode, member) {
 }
 
 function syncMemberFormScope() {
+  const viewer = getPermissionCurrentMember();
   const role = els.memberRoleSelect.value;
   const isCreateMode = state.ui.editorMode === "create";
   const isEditMode = state.ui.editorMode === "edit";
@@ -4757,7 +4861,7 @@ function syncMemberFormScope() {
   setHidden(els.memberBigFamilyLabel, !needsBigFamily);
   setHidden(els.memberSmallGroupLabel, !showSmallGroupField);
   setHidden(els.memberManagedDistrictWrap, !showManagedDistricts);
-  const canEditAdminPermission = Boolean(state.currentMember?.is_admin && isEditMode);
+  const canEditAdminPermission = Boolean(isAdminModeActive() && isEditMode);
   setHidden(els.memberIsAdminWrap, !canEditAdminPermission);
 
   els.memberDistrictSelect.required = districtRequired;
@@ -4939,7 +5043,10 @@ async function handleSaveMember(event) {
     const data = await apiRequest(action, {
       method: "POST",
       authMode: "app",
-      body: requestBody,
+      body: {
+        ...getAdminModeRequestBody(),
+        ...requestBody,
+      },
     });
     const updatedMemberId = mode === "create"
       ? Number(data?.member?.id || 0)
@@ -4950,6 +5057,7 @@ async function handleSaveMember(event) {
         authMode: "app",
         functionName: "member-equipment-progress",
         body: {
+          ...getAdminModeRequestBody(),
           member_id: updatedMemberId,
           equipment_progress: body.equipment_progress,
         },
@@ -5008,8 +5116,9 @@ function restoreOrganizationFocus() {
 }
 
 function renderOrganizationTools() {
+  const viewer = getPermissionCurrentMember();
   const activeDistricts = getManagedActiveDistricts();
-  setHidden(els.districtDetails, !state.currentMember?.is_admin);
+  setHidden(els.districtDetails, !viewer?.is_admin);
 
   fillSelect(
     els.bigFamilyDistrictSelect,
@@ -5033,9 +5142,9 @@ function renderOrganizationTools() {
     },
   );
 
-  if (!state.currentMember?.is_admin) {
+  if (!viewer?.is_admin) {
     const currentDistrict = activeDistricts.find(
-      (district) => district.id === state.currentMember?.district_id,
+      (district) => district.id === viewer?.district_id,
     );
     els.bigFamilyDistrictSelect.value = currentDistrict ? String(currentDistrict.id) : "";
     els.smallGroupDistrictSelect.value = currentDistrict ? String(currentDistrict.id) : "";
@@ -6369,14 +6478,14 @@ function getOrganizationParentLabel(orgType, organization) {
 
 function canEditOrganization(orgType) {
   if (orgType === "district") {
-    return Boolean(state.currentMember?.is_admin);
+    return Boolean(getPermissionCurrentMember()?.is_admin);
   }
 
   return canUseManagement();
 }
 
 function canReorderOrganization() {
-  return Boolean(state.currentMember?.is_admin);
+  return Boolean(getPermissionCurrentMember()?.is_admin);
 }
 
 function getOrganizationActionSlug(orgType) {
@@ -6441,7 +6550,7 @@ function renderOrganizationCard(orgType, organization) {
     `);
   }
 
-  if (state.currentMember?.is_admin) {
+  if (getPermissionCurrentMember()?.is_admin) {
     actionButtons.push(`
       <button
         type="button"
@@ -6748,7 +6857,7 @@ function openOrgEditor(type, id) {
       },
     );
     els.orgDistrictSelect.value = entity.district_id ? String(entity.district_id) : "";
-    els.orgDistrictSelect.disabled = !state.currentMember?.is_admin;
+    els.orgDistrictSelect.disabled = !getPermissionCurrentMember()?.is_admin;
     syncOrgEditorBigFamilyOptions();
     els.orgBigFamilySelect.value = entity.big_family_id ? String(entity.big_family_id) : "";
   } else {
@@ -7150,13 +7259,14 @@ async function handleCreateInvite(event) {
 }
 
 function canUseManagement() {
+  const viewer = getPermissionCurrentMember();
   return Boolean(
-    state.currentMember &&
+    viewer &&
       (
-        state.currentMember.is_admin ||
-        PREACHER_ROLES.includes(state.currentMember.role) ||
-        DISTRICT_PASTOR_ROLES.includes(state.currentMember.role) ||
-        DISTRICT_LEADER_ROLES.includes(state.currentMember.role)
+        viewer.is_admin ||
+        PREACHER_ROLES.includes(viewer.role) ||
+        DISTRICT_PASTOR_ROLES.includes(viewer.role) ||
+        DISTRICT_LEADER_ROLES.includes(viewer.role)
       ),
   );
 }
@@ -7166,58 +7276,58 @@ function canUseOrganizationManagement() {
 }
 
 function canUseOverview() {
+  const viewer = getPermissionCurrentMember();
   return Boolean(
-    state.currentMember &&
-      (state.currentMember.is_admin || OVERVIEW_ROLES.includes(state.currentMember.role)),
+    viewer &&
+      (viewer.is_admin || OVERVIEW_ROLES.includes(viewer.role)),
   );
 }
 
 function canUseManageAllToggle() {
-  return Boolean(
-    state.currentMember &&
-      state.currentMember.small_group_id &&
-      (state.currentMember.is_admin || PREACHER_ROLES.includes(state.currentMember.role)),
-  );
+  return Boolean(state.currentMember?.is_admin);
 }
 
 function canUseAttendanceFilters() {
-  if (!state.currentMember) {
+  const viewer = getPermissionCurrentMember();
+  if (!viewer) {
     return false;
   }
 
-  if (canUseManageAllToggle() && !state.ui.manageAll) {
+  if (canUseManageAllToggle() && !isAdminModeActive()) {
     return false;
   }
 
   return Boolean(
-    state.currentMember.is_admin ||
+    viewer.is_admin ||
       ["preacher", "trainee_preacher", "district_pastor", "district_leader", "big_family_leader", "trainee_big_family_leader"].includes(
-        state.currentMember.role,
+        viewer.role,
       ),
   );
 }
 
 function canUseInvites() {
-  return Boolean(state.currentMember?.is_admin);
+  return Boolean(isAdminModeActive());
 }
 
 function canEditProfile(member) {
-  if (!state.currentMember) {
+  const viewer = getPermissionCurrentMember();
+  if (!viewer) {
     return false;
   }
 
-  if (state.currentMember.is_admin) {
+  if (viewer.is_admin) {
     return true;
   }
 
   return (
-    canManageMemberDistrict(state.currentMember, member.district_id) &&
-    canManageRole(state.currentMember.role, member.role)
+    canManageMemberDistrict(viewer, member.district_id) &&
+    canManageRole(viewer.role, member.role)
   );
 }
 
 function canDeleteMember(member) {
-  if (!state.currentMember || member.id === state.currentMember.id) {
+  const viewer = getPermissionCurrentMember();
+  if (!viewer || member.id === getRealCurrentMember()?.id) {
     return false;
   }
 
@@ -7225,41 +7335,43 @@ function canDeleteMember(member) {
     return false;
   }
 
-  if (state.currentMember.is_admin) {
+  if (viewer.is_admin) {
     return true;
   }
 
   return (
     member.is_active &&
-    canManageMemberDistrict(state.currentMember, member.district_id) &&
-    canManageRole(state.currentMember.role, member.role)
+    canManageMemberDistrict(viewer, member.district_id) &&
+    canManageRole(viewer.role, member.role)
   );
 }
 
 function canRestoreMember(member) {
-  if (!state.currentMember || member.is_active) {
+  const viewer = getPermissionCurrentMember();
+  if (!viewer || member.is_active) {
     return false;
   }
 
-  if (state.currentMember.is_admin) {
+  if (viewer.is_admin) {
     return true;
   }
 
   return (
-    canManageMemberDistrict(state.currentMember, member.district_id) &&
-    canManageRole(state.currentMember.role, member.role)
+    canManageMemberDistrict(viewer, member.district_id) &&
+    canManageRole(viewer.role, member.role)
   );
 }
 
 function canPurgeMember(member) {
+  const viewer = getPermissionCurrentMember();
   return Boolean(
-    state.currentMember &&
+    viewer &&
       !member.is_active &&
-      member.id !== state.currentMember.id &&
+      member.id !== getRealCurrentMember()?.id &&
       (
-        state.currentMember.is_admin ||
-        (canManageMemberDistrict(state.currentMember, member.district_id) &&
-          canManageRole(state.currentMember.role, member.role))
+        viewer.is_admin ||
+        (canManageMemberDistrict(viewer, member.district_id) &&
+          canManageRole(viewer.role, member.role))
       ),
   );
 }
