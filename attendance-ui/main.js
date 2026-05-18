@@ -119,6 +119,8 @@ const OVERVIEW_ROLES = [
   "district_leader",
   "big_family_leader",
   "trainee_big_family_leader",
+  "small_group_leader",
+  "trainee_small_group_leader",
 ];
 
 const DEFAULT_PROJECT_URL = "https://aiifotwroawqxkcsfjzi.supabase.co";
@@ -276,6 +278,8 @@ const els = {
   bulkSubmitBtn: document.querySelector("#bulkSubmitBtn"),
   bulkSummary: document.querySelector("#bulkSummary"),
   bulkPreviewList: document.querySelector("#bulkPreviewList"),
+  orgManagementPanel: document.querySelector(".org-management-panel"),
+  orgCreatePanel: document.querySelector(".org-create-panel"),
   districtDetails: document.querySelector("#districtDetails"),
   districtForm: document.querySelector("#districtForm"),
   districtNameInput: document.querySelector("#districtNameInput"),
@@ -1422,6 +1426,9 @@ async function fetchDashboardData(weekStart) {
     week_start: weekStart,
     admin_mode: getAdminModeQueryParam(),
   });
+  if (isAdminModeActive()) {
+    params.set("manage_all", "true");
+  }
   const data = await apiRequest(
     `dashboard&${params.toString()}`,
     {
@@ -2288,6 +2295,7 @@ async function handleSaveAttendance() {
       body: {
         week_start: els.weekInput.value,
         ...getAdminModeRequestBody(),
+        manage_all: isAdminModeActive(),
         entries,
       },
     });
@@ -2308,11 +2316,11 @@ async function handleSaveAttendance() {
 }
 
 function formatMemberScopeSummary(member) {
-  if (!state.currentMember) {
+  const viewer = getPermissionCurrentMember();
+  if (!viewer) {
     return "";
   }
 
-  const viewer = state.currentMember;
   if (viewer.is_admin || PREACHER_ROLES.includes(viewer.role) || DISTRICT_PASTOR_ROLES.includes(viewer.role)) {
     return [member.district_name, member.big_family_name, member.small_group_name]
       .filter(Boolean)
@@ -3234,7 +3242,7 @@ function getEditableManagementMembers() {
 
   return state.adminData.members.filter(
     (member) =>
-      canManageMemberDistrict(viewer, member.district_id) &&
+      canManageMemberScope(viewer, member) &&
       canManageRole(viewer.role, member.role),
   );
 }
@@ -4178,6 +4186,9 @@ function getBulkMemberError(member) {
   ) {
     return "只能新增到自己的轄區。";
   }
+  if (!viewer?.is_admin && !canManageMemberScope(viewer, member)) {
+    return "只能新增到自己管理範圍內。";
+  }
   const createScopeMode = getBulkCreateScopeMode(member.role, member.create_scope_mode);
   if (isManagedOrganizationCreateRole(member.role)) {
     if (createScopeMode === "create") {
@@ -4348,7 +4359,15 @@ function getBulkDistrictOptions(selectedValue) {
 }
 
 function getBulkBigFamilyOptions(member) {
+  const viewer = getPermissionCurrentMember();
   const options = getSelectableBigFamilies(Number(member.district_id || 0), Number(member.big_family_id || 0))
+    .filter((bigFamily) =>
+      viewer?.is_admin ||
+      PREACHER_ROLES.includes(viewer?.role) ||
+      DISTRICT_PASTOR_ROLES.includes(viewer?.role) ||
+      DISTRICT_LEADER_ROLES.includes(viewer?.role) ||
+      Number(viewer?.big_family_id || 0) === Number(bigFamily.id),
+    )
     .map((bigFamily) => ({
       value: String(bigFamily.id),
       label: getOrganizationDisplayName(bigFamily.name, bigFamily.is_active),
@@ -4357,12 +4376,19 @@ function getBulkBigFamilyOptions(member) {
 }
 
 function getBulkSmallGroupOptions(member) {
+  const viewer = getPermissionCurrentMember();
   const options = getSelectableSmallGroups({
     role: member.role,
     districtId: Number(member.district_id || 0),
     bigFamilyId: Number(member.big_family_id || 0),
     includeSmallGroupId: Number(member.small_group_id || 0),
-  }).map((smallGroup) => ({
+  }).filter((smallGroup) =>
+    canManageMemberScope(viewer, {
+      district_id: smallGroup.district_id,
+      big_family_id: smallGroup.big_family_id,
+      small_group_id: smallGroup.id,
+    }),
+  ).map((smallGroup) => ({
     value: String(smallGroup.id),
     label: [
       getOrganizationDisplayName(smallGroup.name, smallGroup.is_active),
@@ -4520,10 +4546,9 @@ function populateRoleOptions(mode, member) {
   if (mode === "create") {
     roles = getCreateRoleOptions();
   } else {
-    if (viewer?.is_admin || PREACHER_ROLES.includes(viewer?.role)) {
-      roles = getCreateRoleOptions();
-    } else {
-      roles = [member.role];
+    roles = getCreateRoleOptions();
+    if (member?.role && !roles.includes(member.role) && canManageRole(viewer?.role, member.role)) {
+      roles = [member.role, ...roles];
     }
   }
 
@@ -4534,18 +4559,17 @@ function populateRoleOptions(mode, member) {
   );
 
   els.memberRoleSelect.disabled =
-    mode === "edit" && !(viewer?.is_admin || PREACHER_ROLES.includes(viewer?.role));
+    mode === "edit" && roles.length <= 1;
 }
 
 function getCreateRoleOptions() {
   const viewer = getPermissionCurrentMember();
   if (viewer?.is_admin || PREACHER_ROLES.includes(viewer?.role)) {
-    return ADMIN_CREATE_ROLES;
+    return viewer?.is_admin
+      ? ADMIN_CREATE_ROLES
+      : ADMIN_CREATE_ROLES.filter((role) => canManageRole(viewer.role, role));
   }
-  if (DISTRICT_PASTOR_ROLES.includes(viewer?.role)) {
-    return MANAGEMENT_CREATE_ROLES;
-  }
-  return MANAGEMENT_CREATE_ROLES.filter((role) => role !== "district_leader");
+  return MANAGEMENT_CREATE_ROLES.filter((role) => canManageRole(viewer?.role, role));
 }
 
 function isManagedOrganizationCreateRole(role) {
@@ -4713,10 +4737,18 @@ function renderManagedDistrictOptions(member = null) {
 }
 
 function syncEditorBigFamilyOptions(member = null) {
+  const viewer = getPermissionCurrentMember();
   const districtId = Number(els.memberDistrictSelect.value || 0);
   const includeBigFamilyId =
     Number(member?.big_family_id || els.memberBigFamilySelect.value || 0);
-  const available = getSelectableBigFamilies(districtId, includeBigFamilyId);
+  const available = getSelectableBigFamilies(districtId, includeBigFamilyId)
+    .filter((bigFamily) =>
+      viewer?.is_admin ||
+      PREACHER_ROLES.includes(viewer?.role) ||
+      DISTRICT_PASTOR_ROLES.includes(viewer?.role) ||
+      DISTRICT_LEADER_ROLES.includes(viewer?.role) ||
+      Number(viewer?.big_family_id || 0) === Number(bigFamily.id),
+    );
 
   fillSelect(
     els.memberBigFamilySelect,
@@ -4735,6 +4767,7 @@ function syncEditorBigFamilyOptions(member = null) {
 }
 
 function syncEditorSmallGroupOptions(member = null) {
+  const viewer = getPermissionCurrentMember();
   const role = els.memberRoleSelect.value;
   const districtId = Number(els.memberDistrictSelect.value || 0);
   const bigFamilyId = Number(els.memberBigFamilySelect.value || 0);
@@ -4745,7 +4778,13 @@ function syncEditorSmallGroupOptions(member = null) {
     districtId,
     bigFamilyId,
     includeSmallGroupId,
-  });
+  }).filter((smallGroup) =>
+    canManageMemberScope(viewer, {
+      district_id: smallGroup.district_id,
+      big_family_id: smallGroup.big_family_id,
+      small_group_id: smallGroup.id,
+    }),
+  );
 
   fillSelect(
     els.memberSmallGroupSelect,
@@ -5009,6 +5048,12 @@ async function handleSaveMember(event) {
     return;
   }
 
+  const viewer = getPermissionCurrentMember();
+  if (!viewer?.is_admin && !canManageMemberScope(viewer, body)) {
+    showToast("只能儲存到自己管理範圍內。");
+    return;
+  }
+
   if (mode === "create") {
     body.is_admin = false;
   } else {
@@ -5118,6 +5163,18 @@ function restoreOrganizationFocus() {
 function renderOrganizationTools() {
   const viewer = getPermissionCurrentMember();
   const activeDistricts = getManagedActiveDistricts();
+  const canEditOrganizations = Boolean(
+    viewer?.is_admin ||
+      PREACHER_ROLES.includes(viewer?.role) ||
+      DISTRICT_PASTOR_ROLES.includes(viewer?.role) ||
+      DISTRICT_LEADER_ROLES.includes(viewer?.role),
+  );
+  setHidden(els.orgManagementPanel, !canEditOrganizations);
+  setHidden(els.orgCreatePanel, !canEditOrganizations);
+  if (!canEditOrganizations) {
+    closeOrgEditor();
+    return;
+  }
   setHidden(els.districtDetails, !viewer?.is_admin);
 
   fillSelect(
@@ -6477,11 +6534,17 @@ function getOrganizationParentLabel(orgType, organization) {
 }
 
 function canEditOrganization(orgType) {
+  const viewer = getPermissionCurrentMember();
   if (orgType === "district") {
-    return Boolean(getPermissionCurrentMember()?.is_admin);
+    return Boolean(viewer?.is_admin);
   }
 
-  return canUseManagement();
+  return Boolean(
+    viewer?.is_admin ||
+      PREACHER_ROLES.includes(viewer?.role) ||
+      DISTRICT_PASTOR_ROLES.includes(viewer?.role) ||
+      DISTRICT_LEADER_ROLES.includes(viewer?.role),
+  );
 }
 
 function canReorderOrganization() {
@@ -7266,7 +7329,9 @@ function canUseManagement() {
         viewer.is_admin ||
         PREACHER_ROLES.includes(viewer.role) ||
         DISTRICT_PASTOR_ROLES.includes(viewer.role) ||
-        DISTRICT_LEADER_ROLES.includes(viewer.role)
+        DISTRICT_LEADER_ROLES.includes(viewer.role) ||
+        BIG_FAMILY_LEADER_ROLES.includes(viewer.role) ||
+        SMALL_GROUP_LEADER_ROLES.includes(viewer.role)
       ),
   );
 }
@@ -7320,7 +7385,7 @@ function canEditProfile(member) {
   }
 
   return (
-    canManageMemberDistrict(viewer, member.district_id) &&
+    canManageMemberScope(viewer, member) &&
     canManageRole(viewer.role, member.role)
   );
 }
@@ -7341,7 +7406,7 @@ function canDeleteMember(member) {
 
   return (
     member.is_active &&
-    canManageMemberDistrict(viewer, member.district_id) &&
+    canManageMemberScope(viewer, member) &&
     canManageRole(viewer.role, member.role)
   );
 }
@@ -7357,7 +7422,7 @@ function canRestoreMember(member) {
   }
 
   return (
-    canManageMemberDistrict(viewer, member.district_id) &&
+    canManageMemberScope(viewer, member) &&
     canManageRole(viewer.role, member.role)
   );
 }
@@ -7370,7 +7435,7 @@ function canPurgeMember(member) {
       member.id !== getRealCurrentMember()?.id &&
       (
         viewer.is_admin ||
-        (canManageMemberDistrict(viewer, member.district_id) &&
+        (canManageMemberScope(viewer, member) &&
           canManageRole(viewer.role, member.role))
       ),
   );
@@ -7386,13 +7451,50 @@ function canManageMemberDistrict(viewer, districtId) {
   if (DISTRICT_PASTOR_ROLES.includes(viewer.role)) {
     return getDistrictPastorDistrictIds(viewer).includes(Number(districtId));
   }
-  return DISTRICT_LEADER_ROLES.includes(viewer.role) && Number(viewer.district_id || 0) === Number(districtId);
+  return (
+    DISTRICT_LEADER_ROLES.includes(viewer.role) ||
+    BIG_FAMILY_LEADER_ROLES.includes(viewer.role) ||
+    SMALL_GROUP_LEADER_ROLES.includes(viewer.role)
+  ) && Number(viewer.district_id || 0) === Number(districtId);
+}
+
+function canManageMemberScope(viewer, target) {
+  if (!viewer) {
+    return false;
+  }
+  if (viewer.is_admin) {
+    return true;
+  }
+  if (PREACHER_ROLES.includes(viewer.role)) {
+    const districtIds = getDistrictPastorDistrictIds(viewer);
+    if (districtIds.length) {
+      return districtIds.includes(Number(target?.district_id || 0));
+    }
+    return Number(viewer.district_id || 0) > 0 &&
+      Number(viewer.district_id || 0) === Number(target?.district_id || 0);
+  }
+  if (DISTRICT_PASTOR_ROLES.includes(viewer.role)) {
+    return getDistrictPastorDistrictIds(viewer).includes(Number(target?.district_id || 0));
+  }
+  if (DISTRICT_LEADER_ROLES.includes(viewer.role)) {
+    return Number(viewer.district_id || 0) > 0 &&
+      Number(viewer.district_id || 0) === Number(target?.district_id || 0);
+  }
+  if (BIG_FAMILY_LEADER_ROLES.includes(viewer.role)) {
+    return Number(viewer.big_family_id || 0) > 0 &&
+      Number(viewer.big_family_id || 0) === Number(target?.big_family_id || 0);
+  }
+  if (SMALL_GROUP_LEADER_ROLES.includes(viewer.role)) {
+    return Number(viewer.small_group_id || 0) > 0 &&
+      Number(viewer.small_group_id || 0) === Number(target?.small_group_id || 0);
+  }
+  return false;
 }
 
 function canManageRole(viewerRole, targetRole) {
   const viewerTier = ROLE_PERMISSION_TIER[viewerRole] || 99;
   const targetTier = ROLE_PERMISSION_TIER[targetRole] || 99;
-  return targetTier >= viewerTier && targetTier < 99;
+  return targetTier > viewerTier && targetTier < 99;
 }
 
 function getDistrictPastorDistrictIds(member) {

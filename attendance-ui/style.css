@@ -511,7 +511,7 @@ body:not(.is-authenticated) #attendanceSaveBar {
   color: var(--muted);
   font-weight: 800;
   cursor: pointer;
-  padding: 3px;
+  padding: 2px;
   overflow: hidden;
   user-select: none;
 }
@@ -534,8 +534,8 @@ body:not(.is-authenticated) #attendanceSaveBar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: calc(var(--compact-button-height) - 8px);
-  padding: 0 0.66rem;
+  min-height: calc(var(--compact-button-height) - 10px);
+  padding: 0 0.56rem;
   border-radius: 999px;
   white-space: nowrap;
   transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
@@ -5522,30 +5522,33 @@ body.is-authenticated .toast {
   }
 
   body.is-authenticated .user-bar {
-    flex-direction: row;
-    align-items: center;
+    flex-direction: column;
+    align-items: stretch;
     padding: 6px 8px;
     border-radius: 12px;
-    gap: 6px;
+    gap: 5px;
   }
 
   body.is-authenticated .user-meta {
-    flex: 1 1 0;
-    min-width: 92px;
+    min-width: 0;
+    text-align: center;
   }
 
   body.is-authenticated .user-bar .compact-buttons {
-    flex: 0 0 auto;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    width: 100%;
+    gap: 5px;
+    align-items: center;
   }
 
   body.is-authenticated .topbar-checkbox,
   body.is-authenticated .admin-mode-switch,
   body.is-authenticated .user-bar .compact-buttons > button,
   body.is-authenticated .user-bar .compact-buttons > .button-link {
-    min-height: 36px;
-    padding: 0.42rem 0.62rem;
-    font-size: 0.82rem;
+    min-height: 32px;
+    padding: 0.34rem 0.54rem;
+    font-size: 0.78rem;
   }
 
   body.is-authenticated .topbar-checkbox {
@@ -5558,12 +5561,12 @@ body.is-authenticated .toast {
   }
 
   body.is-authenticated .admin-mode-option {
-    min-height: 28px;
-    padding-inline: 0.48rem;
+    min-height: 26px;
+    padding-inline: 0.4rem;
   }
 
   body.is-authenticated .user-name {
-    font-size: 0.88rem;
+    font-size: 0.84rem;
     line-height: 1.25;
     overflow: visible;
     text-overflow: clip;
