@@ -450,7 +450,7 @@ function bindEvents() {
   els.clearConfigBtn.addEventListener("click", handleClearConfig);
   els.loginSettingsBtn.addEventListener("click", handleToggleSettings);
   els.toggleSettingsBtn.addEventListener("click", handleToggleSettings);
-  els.manageAllInput?.addEventListener("change", handleManageAllChange);
+  els.manageAllWrap?.addEventListener("click", handleManageAllToggleClick);
   els.layoutSizeInputs?.forEach((input) => {
     input.addEventListener("change", handleLayoutSizeChange);
   });
@@ -504,7 +504,7 @@ function bindEvents() {
       ? state.adminData.members.find((member) => member.id === state.ui.editingMemberId)
       : null;
     if (state.ui.editorMode === "create") {
-      els.memberCreateScopeModeSelect.value = "empty";
+      els.memberCreateScopeModeSelect.value = getDefaultCreateScopeMode(els.memberRoleSelect.value);
     }
     populateDistrictOptions(editingMember);
     syncEditorBigFamilyOptions();
@@ -531,7 +531,7 @@ function bindEvents() {
     syncMemberFormScope();
   });
   els.bulkRoleSelect?.addEventListener("change", () => {
-    els.bulkCreateScopeModeSelect.value = "empty";
+    els.bulkCreateScopeModeSelect.value = getDefaultCreateScopeMode(els.bulkRoleSelect.value);
     syncBulkDefaultScope();
   });
   els.bulkCreateScopeModeSelect?.addEventListener("change", () => {
@@ -879,20 +879,23 @@ function handleToggleSettings() {
   renderLayout();
 }
 
-async function handleManageAllChange(event) {
-  const nextValue = Boolean(event.target.checked);
+async function handleManageAllToggleClick() {
+  await setManageAllMode(!state.ui.manageAll);
+}
+
+async function setManageAllMode(nextValue) {
   if (state.ui.manageAll === nextValue) {
     return;
   }
 
   if (!canUseManageAllToggle()) {
     state.ui.manageAll = false;
-    event.target.checked = false;
+    syncManageAllToggle();
     return;
   }
 
   if (!canDiscardDirtyChanges()) {
-    event.target.checked = state.ui.manageAll;
+    syncManageAllToggle();
     return;
   }
 
@@ -1184,9 +1187,13 @@ function syncManageAllToggle() {
     els.manageAllInput.checked = Boolean(canUse && state.ui.manageAll);
   }
   if (els.manageAllWrap) {
-    els.manageAllWrap.title = isAdminModeActive()
-      ? "目前使用管理員全域權限"
-      : "目前以自己的職分與轄區權限瀏覽";
+    const active = Boolean(canUse && state.ui.manageAll);
+    els.manageAllWrap.textContent = active ? "管理員" : "身分";
+    els.manageAllWrap.setAttribute("aria-pressed", active ? "true" : "false");
+    els.manageAllWrap.setAttribute("aria-label", active ? "切換為身分視角" : "切換為管理員視角");
+    els.manageAllWrap.title = active
+      ? "目前使用管理員全域權限，點擊切換為身分視角"
+      : "目前以自己的職分與轄區權限瀏覽，點擊切換為管理員視角";
   }
 }
 
@@ -3902,7 +3909,7 @@ function openBulkMemberEditor() {
   populateBulkRoleOptions();
   populateBulkDistrictOptions();
   els.bulkGenderSelect.value = "";
-  els.bulkCreateScopeModeSelect.value = "empty";
+  els.bulkCreateScopeModeSelect.value = getDefaultCreateScopeMode(els.bulkRoleSelect.value);
   els.bulkNamesInput.value = "";
   els.bulkActiveSelect.value = "true";
   syncBulkDefaultScope();
@@ -4027,6 +4034,7 @@ function syncBulkDefaultScope() {
   setHidden(els.bulkSmallGroupLabel, !showSmallGroupField);
   els.bulkCreateScopeModeSelect.disabled = !isManagedCreateRole;
   if (isManagedCreateRole) {
+    els.bulkCreateScopeModeSelect.innerHTML = getCreateScopeModeOptions(role, createScopeMode);
     els.bulkCreateScopeModeSelect.value = createScopeMode;
   }
 }
@@ -4106,7 +4114,7 @@ function handleBulkPreviewInput(event) {
     member.full_name = event.target.value.trimStart();
   } else if (field === "role") {
     member.role = event.target.value;
-    member.create_scope_mode = getBulkCreateScopeMode(member.role, "empty");
+    member.create_scope_mode = getDefaultCreateScopeMode(member.role);
     member.district_id = null;
     member.big_family_id = null;
     member.small_group_id = null;
@@ -4186,10 +4194,14 @@ function getBulkMemberError(member) {
   ) {
     return "只能新增到自己的轄區。";
   }
+  const createScopeMode = getBulkCreateScopeMode(member.role, member.create_scope_mode);
+  const scopeError = getNonAdminScopeError(member.role, member, createScopeMode, "create");
+  if (scopeError) {
+    return scopeError;
+  }
   if (!viewer?.is_admin && !canManageMemberScope(viewer, member)) {
     return "只能新增到自己管理範圍內。";
   }
-  const createScopeMode = getBulkCreateScopeMode(member.role, member.create_scope_mode);
   if (isManagedOrganizationCreateRole(member.role)) {
     if (createScopeMode === "create") {
       if (BIG_FAMILY_LEADER_ROLES.includes(member.role) && !member.district_id) {
@@ -4213,6 +4225,32 @@ function getBulkMemberError(member) {
   }
   if (MEMBER_ROLES.includes(member.role) && !member.small_group_id) {
     return "新增小家人或新朋友需要選擇小家。";
+  }
+  return "";
+}
+
+function getNonAdminScopeError(role, scope, createScopeMode, mode) {
+  const viewer = getPermissionCurrentMember();
+  if (viewer?.is_admin) {
+    return "";
+  }
+  if (isManagedOrganizationCreateRole(role) && createScopeMode === "empty") {
+    return "非管理員不能選擇留空歸屬。";
+  }
+  if (mode === "create" && isManagedOrganizationCreateRole(role) && createScopeMode === "create") {
+    if (role === "district_leader") {
+      return "非管理員不能新建同名區，請選擇既有區。";
+    }
+    return "";
+  }
+  if (role === "district_leader" && !scope.district_id) {
+    return "非管理員需選擇所屬區。";
+  }
+  if (BIG_FAMILY_LEADER_ROLES.includes(role) && !scope.big_family_id) {
+    return "非管理員需選擇所屬大家。";
+  }
+  if ((SMALL_GROUP_LEADER_ROLES.includes(role) || MEMBER_ROLES.includes(role)) && !scope.small_group_id) {
+    return "非管理員需選擇所屬小家。";
   }
   return "";
 }
@@ -4329,14 +4367,18 @@ function getCreateScopeModeOptions(role, selectedValue) {
     : BIG_FAMILY_LEADER_ROLES.includes(role)
       ? "大家"
       : "小家";
+  const modes = getAllowedCreateScopeModes(role);
   return renderSelectOptions(
-    [
-      { value: "empty", label: "留空" },
-      { value: "create", label: `新建同名${targetLabel}` },
-      { value: "existing", label: `既有${targetLabel}` },
-    ],
-    normalizeCreateScopeMode(selectedValue),
-    "留空",
+    modes.map((mode) => ({
+      value: mode,
+      label: mode === "empty"
+        ? "留空"
+        : mode === "create"
+          ? `新建同名${targetLabel}`
+          : `既有${targetLabel}`,
+    })),
+    getAllowedCreateScopeMode(role, selectedValue),
+    "請選擇歸屬方式",
     { includePlaceholder: false },
   );
 }
@@ -4585,15 +4627,45 @@ function normalizeCreateScopeMode(value) {
   return CREATE_SCOPE_MODES.includes(mode) ? mode : "empty";
 }
 
+function canUseEmptyCreateScopeMode() {
+  return Boolean(getPermissionCurrentMember()?.is_admin);
+}
+
+function getAllowedCreateScopeModes(role) {
+  if (!isManagedOrganizationCreateRole(role)) {
+    return ["existing"];
+  }
+  if (canUseEmptyCreateScopeMode()) {
+    return ["empty", "create", "existing"];
+  }
+  if (role === "district_leader") {
+    return ["existing"];
+  }
+  return ["create", "existing"];
+}
+
+function getDefaultCreateScopeMode(role) {
+  return getAllowedCreateScopeModes(role)[0] || "existing";
+}
+
+function getAllowedCreateScopeMode(role, value) {
+  const mode = normalizeCreateScopeMode(value);
+  return getAllowedCreateScopeModes(role).includes(mode)
+    ? mode
+    : getDefaultCreateScopeMode(role);
+}
+
 function getMemberCreateScopeMode(role) {
   if (state.ui.editorMode !== "create" || !isManagedOrganizationCreateRole(role)) {
     return "existing";
   }
-  return normalizeCreateScopeMode(els.memberCreateScopeModeSelect?.value);
+  return getAllowedCreateScopeMode(role, els.memberCreateScopeModeSelect?.value);
 }
 
 function getBulkCreateScopeMode(role, value = els.bulkCreateScopeModeSelect?.value) {
-  return isManagedOrganizationCreateRole(role) ? normalizeCreateScopeMode(value) : "existing";
+  return isManagedOrganizationCreateRole(role)
+    ? getAllowedCreateScopeMode(role, value)
+    : "existing";
 }
 
 function getOrganizationDisplayName(name, isActive) {
@@ -4803,6 +4875,8 @@ function syncEditorSmallGroupOptions(member = null) {
     })),
     {
       placeholder: available.length ? "請選擇小家" : "尚無可選小家",
+      keepEmptyOption: Boolean(viewer?.is_admin) ||
+        !(SMALL_GROUP_LEADER_ROLES.includes(role) || MEMBER_ROLES.includes(role)),
     },
   );
 
@@ -4817,11 +4891,11 @@ function fillMemberForm(mode, member) {
     els.memberEditorTitle.textContent = "新增人員";
     els.memberEditorHint.textContent = viewer?.is_admin
       ? "管理員可建立所有職分；新增區長、大家長或小家長時可選留空、新建同名或加入既有組織。"
-      : "區長可建立自己轄區內的大/小家長、小家人與新朋友；新增管理職時可選留空、新建同名或加入既有組織。";
+      : "可建立自己管理範圍內的人員；新增管理職時需選擇既有組織或在自己範圍內新建同名組織。";
     els.memberNameInput.value = "";
     els.memberGenderSelect.value = "";
     els.memberEquipmentProgressSelect.value = "none";
-    els.memberCreateScopeModeSelect.value = "empty";
+    els.memberCreateScopeModeSelect.value = getDefaultCreateScopeMode(els.memberRoleSelect.value);
     els.memberNoteInput.value = "";
     els.memberActiveSelect.value = "true";
     els.memberIsAdminInput.checked = false;
@@ -4835,7 +4909,7 @@ function fillMemberForm(mode, member) {
     els.memberEditorTitle.textContent = `編輯：${member.full_name}`;
     els.memberEditorHint.textContent = viewer?.is_admin
       ? "管理員可調整所有資料與職分。"
-      : "區長可編輯轄區內小家人與新朋友的基本資料與所屬。";
+      : "可編輯自己管理範圍內的人員；儲存後仍需留在自己的管理範圍。";
     els.memberNameInput.value = member.full_name || "";
     els.memberRoleSelect.value = member.role;
     els.memberGenderSelect.value = member.gender || "";
@@ -4916,6 +4990,7 @@ function syncMemberFormScope() {
   els.memberIsAdminInput.disabled = !canEditAdminPermission;
   els.memberCreateScopeModeSelect.disabled = !isManagedCreateRole;
   if (isManagedCreateRole) {
+    els.memberCreateScopeModeSelect.innerHTML = getCreateScopeModeOptions(role, createScopeMode);
     els.memberCreateScopeModeSelect.value = createScopeMode;
   }
 
@@ -4931,26 +5006,26 @@ function syncMemberFormScope() {
     trainee_preacher: "實習傳道人與傳道人同權限；組織樹會優先依最低歸屬顯示，未設定單一歸屬且管理多區時才顯示於區牧位置。",
     district_pastor: "區牧可管理多個指定區；若暫時不指定，可保持空白不要選任何區。",
     district_leader: isCreateMode
-      ? "新增區長可留空、選既有區，或新建「姓名區」。"
-      : "編輯區長時，可調整基本資料；所屬區也可留空。",
+      ? (viewer?.is_admin ? "新增區長可留空、選既有區，或新建「姓名區」。" : "新增區長需選擇既有區。")
+      : (viewer?.is_admin ? "編輯區長時，可調整基本資料；所屬區也可留空。" : "編輯區長時需保留在可管理區內。"),
     big_family_leader: isCreateMode
-      ? "新增大家長可留空、加入既有大家，或選區後新建「姓名大家」。"
-      : "編輯大家長時，可調整基本資料；所屬區/大家可留空。",
+      ? (viewer?.is_admin ? "新增大家長可留空、加入既有大家，或選區後新建「姓名大家」。" : "新增大家長需加入既有大家，或在可管理區內新建同名大家。")
+      : (viewer?.is_admin ? "編輯大家長時，可調整基本資料；所屬區/大家可留空。" : "編輯大家長時需保留所屬大家。"),
     trainee_big_family_leader: isCreateMode
-      ? "新增實習大家長可留空、加入既有大家，或選區後新建「姓名大家」。"
-      : "實習大家長與大家長同權限；可調整基本資料與大家歸屬。",
+      ? (viewer?.is_admin ? "新增實習大家長可留空、加入既有大家，或選區後新建「姓名大家」。" : "新增實習大家長需加入既有大家，或在可管理區內新建同名大家。")
+      : "實習大家長與大家長同權限；非管理員儲存時需保留所屬大家。",
     small_group_leader: isCreateMode
-      ? "新增小家長可留空、加入既有小家，或選區後新建「姓名小家」。"
-      : "編輯小家長時，可調整基本資料；區、大家與小家都可暫時留空。",
+      ? (viewer?.is_admin ? "新增小家長可留空、加入既有小家，或選區後新建「姓名小家」。" : "新增小家長需加入既有小家，或在可管理範圍內新建同名小家。")
+      : (viewer?.is_admin ? "編輯小家長時，可調整基本資料；區、大家與小家都可暫時留空。" : "編輯小家長時需保留所屬小家。"),
     trainee_small_group_leader: isCreateMode
-      ? "新增實習小家長可留空、加入既有小家，或選區後新建「姓名小家」。"
-      : "實習小家長與小家長同權限；可調整基本資料與小家歸屬。",
+      ? (viewer?.is_admin ? "新增實習小家長可留空、加入既有小家，或選區後新建「姓名小家」。" : "新增實習小家長需加入既有小家，或在可管理範圍內新建同名小家。")
+      : "實習小家長與小家長同權限；非管理員儲存時需保留所屬小家。",
     member: isCreateMode
       ? "新增小家人時，只要選小家，系統會自動帶出上層歸屬。"
-      : "編輯小家人時，可改派小家；若要暫時不歸屬任何小家，也可留空。",
+      : (viewer?.is_admin ? "編輯小家人時，可改派小家；若要暫時不歸屬任何小家，也可留空。" : "編輯小家人時需選擇自己可管理的小家。"),
     best: isCreateMode
       ? "新增新朋友時，只要選小家，系統會自動帶出上層歸屬。"
-      : "編輯新朋友時，可改派小家；若要暫時不歸屬任何小家，也可留空。",
+      : (viewer?.is_admin ? "編輯新朋友時，可改派小家；若要暫時不歸屬任何小家，也可留空。" : "編輯新朋友時需選擇自己可管理的小家。"),
   };
   els.memberScopeHint.textContent = hints[role] || "請選擇正確的職分與層級。";
 }
@@ -5049,6 +5124,11 @@ async function handleSaveMember(event) {
   }
 
   const viewer = getPermissionCurrentMember();
+  const scopeError = getNonAdminScopeError(body.role, body, createScopeMode, mode);
+  if (scopeError) {
+    showToast(scopeError);
+    return;
+  }
   if (!viewer?.is_admin && !canManageMemberScope(viewer, body)) {
     showToast("只能儲存到自己管理範圍內。");
     return;

@@ -301,6 +301,68 @@ function canManageMemberScope(viewer: MemberRow, target: MemberRow) {
   });
 }
 
+function getNonAdminScopeError(viewer: MemberRow, role: string, scope: Scope) {
+  if (viewer.is_admin) {
+    return "";
+  }
+  if (DISTRICT_LEADER_ROLES.has(role) && scope.district_id === null) {
+    return "非管理員需選擇所屬區。";
+  }
+  if (BIG_FAMILY_LEADER_ROLES.has(role) && scope.big_family_id === null) {
+    return "非管理員需選擇所屬大家。";
+  }
+  if ((SMALL_GROUP_LEADER_ROLES.has(role) || MEMBER_ROLES.has(role)) && scope.small_group_id === null) {
+    return "非管理員需選擇所屬小家。";
+  }
+  return "";
+}
+
+async function validateRequestedScopeIds(
+  db: ReturnType<typeof createAdminClient>,
+  viewer: MemberRow,
+  body: any,
+) {
+  if (viewer.is_admin) {
+    return "";
+  }
+  const districtId = toPositiveInt(body?.district_id);
+  const bigFamilyId = toPositiveInt(body?.big_family_id);
+  const smallGroupId = toPositiveInt(body?.small_group_id);
+  let requestedScope: Scope | null = null;
+
+  if (smallGroupId) {
+    const smallGroup = await getOne(db, "small_groups", smallGroupId);
+    if (!smallGroup?.district_id) {
+      return "Invalid small group scope.";
+    }
+    requestedScope = {
+      district_id: smallGroup.district_id,
+      big_family_id: smallGroup.big_family_id || null,
+      small_group_id: smallGroup.id,
+    };
+  } else if (bigFamilyId) {
+    const bigFamily = await getOne(db, "big_families", bigFamilyId);
+    if (!bigFamily?.district_id) {
+      return "Invalid big family scope.";
+    }
+    requestedScope = {
+      district_id: bigFamily.district_id,
+      big_family_id: bigFamily.id,
+      small_group_id: null,
+    };
+  } else if (districtId) {
+    requestedScope = {
+      district_id: districtId,
+      big_family_id: null,
+      small_group_id: null,
+    };
+  }
+
+  return requestedScope && !canManageScope(viewer, requestedScope)
+    ? "只能指定自己管理範圍內的歸屬。"
+    : "";
+}
+
 function canEditProfile(viewer: MemberRow, target: MemberRow) {
   if (viewer.is_admin) {
     return true;
@@ -480,11 +542,26 @@ async function createMemberFromBody(
     return { status: 403, body: { error: "No permission to assign one or more districts." } };
   }
 
+  const createScopeMode = normalizeCreateScopeMode(body?.create_scope_mode);
+  if (!viewer.is_admin && isManagedOrganizationRole(role) && createScopeMode === "empty") {
+    return { status: 403, body: { error: "非管理員不能選擇留空歸屬。" } };
+  }
+  if (!viewer.is_admin && DISTRICT_LEADER_ROLES.has(role) && createScopeMode === "create") {
+    return { status: 403, body: { error: "非管理員不能新建同名區，請選擇既有區。" } };
+  }
+  const requestedScopeError = await validateRequestedScopeIds(db, viewer, body);
+  if (requestedScopeError) {
+    return { status: 403, body: { error: requestedScopeError } };
+  }
+
   const scope = await resolveScope(db, body, role, { autoCreate: true, fullName });
   if (!scope) {
     return { status: 400, body: { error: "Invalid hierarchy scope for this role." } };
   }
-  const createScopeMode = normalizeCreateScopeMode(body?.create_scope_mode);
+  const scopeError = getNonAdminScopeError(viewer, role, scope);
+  if (scopeError) {
+    return { status: 403, body: { error: scopeError } };
+  }
   const isEmptyManagedCreate = isManagedOrganizationRole(role) && createScopeMode === "empty" && scope.district_id === null;
   if (!isEmptyManagedCreate && !canManageScope(viewer, scope)) {
     return { status: 403, body: { error: "No permission to create in this scope." } };
@@ -572,6 +649,10 @@ async function handleUpdateMember(
   });
   if (!scope) {
     return json({ error: "Invalid hierarchy scope for this role." }, 400);
+  }
+  const scopeError = getNonAdminScopeError(effectiveViewer, targetRole, scope);
+  if (scopeError) {
+    return json({ error: scopeError }, 403);
   }
   if (!canManageScope(effectiveViewer, scope)) {
     return json({ error: "No permission to edit this scope." }, 403);

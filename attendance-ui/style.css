@@ -411,7 +411,7 @@ body:not(.is-authenticated) #attendanceSaveBar {
 .compact-buttons > button,
 .compact-buttons > .button-link,
 .topbar-checkbox,
-.admin-mode-switch {
+.admin-mode-toggle {
   min-height: var(--compact-button-height);
   padding: 0.5rem 0.85rem;
   font-size: var(--compact-button-font-size);
@@ -499,56 +499,28 @@ body:not(.is-authenticated) #attendanceSaveBar {
   padding: 0;
 }
 
-.admin-mode-switch {
-  position: relative;
-  display: inline-grid;
-  grid-template-columns: repeat(2, minmax(0, auto));
-  align-items: center;
-  gap: 2px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: #eef4ff;
-  color: var(--muted);
-  font-weight: 800;
-  cursor: pointer;
-  padding: 2px;
-  overflow: hidden;
-  user-select: none;
-}
-
-.admin-mode-switch input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.admin-mode-option {
-  position: relative;
-  z-index: 1;
+.admin-mode-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: calc(var(--compact-button-height) - 10px);
-  padding: 0 0.56rem;
+  border: 1px solid var(--border);
   border-radius: 999px;
-  white-space: nowrap;
-  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.admin-mode-switch:not(:has(input:checked)) .admin-mode-role,
-.admin-mode-switch:has(input:checked) .admin-mode-admin {
-  background: var(--surface);
+  background: #eef4ff;
   color: var(--primary-strong);
-  box-shadow: 0 4px 12px rgba(43, 111, 243, 0.14);
+  font-weight: 800;
+  cursor: pointer;
+  min-width: 48px;
+  user-select: none;
+  box-shadow: 0 4px 12px rgba(43, 111, 243, 0.12);
 }
 
-.admin-mode-switch:focus-within {
+.admin-mode-toggle[aria-pressed="true"] {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.admin-mode-toggle:focus-visible {
   outline: 3px solid rgba(43, 111, 243, 0.18);
   outline-offset: 2px;
 }
@@ -667,7 +639,7 @@ body.layout-large .gender-badge {
 }
 
 body.layout-large .topbar-checkbox,
-body.layout-large .admin-mode-switch,
+body.layout-large .admin-mode-toggle,
 body.layout-large .layout-size-options label {
   padding-inline: 1.05rem;
 }
@@ -675,7 +647,7 @@ body.layout-large .layout-size-options label {
 body.layout-large .compact-buttons > button,
 body.layout-large .compact-buttons > .button-link,
 body.layout-large .topbar-checkbox,
-body.layout-large .admin-mode-switch {
+body.layout-large .admin-mode-toggle {
   padding-inline: 0.82rem;
 }
 
@@ -5522,33 +5494,34 @@ body.is-authenticated .toast {
   }
 
   body.is-authenticated .user-bar {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 6px 8px;
+    flex-direction: row;
+    align-items: center;
+    padding: 6px 7px;
     border-radius: 12px;
     gap: 5px;
   }
 
   body.is-authenticated .user-meta {
+    flex: 1 1 auto;
     min-width: 0;
-    text-align: center;
+    text-align: left;
   }
 
   body.is-authenticated .user-bar .compact-buttons {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    width: 100%;
+    display: flex;
+    flex: 0 0 auto;
     gap: 5px;
     align-items: center;
+    justify-content: flex-end;
   }
 
   body.is-authenticated .topbar-checkbox,
-  body.is-authenticated .admin-mode-switch,
+  body.is-authenticated .admin-mode-toggle,
   body.is-authenticated .user-bar .compact-buttons > button,
   body.is-authenticated .user-bar .compact-buttons > .button-link {
     min-height: 32px;
-    padding: 0.34rem 0.54rem;
-    font-size: 0.78rem;
+    padding: 0.3rem 0.48rem;
+    font-size: 0.76rem;
   }
 
   body.is-authenticated .topbar-checkbox {
@@ -5560,19 +5533,17 @@ body.is-authenticated .toast {
     height: 16px;
   }
 
-  body.is-authenticated .admin-mode-option {
-    min-height: 26px;
-    padding-inline: 0.4rem;
+  body.is-authenticated .admin-mode-toggle {
+    min-width: 44px;
   }
 
   body.is-authenticated .user-name {
-    font-size: 0.84rem;
+    font-size: 0.82rem;
     line-height: 1.25;
-    overflow: visible;
-    text-overflow: clip;
-    white-space: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     word-break: keep-all;
-    overflow-wrap: anywhere;
   }
 
   body.is-authenticated #userScopeText {
