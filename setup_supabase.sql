@@ -273,6 +273,14 @@ create index idx_members_active_small_group_lookup on public.members (small_grou
 where is_active;
 create index idx_members_active_name_lookup on public.members (full_name)
 where is_active;
+create index idx_members_active_role_name_lookup on public.members (role, full_name)
+where is_active;
+create index idx_districts_active_display_order on public.districts (display_order, name)
+where is_active;
+create index idx_big_families_active_display_order on public.big_families (district_id, display_order, name)
+where is_active;
+create index idx_small_groups_active_display_order on public.small_groups (district_id, big_family_id, display_order, name)
+where is_active;
 create index idx_attendance_records_week_event on public.attendance_records (attendance_week_id, event_type);
 create index idx_attendance_records_member_week on public.attendance_records (member_id, attendance_week_id);
 create index idx_attendance_records_week_member_event on public.attendance_records (
@@ -280,10 +288,14 @@ create index idx_attendance_records_week_member_event on public.attendance_recor
   member_id,
   event_type
 );
+create index idx_attendance_records_week_status on public.attendance_records (attendance_week_id, status);
+create index idx_attendance_records_recorded_by_member_id
+on public.attendance_records (recorded_by_member_id);
 create index idx_audit_logs_actor_created on public.audit_logs (actor_member_id, created_at desc);
 create index idx_audit_logs_target on public.audit_logs (target_table, target_id, created_at desc);
 create index idx_login_invites_code on public.login_invites (invite_code);
 create index idx_login_invites_member_id on public.login_invites (member_id);
+create index idx_login_invites_created_by_member_id on public.login_invites (created_by_member_id);
 create index idx_line_auth_states_state on public.line_auth_states (state);
 create index idx_line_auth_states_expires_at on public.line_auth_states (expires_at);
 create index idx_line_pending_logins_token_hash on public.line_pending_logins (token_hash);

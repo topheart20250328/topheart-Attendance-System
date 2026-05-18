@@ -31,3 +31,22 @@
 - 數百名使用者與同時數十人上線，現在的資料量通常不是容量問題；較需要注意的是總覽頁的歷史統計查詢。
 - 本次總覽統計限制在目前可見人員與近一年資料，避免不必要地掃描所有歷史紀錄。
 - 文字備註本身容量很小；真正要注意的是未來若加入圖片、附件或長期大量牧養紀錄，需要另外規劃儲存策略。
+
+## 效能維護
+
+- 每次大量匯入、年度整理或調整索引前，先備份資料庫，再記錄主要資料表筆數：`members`、`attendance_weeks`、`attendance_records`、`districts`、`big_families`、`small_groups`。
+- 建議定期查看 Supabase Advisors，優先處理缺少索引、RLS 與安全性警告；效能警告若牽涉大量資料掃描，再搭配查詢實際用途判斷是否加索引。
+- 第一階段已補強常用查詢索引：啟用人員角色/姓名、啟用組織排序，以及 `attendance_records (attendance_week_id, status)`。若後續新增查詢條件，應先用實際慢查詢或 advisors 確認再加索引，避免過多索引拖慢寫入。
+- `出席總覽` 目前只在前端請求當週資料，後端歷史統計限制在可見人員與近 52 週。若資料量成長後仍明顯變慢，再進入第二階段建立月彙總或 `attendance_summary`。
+- `app-api` 的登入清理任務已改為定時或登入相關 action 觸發；若未來部署多個 Edge Function instance，仍可接受，因為清理邏輯是冪等的，只影響觸發頻率。
+
+常用盤點 SQL：
+
+```sql
+select 'members' as table_name, count(*) from public.members
+union all select 'attendance_weeks', count(*) from public.attendance_weeks
+union all select 'attendance_records', count(*) from public.attendance_records
+union all select 'districts', count(*) from public.districts
+union all select 'big_families', count(*) from public.big_families
+union all select 'small_groups', count(*) from public.small_groups;
+```

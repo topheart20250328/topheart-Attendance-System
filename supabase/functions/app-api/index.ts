@@ -169,6 +169,10 @@ const ORG_LABELS: Record<OrganizationType, string> = {
   small_group: "小家",
 };
 const NOTE_MAX_LENGTH = 1000;
+const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+const CLEANUP_ACTIONS = new Set(["bind", "logout"]);
+
+let lastCleanupAt = 0;
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
@@ -177,10 +181,9 @@ Deno.serve(async (request) => {
 
   try {
     const adminClient = createAdminClient();
-    await cleanupExpiredAuthArtifacts(adminClient);
-
     const url = new URL(request.url);
     const action = url.searchParams.get("action") || "";
+    await cleanupExpiredAuthArtifactsIfDue(adminClient, action);
 
     if (request.method === "GET" && action === "session") {
       return await handleGetSession(adminClient, request.headers);
@@ -312,6 +315,19 @@ Deno.serve(async (request) => {
   }
 });
 
+async function cleanupExpiredAuthArtifactsIfDue(
+  adminClient: ReturnType<typeof createAdminClient>,
+  action: string,
+) {
+  const now = Date.now();
+  if (!CLEANUP_ACTIONS.has(action) && now - lastCleanupAt < CLEANUP_INTERVAL_MS) {
+    return;
+  }
+
+  await cleanupExpiredAuthArtifacts(adminClient);
+  lastCleanupAt = now;
+}
+
 async function handleGetSession(
   adminClient: ReturnType<typeof createAdminClient>,
   headers: Headers,
@@ -355,12 +371,7 @@ async function handleGetDashboard(
     : getMondayIso(new Date());
   const week = await ensureWeek(adminClient, weekStart);
   const rosterMembers = await loadVisibleMembers(adminClient, sessionContext.member);
-  const attendanceMap = await loadAttendanceMap(
-    adminClient,
-    week.id,
-    rosterMembers.map((member) => member.id),
-  );
-  const noteMap = await loadWeeklyNoteMap(
+  const { attendanceMap, noteMap } = await loadWeeklyAttendanceState(
     adminClient,
     week.id,
     rosterMembers,
@@ -2237,50 +2248,22 @@ async function attachEquipmentProgress(
   }));
 }
 
-async function loadAttendanceMap(
-  adminClient: ReturnType<typeof createAdminClient>,
-  attendanceWeekId: number,
-  memberIds: number[],
-) {
-  const map = new Map<string, "unknown" | "present" | "absent">();
-  if (!memberIds.length) {
-    return map;
-  }
-
-  const { data, error } = await adminClient
-    .from("attendance_records")
-    .select("member_id, event_type, status")
-    .eq("attendance_week_id", attendanceWeekId)
-    .in("member_id", memberIds);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  for (const row of data || []) {
-    map.set(
-      `${row.member_id}:${row.event_type}`,
-      row.status as "unknown" | "present" | "absent",
-    );
-  }
-
-  return map;
-}
-
-async function loadWeeklyNoteMap(
+async function loadWeeklyAttendanceState(
   adminClient: ReturnType<typeof createAdminClient>,
   attendanceWeekId: number,
   members: MemberDirectoryRow[],
 ) {
-  const map = new Map<number, WeeklyMemberNote>();
+  const attendanceMap = new Map<string, "unknown" | "present" | "absent">();
+  const noteMap = new Map<number, WeeklyMemberNote>();
   if (!members.length) {
-    return map;
+    return { attendanceMap, noteMap };
   }
 
   const memberIds = members.map((member) => member.id);
+  const membersById = new Map(members.map((member) => [member.id, member]));
   const { data, error } = await adminClient
     .from("attendance_records")
-    .select("member_id, note, note_priority_high")
+    .select("member_id, event_type, status, note, note_priority_high")
     .eq("attendance_week_id", attendanceWeekId)
     .in("member_id", memberIds);
 
@@ -2289,31 +2272,35 @@ async function loadWeeklyNoteMap(
   }
 
   for (const row of data || []) {
+    attendanceMap.set(
+      `${row.member_id}:${row.event_type}`,
+      row.status as "unknown" | "present" | "absent",
+    );
+
     const note = String(row.note || "").trim();
     const memberId = Number(row.member_id);
-    if (note || !map.has(memberId)) {
-      map.set(memberId, {
+    if (note || !noteMap.has(memberId)) {
+      noteMap.set(memberId, {
         note,
         priorityHigh: Boolean(note && row.note_priority_high),
-        carryForward: members.find((member) => member.id === memberId)
-          ?.note_carry_forward !== false,
+        carryForward: membersById.get(memberId)?.note_carry_forward !== false,
       });
     }
   }
 
   for (const member of members) {
-    if (map.has(member.id)) {
+    if (noteMap.has(member.id)) {
       continue;
     }
 
-    map.set(member.id, {
+    noteMap.set(member.id, {
       note: member.note_carry_forward ? member.note || "" : "",
       carryForward: member.note_carry_forward !== false,
       priorityHigh: Boolean(member.note_carry_forward && member.note && member.note_priority_high),
     });
   }
 
-  return map;
+  return { attendanceMap, noteMap };
 }
 
 function createEmptyAttendanceEventAnalytics(): AttendanceEventAnalytics {

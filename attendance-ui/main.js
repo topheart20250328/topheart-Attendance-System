@@ -2450,13 +2450,18 @@ function handleOverviewWeekClick(event) {
   const dateButton = event.target.closest("[data-overview-date-button]");
   if (dateButton) {
     const input = els.overviewWeekScroller?.querySelector("#overviewDateInput");
-    if (event.target === input) {
+    if (event.target === input && !input?.showPicker) {
       return;
     }
+    event.preventDefault();
+    input?.focus({ preventScroll: true });
     if (input?.showPicker) {
-      input.showPicker();
+      try {
+        input.showPicker();
+      } catch (_error) {
+        input.click();
+      }
     } else {
-      input?.focus();
       input?.click();
     }
     return;

@@ -1288,8 +1288,9 @@ async function handleAttendanceOverview(
   const historyMap = overviewOptions.includeHistory
     ? await loadMemberHistory(db, memberIds, selectedWeekStart)
     : createEmptyHistoryMap(memberIds, selectedWeekStart);
+  const organizationRows = await loadOverviewOrganizationRows(db, members);
   const units = filterOverviewUnits(
-    await buildUnits(db, viewer, members, recordMap, historyMap, overviewOptions),
+    buildUnits(viewer, members, recordMap, historyMap, organizationRows, overviewOptions),
     overviewOptions,
   );
 
@@ -1470,12 +1471,30 @@ function createEmptyHistoryMap(memberIds: number[], anchorWeekStart: string) {
   return new Map(memberIds.map((memberId) => [memberId, createEmptyHistorySummary(anchorWeekStart)]));
 }
 
-async function buildUnits(
+async function loadOverviewOrganizationRows(
   db: ReturnType<typeof createAdminClient>,
+  members: MemberRow[],
+) {
+  const [districts, bigFamilies, smallGroups] = await Promise.all([
+    loadByIds(db, "districts", uniqueIds(members.map((member) => member.district_id))),
+    loadByIds(db, "big_families", uniqueIds(members.map((member) => member.big_family_id))),
+    loadByIds(db, "small_groups", uniqueIds(members.map((member) => member.small_group_id))),
+  ]);
+  return {
+    districts: districts.sort(compareOrganizationRows),
+    bigFamilies: bigFamilies.sort(compareOrganizationRows),
+    smallGroups: smallGroups.sort(compareOrganizationRows),
+    districtsById: new Map(districts.map((district) => [district.id, district])),
+    bigFamiliesById: new Map(bigFamilies.map((bigFamily) => [bigFamily.id, bigFamily])),
+  };
+}
+
+function buildUnits(
   viewer: MemberRow,
   members: MemberRow[],
   recordMap: Map<string, any>,
   historyMap: Map<number, Record<string, any>>,
+  organizationRows: Awaited<ReturnType<typeof loadOverviewOrganizationRows>>,
   options: OverviewRequestOptions,
 ) {
   const units = [];
@@ -1483,34 +1502,22 @@ async function buildUnits(
   const includeBig = includeDistrict || DISTRICT_LEADER_ROLES.has(viewer.role);
 
   if (includeDistrict) {
-    const districtIds = uniqueIds(members.map((member) => member.district_id));
-    for (const district of (await loadByIds(db, "districts", districtIds)).sort(compareOrganizationRows)) {
+    for (const district of organizationRows.districts) {
       units.push(unit("district", district.id, district.name, null, members.filter((member) => member.district_id === district.id), recordMap, historyMap, options));
     }
   }
 
-  const districtsById = new Map(
-    (await loadByIds(db, "districts", uniqueIds(members.map((member) => member.district_id))))
-      .map((district) => [district.id, district]),
-  );
-  const bigFamiliesById = new Map(
-    (await loadByIds(db, "big_families", uniqueIds(members.map((member) => member.big_family_id))))
-      .map((bigFamily) => [bigFamily.id, bigFamily]),
-  );
-
   if (includeBig) {
-    const bigIds = uniqueIds(members.map((member) => member.big_family_id));
-    for (const big of (await loadByIds(db, "big_families", bigIds)).sort(compareOrganizationRows)) {
-      const parentName = districtsById.get(big.district_id)?.name || null;
+    for (const big of organizationRows.bigFamilies) {
+      const parentName = organizationRows.districtsById.get(big.district_id)?.name || null;
       units.push(unit("big_family", big.id, big.name, parentName, members.filter((member) => member.big_family_id === big.id), recordMap, historyMap, options));
     }
   }
 
-  const smallIds = uniqueIds(members.map((member) => member.small_group_id));
-  for (const small of (await loadByIds(db, "small_groups", smallIds)).sort(compareOrganizationRows)) {
+  for (const small of organizationRows.smallGroups) {
     const parents = [
-      bigFamiliesById.get(small.big_family_id)?.name,
-      districtsById.get(small.district_id)?.name,
+      organizationRows.bigFamiliesById.get(small.big_family_id)?.name,
+      organizationRows.districtsById.get(small.district_id)?.name,
     ].filter(Boolean);
     units.push(unit("small_group", small.id, small.name, parents.join(" / ") || null, members.filter((member) => member.small_group_id === small.id), recordMap, historyMap, options));
   }

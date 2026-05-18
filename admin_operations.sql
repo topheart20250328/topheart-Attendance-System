@@ -27,6 +27,35 @@ create index if not exists idx_small_groups_display_order
 on public.small_groups (district_id, big_family_id, display_order, name);
 
 -- =========================================================
+-- 0A-2. 既有資料庫升級：第一階段效能索引
+-- 已經跑過新版 setup_supabase.sql 的全新資料庫不需要再跑。
+-- =========================================================
+create index if not exists idx_members_active_role_name_lookup
+on public.members (role, full_name)
+where is_active;
+
+create index if not exists idx_districts_active_display_order
+on public.districts (display_order, name)
+where is_active;
+
+create index if not exists idx_big_families_active_display_order
+on public.big_families (district_id, display_order, name)
+where is_active;
+
+create index if not exists idx_small_groups_active_display_order
+on public.small_groups (district_id, big_family_id, display_order, name)
+where is_active;
+
+create index if not exists idx_attendance_records_week_status
+on public.attendance_records (attendance_week_id, status);
+
+create index if not exists idx_attendance_records_recorded_by_member_id
+on public.attendance_records (recorded_by_member_id);
+
+create index if not exists idx_login_invites_created_by_member_id
+on public.login_invites (created_by_member_id);
+
+-- =========================================================
 -- 0B. 既有資料庫升級：新增備註是否自動帶到下週
 -- 已經跑過新版 setup_supabase.sql 的全新資料庫不需要再跑。
 -- =========================================================
