@@ -2450,6 +2450,9 @@ function handleOverviewWeekClick(event) {
   const dateButton = event.target.closest("[data-overview-date-button]");
   if (dateButton) {
     const input = els.overviewWeekScroller?.querySelector("#overviewDateInput");
+    if (event.target === input) {
+      return;
+    }
     if (input?.showPicker) {
       input.showPicker();
     } else {
@@ -2629,10 +2632,10 @@ function renderOverviewWeeks() {
         </button>
       `).join("")}
     </div>
-    <button type="button" class="overview-date-button${isCustomWeek ? " is-active" : ""}" data-overview-date-button>
+    <label class="overview-date-button${isCustomWeek ? " is-active" : ""}" data-overview-date-button>
       選日期
-    </button>
-    <input id="overviewDateInput" class="overview-date-input" type="date" value="${escapeHtml(state.overviewData.selectedWeekStart)}" />
+      <input id="overviewDateInput" class="overview-date-input" type="date" value="${escapeHtml(state.overviewData.selectedWeekStart)}" />
+    </label>
   `;
 }
 
@@ -3259,12 +3262,14 @@ function buildPeopleHierarchy(rows) {
   };
 
   for (const member of rows) {
-    if (member.role === "district_pastor") {
+    if (isPastoralLeaderRole(member.role) && !member.big_family_id && !member.small_group_id) {
       const managedDistrictIds = getDistrictPastorDistrictIds(member);
       const singleDistrictId = managedDistrictIds.length === 1
         ? managedDistrictIds[0]
         : Number(member.district_id || 0);
-      if (managedDistrictIds.length <= 1 && singleDistrictId) {
+      if (managedDistrictIds.length > 1 && !member.district_id) {
+        rootLeaders.push(member);
+      } else if (singleDistrictId) {
         const district = ensureDistrict(member, singleDistrictId, member.district_name);
         district.count += 1;
         district.leaders.push(member);
@@ -3304,7 +3309,7 @@ function buildPeopleHierarchy(rows) {
     const bigFamily = ensureBigFamily(district, member);
     bigFamily.count += 1;
 
-    if (BIG_FAMILY_LEADER_ROLES.includes(member.role)) {
+    if (BIG_FAMILY_LEADER_ROLES.includes(member.role) || (isPastoralLeaderRole(member.role) && !member.small_group_id)) {
       bigFamily.leaders.push(member);
       continue;
     }
@@ -3356,7 +3361,7 @@ function buildPeopleHierarchy(rows) {
 
 function isPeopleLeaderRole(role) {
   return (
-    role === "district_pastor" ||
+    isPastoralLeaderRole(role) ||
     role === "district_leader" ||
     BIG_FAMILY_LEADER_ROLES.includes(role) ||
     SMALL_GROUP_LEADER_ROLES.includes(role)
@@ -4769,9 +4774,9 @@ function syncMemberFormScope() {
 
   const hints = {
     preacher: isCreateMode
-      ? "傳道人可放在未設定區，也可指定區、大家或小家作為所屬。"
-      : "傳道人可放在未設定區，也可指定區、大家或小家作為所屬。",
-    trainee_preacher: "實習傳道人與傳道人同權限；可放在未設定區，也可指定區、大家或小家作為所屬。",
+      ? "傳道人可指定管理區域；組織樹會優先依小家、大家、區的最低歸屬顯示，未設定單一歸屬且管理多區時才顯示於區牧位置。"
+      : "傳道人可指定管理區域；組織樹會優先依小家、大家、區的最低歸屬顯示，未設定單一歸屬且管理多區時才顯示於區牧位置。",
+    trainee_preacher: "實習傳道人與傳道人同權限；組織樹會優先依最低歸屬顯示，未設定單一歸屬且管理多區時才顯示於區牧位置。",
     district_pastor: "區牧可管理多個指定區；若暫時不指定，可保持空白不要選任何區。",
     district_leader: isCreateMode
       ? "新增區長可留空、選既有區，或新建「姓名區」。"
@@ -5498,14 +5503,29 @@ function isOrganizationTreeUnassignedMember(member) {
 }
 
 function isOrganizationTreeDistrictPastor(member) {
-  return isOrganizationTreeActiveMember(member) && member.role === "district_pastor";
+  return (
+    isOrganizationTreeActiveMember(member) &&
+    isPastoralLeaderRole(member.role) &&
+    !member.district_id &&
+    !member.big_family_id &&
+    !member.small_group_id &&
+    getDistrictPastorDistrictIds(member).length > 1
+  );
 }
 
 function isOrganizationTreeDistrictLeader(member, districtId) {
   if (!isOrganizationTreeActiveMember(member) || !districtId) {
     return false;
   }
-  return member.role === "district_leader" && Number(member.district_id || 0) === Number(districtId);
+  if (member.role === "district_leader") {
+    return Number(member.district_id || 0) === Number(districtId);
+  }
+  if (isPastoralLeaderRole(member.role) && !member.big_family_id && !member.small_group_id) {
+    const managedDistrictIds = getDistrictPastorDistrictIds(member);
+    const districtScopeId = Number(member.district_id || managedDistrictIds[0] || 0);
+    return managedDistrictIds.length <= 1 && districtScopeId === Number(districtId);
+  }
+  return false;
 }
 
 function isOrganizationTreeBigFamilyLeader(member, bigFamilyId) {
@@ -5514,9 +5534,16 @@ function isOrganizationTreeBigFamilyLeader(member, bigFamilyId) {
   }
   return (
     isOrganizationTreeActiveMember(member) &&
-    BIG_FAMILY_LEADER_ROLES.includes(member.role) &&
+    (
+      BIG_FAMILY_LEADER_ROLES.includes(member.role) ||
+      (isPastoralLeaderRole(member.role) && !member.small_group_id)
+    ) &&
     Number(member.big_family_id || 0) === Number(bigFamilyId || 0)
   );
+}
+
+function isPastoralLeaderRole(role) {
+  return role === "district_pastor" || PREACHER_ROLES.includes(role);
 }
 
 function renderOrganizationFlowNode(type, name, { isActive = true, nodeKey = "", isCollapsed = false } = {}) {

@@ -2464,6 +2464,10 @@ tbody tr:last-child td {
 }
 
 .overview-date-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
   min-height: 34px;
   padding: 0.34rem 0.6rem;
@@ -2482,11 +2486,12 @@ tbody tr:last-child td {
 }
 
 .overview-date-input {
-  position: fixed;
-  width: 1px;
-  height: 1px;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   opacity: 0;
-  pointer-events: none;
+  cursor: pointer;
 }
 
 .overview-unit-list {
