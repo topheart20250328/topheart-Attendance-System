@@ -373,7 +373,7 @@ async function handleGetDashboard(
     : getMondayIso(new Date());
   const week = await ensureWeek(adminClient, weekStart);
   const rosterMembers = await loadVisibleMembers(adminClient, sessionContext.member);
-  const { attendanceMap, noteMap } = await loadWeeklyAttendanceState(
+  const { attendanceMap, noteMap, existingRecordMemberIds } = await loadWeeklyAttendanceState(
     adminClient,
     week.id,
     rosterMembers,
@@ -398,6 +398,13 @@ async function handleGetDashboard(
         attendanceMap.get(`${member.id}:small_group_fellowship`) || "unknown",
     },
   }));
+  const editableMemberIds = new Set(
+    rosterMembers
+      .filter((member) => canEditAttendance(sessionContext.member, member))
+      .map((member) => member.id),
+  );
+  const hasExistingAttendanceRecords = [...existingRecordMemberIds]
+    .some((memberId) => editableMemberIds.has(memberId));
 
   return jsonResponse({
     current_member: sessionContext.member,
@@ -406,6 +413,7 @@ async function handleGetDashboard(
       label: buildWeekLabel(week.week_start_date),
     },
     analytics,
+    attendance_has_existing_records: hasExistingAttendanceRecords,
     roster,
   });
 }
@@ -2327,8 +2335,9 @@ async function loadWeeklyAttendanceState(
 ) {
   const attendanceMap = new Map<string, "unknown" | "present" | "absent">();
   const noteMap = new Map<number, WeeklyMemberNote>();
+  const existingRecordMemberIds = new Set<number>();
   if (!members.length) {
-    return { attendanceMap, noteMap };
+    return { attendanceMap, noteMap, existingRecordMemberIds };
   }
 
   const memberIds = members.map((member) => member.id);
@@ -2351,6 +2360,7 @@ async function loadWeeklyAttendanceState(
 
     const note = String(row.note || "").trim();
     const memberId = Number(row.member_id);
+    existingRecordMemberIds.add(memberId);
     if (note || !noteMap.has(memberId)) {
       noteMap.set(memberId, {
         note,
@@ -2372,7 +2382,7 @@ async function loadWeeklyAttendanceState(
     });
   }
 
-  return { attendanceMap, noteMap };
+  return { attendanceMap, noteMap, existingRecordMemberIds };
 }
 
 function createEmptyAttendanceEventAnalytics(): AttendanceEventAnalytics {

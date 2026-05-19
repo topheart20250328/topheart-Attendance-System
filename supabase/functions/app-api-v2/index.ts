@@ -1016,6 +1016,12 @@ async function handleDashboard(
   const memberIds = members.map((member) => member.id);
   const records = await loadRecords(db, week.id, memberIds);
   const recordMap = new Map(records.map((record) => [`${record.member_id}:${record.event_type}`, record]));
+  const editableMemberIds = new Set(
+    members
+      .filter((member) => canEditAttendance(effectiveViewer, member))
+      .map((member) => member.id),
+  );
+  const hasExistingAttendanceRecords = records.some((record) => editableMemberIds.has(record.member_id));
 
   return {
     current_member: viewer,
@@ -1024,6 +1030,7 @@ async function handleDashboard(
       label: weekStart,
     },
     analytics: createEmptyAnalytics(weekStart),
+    attendance_has_existing_records: hasExistingAttendanceRecords,
     roster: members.map((member) => ({
       ...member,
       note: getFirstRecordValue(recordMap, member.id, "note", member.note || ""),

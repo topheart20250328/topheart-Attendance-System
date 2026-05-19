@@ -354,6 +354,7 @@ const state = {
   currentMemberAccessSignature: "",
   pendingProfile: null,
   currentWeek: null,
+  attendanceHasExistingRecords: false,
   attendanceAnalytics: emptyAttendanceAnalytics(),
   roster: [],
   attendanceBaseline: new Map(),
@@ -846,6 +847,7 @@ async function handleClearConfig() {
   state.currentMember = null;
   state.pendingProfile = null;
   state.currentWeek = null;
+  state.attendanceHasExistingRecords = false;
   state.attendanceAnalytics = emptyAttendanceAnalytics();
   state.roster = [];
   state.adminData = emptyAdminData();
@@ -991,6 +993,7 @@ async function refreshSessionState() {
     state.currentMember = null;
     state.pendingProfile = null;
     state.currentWeek = null;
+    state.attendanceHasExistingRecords = false;
     state.attendanceAnalytics = emptyAttendanceAnalytics();
     state.adminData = emptyAdminData();
     renderLayout();
@@ -1025,6 +1028,7 @@ async function refreshSessionState() {
       state.currentMember = null;
       state.pendingProfile = data.pending_profile;
       state.currentWeek = null;
+      state.attendanceHasExistingRecords = false;
       state.attendanceAnalytics = emptyAttendanceAnalytics();
       state.adminData = emptyAdminData();
       state.currentMemberAccessSignature = "";
@@ -1046,6 +1050,7 @@ async function refreshSessionState() {
   state.currentMemberAccessSignature = "";
   state.pendingProfile = null;
   state.currentWeek = null;
+  state.attendanceHasExistingRecords = false;
   state.attendanceAnalytics = emptyAttendanceAnalytics();
   state.adminData = emptyAdminData();
   state.ui.manageAll = false;
@@ -1506,6 +1511,7 @@ function applyDashboardData(data, weekStart) {
   const accessChanged = applyCurrentMemberSnapshot(data.current_member);
   state.currentWeek = normalizeWeek(data.week, weekStart);
   els.weekInput.value = state.currentWeek?.week_start_date || weekStart;
+  state.attendanceHasExistingRecords = Boolean(data.attendance_has_existing_records);
   state.attendanceAnalytics = normalizeAttendanceAnalytics(data.analytics);
   state.roster = sortMembers((data.roster || []).map(enrichRosterMember));
   if (accessChanged) {
@@ -2350,6 +2356,13 @@ async function handleSaveAttendance() {
     return;
   }
 
+  if (shouldConfirmInitialSmallGroupAttendanceSave()) {
+    const confirmed = window.confirm("本週仍有尚未確認出席狀態的人員。\n\n是否仍要送出？");
+    if (!confirmed) {
+      return;
+    }
+  }
+
   setButtonLoading(els.saveAttendanceBtn, true, "儲存中...");
   setButtonLoading(els.saveAttendanceBtnBottom, true, "儲存中...");
   let saveSucceeded = false;
@@ -2378,6 +2391,26 @@ async function handleSaveAttendance() {
       showAttendanceSaveSuccessFeedback();
     }
   }
+}
+
+function shouldConfirmInitialSmallGroupAttendanceSave() {
+  const viewer = getPermissionCurrentMember();
+  if (
+    !viewer ||
+    !SMALL_GROUP_LEADER_ROLES.includes(viewer.role) ||
+    state.attendanceHasExistingRecords
+  ) {
+    return false;
+  }
+
+  return state.roster.some(
+    (member) =>
+      member.can_edit_attendance &&
+      (
+        getAttendanceStatus(member, "sunday_service") === "unknown" ||
+        getAttendanceStatus(member, "small_group_fellowship") === "unknown"
+      ),
+  );
 }
 
 function formatMemberScopeSummary(member) {
