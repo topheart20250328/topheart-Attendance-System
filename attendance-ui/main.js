@@ -351,6 +351,7 @@ const state = {
   pendingToken: null,
   authNotice: "",
   currentMember: null,
+  currentMemberAccessSignature: "",
   pendingProfile: null,
   currentWeek: null,
   attendanceAnalytics: emptyAttendanceAnalytics(),
@@ -1005,13 +1006,15 @@ async function refreshSessionState() {
 
     if (data?.status === "authenticated") {
       const previousMemberId = state.currentMember?.id || null;
+      const previousAccessSignature = state.currentMemberAccessSignature;
       state.currentMember = data.current_member;
+      state.currentMemberAccessSignature = getMemberAccessSignature(state.currentMember);
       state.pendingProfile = null;
       state.authNotice = "";
       state.ui.activeTab = TABS.attendance;
-      if (previousMemberId !== state.currentMember?.id) {
+      if (previousMemberId !== state.currentMember?.id || previousAccessSignature !== state.currentMemberAccessSignature) {
         state.ui.manageAll = false;
-        state.dashboardCache.clear();
+        clearScopedDataCaches();
       }
       if (state.currentMember) {
         state.ui.settingsOpen = false;
@@ -1028,6 +1031,7 @@ async function refreshSessionState() {
       state.currentWeek = null;
       state.attendanceAnalytics = emptyAttendanceAnalytics();
       state.adminData = emptyAdminData();
+      state.currentMemberAccessSignature = "";
       state.ui.manageAll = false;
       renderLayout();
       return;
@@ -1043,6 +1047,7 @@ async function refreshSessionState() {
   state.pendingToken = null;
   state.authNotice = "";
   state.currentMember = null;
+  state.currentMemberAccessSignature = "";
   state.pendingProfile = null;
   state.currentWeek = null;
   state.attendanceAnalytics = emptyAttendanceAnalytics();
@@ -1132,6 +1137,44 @@ function getEffectiveCurrentMember() {
     ...state.currentMember,
     is_admin: false,
   };
+}
+
+function getMemberAccessSignature(member) {
+  if (!member) {
+    return "";
+  }
+  return [
+    member.id || "",
+    member.role || "",
+    member.is_admin ? "admin" : "role",
+    member.district_id || "",
+    member.big_family_id || "",
+    member.small_group_id || "",
+    getDistrictPastorDistrictIds(member).sort((a, b) => a - b).join(","),
+  ].join("|");
+}
+
+function clearScopedDataCaches() {
+  state.dashboardCache.clear();
+  state.prefetchingWeeks.clear();
+  state.adminData = emptyAdminData();
+  state.overviewData = null;
+}
+
+function syncCurrentMemberAccess(member) {
+  if (!member || Number(member.id || 0) !== Number(state.currentMember?.id || 0)) {
+    return;
+  }
+  const previousAccessSignature = state.currentMemberAccessSignature;
+  state.currentMember = {
+    ...state.currentMember,
+    ...member,
+  };
+  state.currentMemberAccessSignature = getMemberAccessSignature(state.currentMember);
+  if (previousAccessSignature !== state.currentMemberAccessSignature) {
+    state.ui.manageAll = false;
+    clearScopedDataCaches();
+  }
 }
 
 function isAdminModeActive() {
@@ -1463,7 +1506,7 @@ function applyDashboardData(data, weekStart) {
 }
 
 function getDashboardCacheKey(weekStart) {
-  return `${weekStart || ""}:${isAdminModeActive() ? "admin" : "role"}`;
+  return `${weekStart || ""}:${isAdminModeActive() ? "admin" : "role"}:${state.currentMemberAccessSignature || ""}`;
 }
 
 function prefetchAdjacentWeeks(weekStart) {
@@ -5219,6 +5262,7 @@ async function handleSaveMember(event) {
         },
       });
     }
+    syncCurrentMemberAccess(data?.member);
 
     closeMemberEditor();
     await Promise.all([loadAdminPanel(), loadDashboard({ skipDirtyCheck: true })]);
@@ -5590,12 +5634,14 @@ function buildOrganizationTreeDistrictGroups(districts) {
 }
 
 function renderOrganizationTreeUnassignedMembers(members) {
+  const nodeKey = getOrganizationTreeKey("member_bucket", "direct");
+  const isCollapsed = state.ui.orgTreeCollapsedKeys.has(nodeKey);
   return `
-    <article class="org-flow-row org-flow-unassigned">
+    <article class="org-flow-row org-flow-unassigned ${isCollapsed ? "is-collapsed" : ""}">
       <div class="org-flow-column org-flow-column-unassigned">
-        ${renderOrganizationFlowNode("unassigned", "特殊職務／待安排")}
+        ${renderOrganizationFlowNode("unassigned", "直屬人員", { nodeKey, isCollapsed })}
       </div>
-      <div class="org-flow-members org-flow-unassigned-members">
+      <div class="org-flow-members org-flow-unassigned-members org-flow-children">
         ${members.map(renderOrganizationTreeMember).join("")}
       </div>
     </article>
@@ -5663,7 +5709,7 @@ function renderOrganizationTreeDistrict(district) {
       <div class="org-flow-branches org-flow-children ${childClass}">
         ${bigFamilies.map((bigFamily) => renderOrganizationTreeBigFamily(bigFamily)).join("")}
         ${directSmallGroups.map((smallGroup) => renderOrganizationTreeSmallGroup(smallGroup)).join("")}
-        ${directMembers.length ? renderOrganizationTreeMemberBucket("直屬人員", directMembers) : ""}
+        ${directMembers.length ? renderOrganizationTreeMemberBucket("待分類", directMembers, `district:${district.id}:pending`) : ""}
         ${bigFamilies.length || directSmallGroups.length || directMembers.length ? "" : '<div class="org-flow-empty">尚未建立大家或小家</div>'}
       </div>
     </article>
@@ -5699,20 +5745,22 @@ function renderOrganizationTreeBigFamily(bigFamily) {
       </div>
       <div class="org-flow-branches org-flow-small-branches org-flow-children ${getOrganizationTreeChildrenClass(childCount)}">
         ${smallGroups.map((smallGroup) => renderOrganizationTreeSmallGroup(smallGroup)).join("")}
-        ${directMembers.length ? renderOrganizationTreeMemberBucket("直屬人員", directMembers) : ""}
+        ${directMembers.length ? renderOrganizationTreeMemberBucket("待分類", directMembers, `big_family:${bigFamily.id}:pending`) : ""}
         ${smallGroups.length || directMembers.length ? "" : '<div class="org-flow-empty">尚未建立小家</div>'}
       </div>
     </div>
   `;
 }
 
-function renderOrganizationTreeMemberBucket(label, members) {
+function renderOrganizationTreeMemberBucket(label, members, keyHint = label) {
+  const nodeKey = getOrganizationTreeKey("member_bucket", keyHint);
+  const isCollapsed = state.ui.orgTreeCollapsedKeys.has(nodeKey);
   return `
-    <div class="org-flow-branch org-flow-small-branch">
+    <div class="org-flow-branch org-flow-small-branch ${isCollapsed ? "is-collapsed" : ""}">
       <div class="org-flow-column org-flow-column-small">
-        ${renderOrganizationFlowNode("member_bucket", label)}
+        ${renderOrganizationFlowNode("member_bucket", label, { nodeKey, isCollapsed })}
       </div>
-      <div class="org-flow-members">
+      <div class="org-flow-members org-flow-children">
         ${members.map(renderOrganizationTreeMember).join("")}
       </div>
     </div>
