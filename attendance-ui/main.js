@@ -5773,13 +5773,13 @@ function renderOrganizationTreeDistrict(district) {
   const childCount = bigFamilies.length + directSmallGroups.length + (directMembers.length ? 1 : 0);
   const summary = buildOrganizationNodeSummary({
     bigFamilyCount: bigFamilies.length,
-    smallGroupCount: directSmallGroups.length + bigFamilies.reduce((total, bigFamily) => total + bigFamily.smallGroups.length, 0),
+    smallGroupCount: directSmallGroups.length + bigFamilies.reduce((total, bigFamily) => total + getOrganizationTreeChildSmallGroups(bigFamily).length, 0),
     memberCount: countOrganizationTreePeople([
       ...bigFamilies.flatMap((bigFamily) => [
-        ...bigFamily.smallGroups.flatMap((smallGroup) => smallGroup.members),
-        ...bigFamily.directMembers,
+        ...getOrganizationTreeChildSmallGroups(bigFamily).flatMap((smallGroup) => getOrganizationTreeChildMembers(smallGroup)),
+        ...getOrganizationTreeChildMembers(bigFamily),
       ]),
-      ...directSmallGroups.flatMap((smallGroup) => smallGroup.members),
+      ...directSmallGroups.flatMap((smallGroup) => getOrganizationTreeChildMembers(smallGroup)),
       ...directMembers,
     ]),
     leaderCount: districtLeaders.length,
@@ -5830,7 +5830,7 @@ function renderOrganizationTreeBigFamily(bigFamily) {
   const summary = buildOrganizationNodeSummary({
     smallGroupCount: smallGroups.length,
     memberCount: countOrganizationTreePeople([
-      ...smallGroups.flatMap((smallGroup) => smallGroup.members),
+      ...smallGroups.flatMap((smallGroup) => getOrganizationTreeChildMembers(smallGroup)),
       ...directMembers,
     ]),
     leaderCount: bigFamilyLeaders.length,
@@ -6025,6 +6025,20 @@ function countOrganizationTreePeople(members) {
       .filter((member) => member?.id && member.is_active !== false)
       .map((member) => member.id),
   ).size;
+}
+
+function getOrganizationTreeChildSmallGroups(node) {
+  return Array.isArray(node?.smallGroups) ? node.smallGroups : [];
+}
+
+function getOrganizationTreeChildMembers(node) {
+  if (Array.isArray(node?.members)) {
+    return node.members;
+  }
+  if (Array.isArray(node?.directMembers)) {
+    return node.directMembers;
+  }
+  return [];
 }
 
 function getOrganizationTreeKey(type, id) {
