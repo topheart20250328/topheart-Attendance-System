@@ -8018,7 +8018,7 @@ async function apiRequest(action, options = {}) {
 
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
       if (authMode === "app" || (authMode === "auto" && state.appToken)) {
         state.appToken = null;
         saveStoredValue(STORAGE_KEYS.appToken, "");

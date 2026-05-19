@@ -21,6 +21,8 @@ const LOGIN_ROLES = new Set([
 const PREACHER_ROLES = new Set(["preacher", "trainee_preacher"]);
 const DISTRICT_PASTOR_ROLES = new Set(["district_pastor"]);
 const DISTRICT_LEADER_ROLES = new Set(["district_leader"]);
+const BIG_FAMILY_LEADER_ROLES = new Set(["big_family_leader", "trainee_big_family_leader"]);
+const SMALL_GROUP_LEADER_ROLES = new Set(["small_group_leader", "trainee_small_group_leader"]);
 const EQUIPMENT_PROGRESS_VALUES = new Set(["none", "growth", "disciple", "leader"]);
 const ROLE_PERMISSION_TIER: Record<string, number> = {
   preacher: 1,
@@ -41,6 +43,8 @@ type MemberRow = {
   is_admin: boolean;
   is_active: boolean;
   district_id: number | null;
+  big_family_id: number | null;
+  small_group_id: number | null;
   district_pastor_district_ids?: number[] | null;
 };
 
@@ -72,7 +76,7 @@ Deno.serve(async (request) => {
 
     const { data: target, error: targetError } = await db
       .from("member_directory")
-      .select("id, role, is_admin, is_active, district_id, district_pastor_district_ids")
+      .select("id, role, is_admin, is_active, district_id, big_family_id, small_group_id, district_pastor_district_ids")
       .eq("id", memberId)
       .maybeSingle();
     if (targetError) {
@@ -145,7 +149,7 @@ async function getViewer(db: ReturnType<typeof createAdminClient>, headers: Head
 
   const { data: member, error: memberError } = await db
     .from("member_directory")
-    .select("id, role, is_admin, is_active, district_id, district_pastor_district_ids")
+    .select("id, role, is_admin, is_active, district_id, big_family_id, small_group_id, district_pastor_district_ids")
     .eq("id", session.member_id)
     .maybeSingle();
   if (memberError || !member || !isLoginEnabled(member as MemberRow)) {
@@ -181,32 +185,49 @@ function getEffectiveViewer(viewer: MemberRow, adminMode: boolean) {
 }
 
 function canEditProfile(viewer: MemberRow, target: MemberRow) {
-  if (viewer.is_admin || PREACHER_ROLES.has(viewer.role)) {
+  if (viewer.is_admin) {
     return true;
   }
   return (
-    canManageDistrict(viewer, target.district_id) &&
+    canManageMemberScope(viewer, target) &&
     canManageAttendanceTarget(viewer.role, target.role)
   );
 }
 
-function canManageDistrict(viewer: MemberRow, districtId: number | null) {
-  if (viewer.is_admin || PREACHER_ROLES.has(viewer.role)) {
+function canManageMemberScope(viewer: MemberRow, target: MemberRow) {
+  if (viewer.is_admin) {
     return true;
   }
-  if (districtId === null) {
-    return false;
+  if (PREACHER_ROLES.has(viewer.role)) {
+    const districtIds = getDistrictPastorDistrictIds(viewer);
+    if (districtIds.length) {
+      return target.district_id !== null && districtIds.includes(target.district_id);
+    }
+    return viewer.district_id !== null && viewer.district_id === target.district_id;
   }
   if (DISTRICT_PASTOR_ROLES.has(viewer.role)) {
-    return getDistrictPastorDistrictIds(viewer).includes(districtId);
+    const districtIds = getDistrictPastorDistrictIds(viewer);
+    if (districtIds.length) {
+      return target.district_id !== null && districtIds.includes(target.district_id);
+    }
+    return viewer.district_id !== null && viewer.district_id === target.district_id;
   }
-  return DISTRICT_LEADER_ROLES.has(viewer.role) && viewer.district_id === districtId;
+  if (DISTRICT_LEADER_ROLES.has(viewer.role)) {
+    return viewer.district_id !== null && viewer.district_id === target.district_id;
+  }
+  if (BIG_FAMILY_LEADER_ROLES.has(viewer.role)) {
+    return viewer.big_family_id !== null && viewer.big_family_id === target.big_family_id;
+  }
+  if (SMALL_GROUP_LEADER_ROLES.has(viewer.role)) {
+    return viewer.small_group_id !== null && viewer.small_group_id === target.small_group_id;
+  }
+  return false;
 }
 
 function canManageAttendanceTarget(viewerRole: string, targetRole: string) {
   const viewerOrder = ROLE_PERMISSION_TIER[viewerRole] || 99;
   const targetOrder = ROLE_PERMISSION_TIER[targetRole] || 99;
-  return targetOrder >= viewerOrder && targetOrder < 99;
+  return targetOrder > viewerOrder && targetOrder < 99;
 }
 
 function getDistrictPastorDistrictIds(member: MemberRow) {

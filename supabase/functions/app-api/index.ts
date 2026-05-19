@@ -2775,7 +2775,7 @@ function canCreateRole(
   if (DISTRICT_PASTOR_ROLES.has(viewer.role)) {
     return canManageAttendanceTarget(viewer.role, role);
   }
-  return !SMALL_GROUP_LEADER_ROLES.has(viewer.role) && canManageAttendanceTarget(viewer.role, role);
+  return canManageAttendanceTarget(viewer.role, role);
 }
 
 function canIssueInvite(viewer: MemberDirectoryRow, target: MemberDirectoryRow) {

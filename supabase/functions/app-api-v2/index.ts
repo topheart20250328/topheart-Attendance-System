@@ -423,7 +423,7 @@ function canCreateRole(viewer: MemberRow, role: string, isAdminFlag: boolean) {
     return canManageAttendanceTarget(viewer.role, role);
   }
   if (BIG_FAMILY_LEADER_ROLES.has(viewer.role) || SMALL_GROUP_LEADER_ROLES.has(viewer.role)) {
-    return BIG_FAMILY_LEADER_ROLES.has(viewer.role) && canManageAttendanceTarget(viewer.role, role);
+    return canManageAttendanceTarget(viewer.role, role);
   }
   return false;
 }
@@ -645,7 +645,7 @@ async function handleUpdateMember(
   const body = await request.json().catch(() => null);
   const adminMode = getAdminModeFromBody(viewer, body);
   const effectiveViewer = getEffectiveViewer(viewer, adminMode);
-  if (!effectiveViewer.is_admin) {
+  if (!canUseManagement(effectiveViewer)) {
     return json({ error: "Forbidden." }, 403);
   }
 
