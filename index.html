@@ -29,7 +29,7 @@
       content="牧區點名・出席｜LINE 登入"
     />
     <title>topheart 牧區點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260519-initial-attendance-confirm-v110" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260519-tree-collapse-summary-v112" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -254,7 +254,7 @@
               </button>
               <label class="week-label">
                 <span>週次</span>
-                <input id="weekInput" type="date" />
+                <input id="weekInput" type="date" min="2025-03-23" />
                 <span id="weekStatusChip" class="week-status-chip is-current">本週</span>
               </label>
               <button id="nextWeekBtn" type="button" class="secondary">
@@ -884,6 +884,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js" defer></script>
-    <script type="module" src="./attendance-ui/main.js?v=20260519-initial-attendance-confirm-v110"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260519-tree-collapse-summary-v112"></script>
   </body>
 </html>

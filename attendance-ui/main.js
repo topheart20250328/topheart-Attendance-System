@@ -77,6 +77,9 @@ const STATUS_LABELS = {
   absent: "未出席",
 };
 
+const MIN_ATTENDANCE_DATE = "2025-03-28";
+const MIN_ATTENDANCE_WEEK_START = "2025-03-23";
+
 const LOGIN_ROLES = [
   "preacher",
   "trainee_preacher",
@@ -1284,8 +1287,18 @@ function isFutureWeek(weekStart) {
   return parseIsoDate(getMondayIso(weekStart)).getTime() > parseIsoDate(getCurrentWeekStart()).getTime();
 }
 
+function isBeforeMinimumAttendanceWeek(weekStart) {
+  return parseIsoDate(getMondayIso(weekStart)).getTime() < parseIsoDate(MIN_ATTENDANCE_WEEK_START).getTime();
+}
+
 function clampToAllowedAttendanceWeek(weekStart, options = {}) {
   const normalized = getMondayIso(weekStart || new Date());
+  if (isBeforeMinimumAttendanceWeek(normalized)) {
+    if (options.showToast) {
+      showToast(`不能選擇早於 ${MIN_ATTENDANCE_DATE} 的日期。`);
+    }
+    return MIN_ATTENDANCE_WEEK_START;
+  }
   if (!isFutureWeek(normalized)) {
     return normalized;
   }
@@ -1300,9 +1313,13 @@ function syncWeekControls() {
     return;
   }
   const currentWeekStart = getCurrentWeekStart();
+  els.weekInput.min = MIN_ATTENDANCE_WEEK_START;
   els.weekInput.max = currentWeekStart;
   const selectedWeek = clampToAllowedAttendanceWeek(els.weekInput.value || currentWeekStart);
   els.weekInput.value = selectedWeek;
+  if (els.prevWeekBtn) {
+    els.prevWeekBtn.disabled = parseIsoDate(selectedWeek).getTime() <= parseIsoDate(MIN_ATTENDANCE_WEEK_START).getTime();
+  }
   if (els.nextWeekBtn) {
     els.nextWeekBtn.disabled = parseIsoDate(selectedWeek).getTime() >= parseIsoDate(currentWeekStart).getTime();
   }
@@ -1535,7 +1552,7 @@ function prefetchAdjacentWeeks(weekStart) {
     const target = parseIsoDate(weekStart);
     target.setDate(target.getDate() + dayDelta);
     const targetWeek = getMondayIso(target);
-    if (isFutureWeek(targetWeek)) {
+    if (isFutureWeek(targetWeek) || isBeforeMinimumAttendanceWeek(targetWeek)) {
       continue;
     }
     const cacheKey = getDashboardCacheKey(targetWeek);
@@ -2505,7 +2522,10 @@ async function loadAttendanceOverview(weekStart = "") {
   renderAttendanceOverview();
 
   try {
-    const targetWeek = weekStart || state.ui.overviewWeekStart || els.weekInput.value || getMondayIso(new Date());
+    const targetWeek = clampToAllowedAttendanceWeek(
+      weekStart || state.ui.overviewWeekStart || els.weekInput.value || getMondayIso(new Date()),
+      { showToast: Boolean(weekStart) },
+    );
     const params = new URLSearchParams({
       week_start: targetWeek,
       admin_mode: getAdminModeQueryParam(),
@@ -2673,7 +2693,9 @@ function handleOverviewDateChange(event) {
     return;
   }
 
-  loadAttendanceOverview(getMondayIso(input.value));
+  const weekStart = clampToAllowedAttendanceWeek(input.value, { showToast: true });
+  input.value = weekStart;
+  loadAttendanceOverview(weekStart);
 }
 
 function handleOverviewUnitToggle(event) {
@@ -2831,7 +2853,7 @@ function renderOverviewWeeks() {
     </div>
     <label class="overview-date-button${isCustomWeek ? " is-active" : ""}" data-overview-date-button>
       選日期
-      <input id="overviewDateInput" class="overview-date-input" type="date" value="${escapeHtml(state.overviewData.selectedWeekStart)}" />
+      <input id="overviewDateInput" class="overview-date-input" type="date" min="${MIN_ATTENDANCE_WEEK_START}" max="${escapeHtml(currentWeekStart)}" value="${escapeHtml(state.overviewData.selectedWeekStart)}" />
     </label>
   `;
 }
@@ -5691,10 +5713,11 @@ function buildOrganizationTreeDistrictGroups(districts) {
 function renderOrganizationTreeUnassignedMembers(members) {
   const nodeKey = getOrganizationTreeKey("member_bucket", "direct");
   const isCollapsed = state.ui.orgTreeCollapsedKeys.has(nodeKey);
+  const summary = buildOrganizationNodeSummary({ memberCount: members.length });
   return `
     <article class="org-flow-row org-flow-unassigned ${isCollapsed ? "is-collapsed" : ""}">
       <div class="org-flow-column org-flow-column-unassigned">
-        ${renderOrganizationFlowNode("unassigned", "特殊職務", { nodeKey, isCollapsed })}
+        ${renderOrganizationFlowNode("unassigned", "特殊職務", { nodeKey, isCollapsed, summary })}
       </div>
       <div class="org-flow-members org-flow-unassigned-members org-flow-children">
         ${members.map(renderOrganizationTreeMember).join("")}
@@ -5748,6 +5771,19 @@ function renderOrganizationTreeDistrict(district) {
   const nodeKey = getOrganizationTreeKey("district", district.id);
   const isCollapsed = state.ui.orgTreeCollapsedKeys.has(nodeKey);
   const childCount = bigFamilies.length + directSmallGroups.length + (directMembers.length ? 1 : 0);
+  const summary = buildOrganizationNodeSummary({
+    bigFamilyCount: bigFamilies.length,
+    smallGroupCount: directSmallGroups.length + bigFamilies.reduce((total, bigFamily) => total + bigFamily.smallGroups.length, 0),
+    memberCount: countOrganizationTreePeople([
+      ...bigFamilies.flatMap((bigFamily) => [
+        ...bigFamily.smallGroups.flatMap((smallGroup) => smallGroup.members),
+        ...bigFamily.directMembers,
+      ]),
+      ...directSmallGroups.flatMap((smallGroup) => smallGroup.members),
+      ...directMembers,
+    ]),
+    leaderCount: districtLeaders.length,
+  });
   const childClass = [
     getOrganizationTreeChildrenClass(childCount),
     directSmallGroups.length ? "has-direct-small-groups" : "",
@@ -5758,7 +5794,7 @@ function renderOrganizationTreeDistrict(district) {
   return `
     <article class="org-flow-row ${district.is_active ? "" : "is-archived"} ${isCollapsed ? "is-collapsed" : ""}">
       <div class="org-flow-column org-flow-column-district">
-        ${renderOrganizationFlowNode("district", district.name, { isActive: district.is_active, nodeKey, isCollapsed })}
+        ${renderOrganizationFlowNode("district", district.name, { isActive: district.is_active, nodeKey, isCollapsed, summary })}
         ${renderOrganizationTreeLeaderStrip("區領袖", districtLeaders)}
       </div>
       <div class="org-flow-branches org-flow-children ${childClass}">
@@ -5791,11 +5827,19 @@ function renderOrganizationTreeBigFamily(bigFamily) {
   const nodeKey = getOrganizationTreeKey("big_family", bigFamily.id);
   const isCollapsed = state.ui.orgTreeCollapsedKeys.has(nodeKey);
   const childCount = smallGroups.length + (directMembers.length ? 1 : 0);
+  const summary = buildOrganizationNodeSummary({
+    smallGroupCount: smallGroups.length,
+    memberCount: countOrganizationTreePeople([
+      ...smallGroups.flatMap((smallGroup) => smallGroup.members),
+      ...directMembers,
+    ]),
+    leaderCount: bigFamilyLeaders.length,
+  });
 
   return `
     <div class="org-flow-branch ${bigFamily.is_active ? "" : "is-archived"} ${isCollapsed ? "is-collapsed" : ""}">
       <div class="org-flow-column org-flow-column-big">
-        ${renderOrganizationFlowNode("big_family", bigFamily.name, { isActive: bigFamily.is_active, nodeKey, isCollapsed })}
+        ${renderOrganizationFlowNode("big_family", bigFamily.name, { isActive: bigFamily.is_active, nodeKey, isCollapsed, summary })}
         ${renderOrganizationTreeLeaderStrip("大家領袖", bigFamilyLeaders)}
       </div>
       <div class="org-flow-branches org-flow-small-branches org-flow-children ${getOrganizationTreeChildrenClass(childCount)}">
@@ -5810,10 +5854,11 @@ function renderOrganizationTreeBigFamily(bigFamily) {
 function renderOrganizationTreeMemberBucket(label, members, keyHint = label) {
   const nodeKey = getOrganizationTreeKey("member_bucket", keyHint);
   const isCollapsed = state.ui.orgTreeCollapsedKeys.has(nodeKey);
+  const summary = buildOrganizationNodeSummary({ memberCount: members.length });
   return `
     <div class="org-flow-branch org-flow-small-branch ${isCollapsed ? "is-collapsed" : ""}">
       <div class="org-flow-column org-flow-column-small">
-        ${renderOrganizationFlowNode("member_bucket", label, { nodeKey, isCollapsed })}
+        ${renderOrganizationFlowNode("member_bucket", label, { nodeKey, isCollapsed, summary })}
       </div>
       <div class="org-flow-members org-flow-children">
         ${members.map(renderOrganizationTreeMember).join("")}
@@ -5835,11 +5880,12 @@ function renderOrganizationTreeSmallGroup(smallGroup) {
   );
   const nodeKey = getOrganizationTreeKey("small_group", smallGroup.id);
   const isCollapsed = state.ui.orgTreeCollapsedKeys.has(nodeKey);
+  const summary = buildOrganizationNodeSummary({ memberCount: members.length });
 
   return `
     <div class="org-flow-branch org-flow-small-branch ${smallGroup.is_active ? "" : "is-archived"} ${isCollapsed ? "is-collapsed" : ""}">
       <div class="org-flow-column org-flow-column-small">
-        ${renderOrganizationFlowNode("small_group", smallGroup.name, { isActive: smallGroup.is_active, nodeKey, isCollapsed })}
+        ${renderOrganizationFlowNode("small_group", smallGroup.name, { isActive: smallGroup.is_active, nodeKey, isCollapsed, summary })}
       </div>
       <div class="org-flow-members org-flow-children">
         ${members.length
@@ -5945,16 +5991,40 @@ function isPastoralLeaderRole(role) {
   return role === "district_pastor" || PREACHER_ROLES.includes(role);
 }
 
-function renderOrganizationFlowNode(type, name, { isActive = true, nodeKey = "", isCollapsed = false } = {}) {
+function renderOrganizationFlowNode(type, name, { isActive = true, nodeKey = "", isCollapsed = false, summary = "" } = {}) {
   const canCollapse = Boolean(nodeKey);
   return `
     <div
       class="org-flow-node org-flow-node-${escapeHtml(type)} ${isActive ? "" : "is-archived"} ${isCollapsed ? "is-collapsed" : ""} ${canCollapse ? "is-clickable" : ""}"
       ${canCollapse ? `data-org-tree-key="${escapeHtml(nodeKey)}" title="點擊可${isCollapsed ? "展開" : "收合"}" role="button" tabindex="0" aria-expanded="${isCollapsed ? "false" : "true"}"` : ""}
     >
+      ${canCollapse ? `<span class="org-flow-collapse-mark" aria-hidden="true">${isCollapsed ? "›" : "⌄"}</span>` : ""}
       <strong>${escapeHtml(name)}</strong>
+      ${summary ? `<span class="org-flow-node-summary">${escapeHtml(summary)}</span>` : ""}
     </div>
   `;
+}
+
+function buildOrganizationNodeSummary({
+  bigFamilyCount = 0,
+  smallGroupCount = 0,
+  memberCount = 0,
+  leaderCount = 0,
+} = {}) {
+  return [
+    bigFamilyCount ? `${bigFamilyCount} 大家` : "",
+    smallGroupCount ? `${smallGroupCount} 小家` : "",
+    memberCount ? `${memberCount} 人` : "",
+    leaderCount ? `${leaderCount} 領袖` : "",
+  ].filter(Boolean).join(" / ");
+}
+
+function countOrganizationTreePeople(members) {
+  return new Set(
+    (members || [])
+      .filter((member) => member?.id && member.is_active !== false)
+      .map((member) => member.id),
+  ).size;
 }
 
 function getOrganizationTreeKey(type, id) {

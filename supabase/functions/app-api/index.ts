@@ -171,6 +171,8 @@ const ORG_LABELS: Record<OrganizationType, string> = {
   small_group: "小家",
 };
 const NOTE_MAX_LENGTH = 1000;
+const MIN_ATTENDANCE_DATE = "2025-03-28";
+const MIN_ATTENDANCE_WEEK_START = "2025-03-23";
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 const CLEANUP_ACTIONS = new Set(["bind", "logout"]);
 
@@ -369,7 +371,7 @@ async function handleGetDashboard(
 
   const requestedWeek = url.searchParams.get("week_start");
   const weekStart = requestedWeek
-    ? getMondayIso(requestedWeek)
+    ? clampToAllowedAttendanceWeek(requestedWeek)
     : getMondayIso(new Date());
   const week = await ensureWeek(adminClient, weekStart);
   const rosterMembers = await loadVisibleMembers(adminClient, sessionContext.member);
@@ -454,7 +456,7 @@ async function handleGetAttendanceOverview(
 
   const requestedWeek = url.searchParams.get("week_start");
   const weekStart = requestedWeek
-    ? getMondayIso(requestedWeek)
+    ? clampToAllowedAttendanceWeek(requestedWeek)
     : getMondayIso(new Date());
   const overview = await buildAttendanceOverview(
     adminClient,
@@ -711,6 +713,9 @@ async function handleSaveAttendance(
 
   const body = await request.json().catch(() => null);
   const weekStart = getMondayIso(String(body?.week_start || new Date()));
+  if (isBeforeMinimumAttendanceWeek(weekStart)) {
+    return jsonResponse({ error: `不能儲存早於 ${MIN_ATTENDANCE_DATE} 的點名資料。` }, 400);
+  }
   const entries = Array.isArray(body?.entries) ? body.entries : [];
 
   if (!entries.length) {
@@ -4418,6 +4423,15 @@ function getMondayIso(source: Date | string) {
   const diff = -day;
   date.setDate(date.getDate() + diff);
   return formatDate(date);
+}
+
+function isBeforeMinimumAttendanceWeek(weekStart: string) {
+  return weekStart < MIN_ATTENDANCE_WEEK_START;
+}
+
+function clampToAllowedAttendanceWeek(source: Date | string) {
+  const weekStart = getMondayIso(source);
+  return isBeforeMinimumAttendanceWeek(weekStart) ? MIN_ATTENDANCE_WEEK_START : weekStart;
 }
 
 function parseIsoDate(isoDate: string) {

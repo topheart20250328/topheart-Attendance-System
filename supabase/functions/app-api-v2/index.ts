@@ -104,6 +104,8 @@ const VALID_STATUS = new Set(["unknown", "present", "absent"]);
 const EQUIPMENT_PROGRESS_VALUES = new Set(["none", "growth", "disciple", "leader"]);
 const CREATE_SCOPE_MODES = new Set(["empty", "create", "existing"]);
 const NOTE_MAX_LENGTH = 1000;
+const MIN_ATTENDANCE_DATE = "2025-03-28";
+const MIN_ATTENDANCE_WEEK_START = "2025-03-23";
 const HISTORY_RANGES = [
   { key: "month", label: "本月", weeksBack: 0 },
   { key: "three_months", label: "近三個月", weeksBack: 13 },
@@ -1008,7 +1010,7 @@ async function handleDashboard(
   viewer: MemberRow,
   url: URL,
 ) {
-  const weekStart = getMondayIso(url.searchParams.get("week_start") || new Date());
+  const weekStart = clampToAllowedAttendanceWeek(url.searchParams.get("week_start") || new Date());
   const week = await ensureWeek(db, weekStart);
   const adminMode = getAdminModeFromUrl(viewer, url);
   const effectiveViewer = getEffectiveViewer(viewer, adminMode);
@@ -1062,7 +1064,11 @@ async function handleSaveAttendance(
     return json({ error: "entries is required." }, 400);
   }
 
-  const week = await ensureWeek(db, getMondayIso(body?.week_start || new Date()));
+  const requestedWeekStart = getMondayIso(body?.week_start || new Date());
+  if (isBeforeMinimumAttendanceWeek(requestedWeekStart)) {
+    return json({ error: `不能儲存早於 ${MIN_ATTENDANCE_DATE} 的點名資料。` }, 400);
+  }
+  const week = await ensureWeek(db, requestedWeekStart);
   const visibleMembers = new Map(
     (await loadVisibleMembers(db, effectiveViewer, { manageAll: adminMode })).map((member) => [member.id, member]),
   );
@@ -1546,7 +1552,7 @@ async function handleAttendanceOverview(
     return { scope_label: "無權限", selected_week_start: "", weeks: [], units: [] };
   }
 
-  const selectedWeekStart = getMondayIso(url.searchParams.get("week_start") || new Date());
+  const selectedWeekStart = clampToAllowedAttendanceWeek(url.searchParams.get("week_start") || new Date());
   const overviewOptions = getOverviewRequestOptions(url);
   const week = await ensureWeek(db, selectedWeekStart);
   const members = await loadOverviewMembers(db, effectiveViewer);
@@ -2236,6 +2242,15 @@ function getMondayIso(source: Date | string) {
   const diff = -day;
   date.setDate(date.getDate() + diff);
   return formatDate(date);
+}
+
+function isBeforeMinimumAttendanceWeek(weekStart: string) {
+  return weekStart < MIN_ATTENDANCE_WEEK_START;
+}
+
+function clampToAllowedAttendanceWeek(source: Date | string) {
+  const weekStart = getMondayIso(source);
+  return isBeforeMinimumAttendanceWeek(weekStart) ? MIN_ATTENDANCE_WEEK_START : weekStart;
 }
 
 function parseIsoDate(isoDate: string) {
