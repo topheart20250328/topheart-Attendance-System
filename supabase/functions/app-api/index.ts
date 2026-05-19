@@ -3179,8 +3179,11 @@ function buildOverviewUnits({
   recordMap: Map<string, any>;
 }) {
   const units: any[] = [];
-  const includeDistricts = viewer.is_admin || PREACHER_ROLES.has(viewer.role) || DISTRICT_PASTOR_ROLES.has(viewer.role);
-  const includeBigFamilies = includeDistricts || DISTRICT_LEADER_ROLES.has(viewer.role);
+  const includeDistricts = viewer.is_admin ||
+    PREACHER_ROLES.has(viewer.role) ||
+    DISTRICT_PASTOR_ROLES.has(viewer.role) ||
+    DISTRICT_LEADER_ROLES.has(viewer.role);
+  const includeBigFamilies = includeDistricts || BIG_FAMILY_LEADER_ROLES.has(viewer.role);
   const districtMap = new Map(orgs.districts.map((district) => [district.id, district]));
   const bigFamilyMap = new Map(orgs.bigFamilies.map((bigFamily) => [bigFamily.id, bigFamily]));
 

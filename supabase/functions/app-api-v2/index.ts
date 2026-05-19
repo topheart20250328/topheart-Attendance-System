@@ -1776,8 +1776,11 @@ function buildUnits(
   options: OverviewRequestOptions,
 ) {
   const units = [];
-  const includeDistrict = viewer.is_admin || PREACHER_ROLES.has(viewer.role) || DISTRICT_PASTOR_ROLES.has(viewer.role);
-  const includeBig = includeDistrict || DISTRICT_LEADER_ROLES.has(viewer.role);
+  const includeDistrict = viewer.is_admin ||
+    PREACHER_ROLES.has(viewer.role) ||
+    DISTRICT_PASTOR_ROLES.has(viewer.role) ||
+    DISTRICT_LEADER_ROLES.has(viewer.role);
+  const includeBig = includeDistrict || BIG_FAMILY_LEADER_ROLES.has(viewer.role);
 
   if (includeDistrict) {
     for (const district of organizationRows.districts) {

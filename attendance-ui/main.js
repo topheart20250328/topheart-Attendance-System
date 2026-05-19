@@ -1005,16 +1005,12 @@ async function refreshSessionState() {
     });
 
     if (data?.status === "authenticated") {
-      const previousMemberId = state.currentMember?.id || null;
-      const previousAccessSignature = state.currentMemberAccessSignature;
-      state.currentMember = data.current_member;
-      state.currentMemberAccessSignature = getMemberAccessSignature(state.currentMember);
+      const accessChanged = applyCurrentMemberSnapshot(data.current_member);
       state.pendingProfile = null;
       state.authNotice = "";
       state.ui.activeTab = TABS.attendance;
-      if (previousMemberId !== state.currentMember?.id || previousAccessSignature !== state.currentMemberAccessSignature) {
+      if (accessChanged) {
         state.ui.manageAll = false;
-        clearScopedDataCaches();
       }
       if (state.currentMember) {
         state.ui.settingsOpen = false;
@@ -1089,8 +1085,8 @@ function renderLayout() {
     return;
   }
 
-  renderTopBar();
   syncManageAllToggle();
+  renderTopBar();
   applyLayoutSize();
   renderTabs();
   renderActiveView();
@@ -1108,12 +1104,13 @@ function renderTopBar() {
     .join(" / ");
 
   const roleLabel = getRoleLabel(state.currentMember.role);
+  const nameRoleLabel = isAdminModeActive()
+    ? `${roleLabel} / 管理員`
+    : roleLabel;
   const viewLabel = state.currentMember.is_admin
     ? `目前視角：${isAdminModeActive() ? "管理員" : roleLabel}`
     : "";
-  els.userNameText.textContent = `${state.currentMember.full_name} (${getRoleLabel(
-    state.currentMember.role,
-  )}${state.currentMember.is_admin ? " / 管理員" : ""})`;
+  els.userNameText.textContent = `${state.currentMember.full_name} (${nameRoleLabel})`;
   els.userScopeText.textContent = [scope ? `所屬牧區：${scope}` : "尚未設定牧區", viewLabel]
     .filter(Boolean)
     .join("｜");
@@ -1161,20 +1158,35 @@ function clearScopedDataCaches() {
   state.overviewData = null;
 }
 
-function syncCurrentMemberAccess(member) {
-  if (!member || Number(member.id || 0) !== Number(state.currentMember?.id || 0)) {
-    return;
+function applyCurrentMemberSnapshot(member) {
+  if (!member) {
+    return false;
   }
+  const previousMemberId = Number(state.currentMember?.id || 0);
   const previousAccessSignature = state.currentMemberAccessSignature;
   state.currentMember = {
     ...state.currentMember,
     ...member,
   };
   state.currentMemberAccessSignature = getMemberAccessSignature(state.currentMember);
-  if (previousAccessSignature !== state.currentMemberAccessSignature) {
+  const accessChanged =
+    previousMemberId !== Number(state.currentMember.id || 0) ||
+    previousAccessSignature !== state.currentMemberAccessSignature;
+  if (accessChanged) {
     state.ui.manageAll = false;
     clearScopedDataCaches();
   }
+  if (!state.currentMember.is_admin) {
+    state.ui.manageAll = false;
+  }
+  return accessChanged;
+}
+
+function syncCurrentMemberAccess(member) {
+  if (!member || Number(member.id || 0) !== Number(state.currentMember?.id || 0)) {
+    return false;
+  }
+  return applyCurrentMemberSnapshot(member);
 }
 
 function isAdminModeActive() {
@@ -1491,11 +1503,14 @@ async function fetchDashboardData(weekStart) {
 }
 
 function applyDashboardData(data, weekStart) {
-  state.currentMember = data.current_member;
+  const accessChanged = applyCurrentMemberSnapshot(data.current_member);
   state.currentWeek = normalizeWeek(data.week, weekStart);
   els.weekInput.value = state.currentWeek?.week_start_date || weekStart;
   state.attendanceAnalytics = normalizeAttendanceAnalytics(data.analytics);
   state.roster = sortMembers((data.roster || []).map(enrichRosterMember));
+  if (accessChanged) {
+    renderLayout();
+  }
   captureAttendanceBaseline();
   populateAttendanceRoleFilter();
   renderAttendanceHeader();
@@ -5263,10 +5278,16 @@ async function handleSaveMember(event) {
         },
       });
     }
-    syncCurrentMemberAccess(data?.member);
+    const accessChanged = syncCurrentMemberAccess(data?.member);
 
     closeMemberEditor();
+    if (accessChanged) {
+      renderLayout();
+    }
     await Promise.all([loadAdminPanel(), loadDashboard({ skipDirtyCheck: true })]);
+    if (state.ui.activeTab === TABS.overview && canUseOverview()) {
+      await loadAttendanceOverview(state.ui.overviewWeekStart);
+    }
     showToast(mode === "create" ? "已建立新的人員資料。" : "人員資料已更新。");
   } catch (error) {
     console.error(error);
