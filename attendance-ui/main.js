@@ -6168,13 +6168,33 @@ function updateOrganizationTreeScaledShellSize() {
   const shell = getOrganizationTreeScaledShell();
   const canvas = getOrganizationTreeCanvas();
   if (!shell || !canvas) {
-    return;
+    return false;
+  }
+  if (!isOrganizationTreeMeasurable()) {
+    return false;
   }
   const scale = state.ui.orgTreeScale;
-  const width = Math.ceil(canvas.scrollWidth * scale);
-  const height = Math.ceil(canvas.scrollHeight * scale);
+  const contentWidth = canvas.scrollWidth;
+  const contentHeight = canvas.scrollHeight;
+  if (contentWidth <= 1 || contentHeight <= 1) {
+    return false;
+  }
+  const width = Math.ceil(contentWidth * scale);
+  const height = Math.ceil(contentHeight * scale);
   shell.style.width = `${Math.max(1, width)}px`;
   shell.style.height = `${Math.max(1, height)}px`;
+  return true;
+}
+
+function isOrganizationTreeMeasurable() {
+  if (!els.orgTreeBody || !els.orgsView || state.ui.activeTab !== TABS.orgs) {
+    return false;
+  }
+  if (els.orgsView.classList.contains("hidden") || els.orgTreePanel?.classList.contains("is-tree-hidden")) {
+    return false;
+  }
+  const bodyRect = els.orgTreeBody.getBoundingClientRect();
+  return bodyRect.width > 1 && bodyRect.height > 1;
 }
 
 function fitOrganizationTreeToView() {
@@ -6183,6 +6203,10 @@ function fitOrganizationTreeToView() {
   }
   const canvas = getOrganizationTreeCanvas();
   if (!canvas) {
+    return;
+  }
+  if (!isOrganizationTreeMeasurable() || canvas.scrollWidth <= 1) {
+    scheduleOrganizationTreeConnectorSync();
     return;
   }
   const availableWidth = Math.max(1, els.orgTreeBody.clientWidth - 20);
@@ -6240,27 +6264,29 @@ function syncOrganizationTreeZoomControls() {
 }
 
 function scheduleOrganizationTreeConnectorSync() {
-  if (!els.orgTreeBody || state.ui.orgTreeMode === "vertical") {
+  if (!els.orgTreeBody) {
     return;
   }
-  window.requestAnimationFrame(() => {
+  const syncLayout = () => {
     updateOrganizationTreeScaledShellSize();
-    syncOrganizationTreeConnectors();
-    window.requestAnimationFrame(() => {
-      updateOrganizationTreeScaledShellSize();
+    if (state.ui.orgTreeMode !== "vertical") {
       syncOrganizationTreeConnectors();
+    }
+  };
+  window.requestAnimationFrame(() => {
+    syncLayout();
+    window.requestAnimationFrame(() => {
+      syncLayout();
     });
   });
   [80, 220, 500].forEach((delay) => {
     window.setTimeout(() => {
-      updateOrganizationTreeScaledShellSize();
-      syncOrganizationTreeConnectors();
+      syncLayout();
     }, delay);
   });
   document.fonts?.ready
     ?.then(() => {
-      updateOrganizationTreeScaledShellSize();
-      syncOrganizationTreeConnectors();
+      syncLayout();
     })
     .catch(() => {});
 }
@@ -6434,6 +6460,9 @@ function syncOrganizationTreePanel() {
   if (els.toggleOrgTreePanelBtn) {
     els.toggleOrgTreePanelBtn.textContent = isCollapsed ? "顯示樹狀圖" : "隱藏樹狀圖";
     els.toggleOrgTreePanelBtn.setAttribute("aria-expanded", String(!isCollapsed));
+  }
+  if (!isCollapsed && state.ui.activeTab === TABS.orgs) {
+    scheduleOrganizationTreeConnectorSync();
   }
 }
 
