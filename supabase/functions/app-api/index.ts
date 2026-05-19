@@ -2180,6 +2180,9 @@ async function loadVisibleMembers(
         query = query.in("district_id", districtIds);
       } else if (viewer.district_id) {
         query = query.eq("district_id", viewer.district_id);
+      } else {
+        const rows = await includeViewerRow(adminClient, viewer, []);
+        return await attachEquipmentProgress(adminClient, rows);
       }
     }
     const { data, error } = await query;
@@ -2187,16 +2190,23 @@ async function loadVisibleMembers(
       throw new Error(error.message);
     }
 
-    return await attachEquipmentProgress(adminClient, (data || []) as MemberDirectoryRow[]);
+    const rows = await includeViewerRow(adminClient, viewer, (data || []) as MemberDirectoryRow[]);
+    return await attachEquipmentProgress(adminClient, rows);
   }
 
   if (DISTRICT_PASTOR_ROLES.has(viewer.role)) {
     const districtIds = getDistrictPastorDistrictIds(viewer);
-    if (!districtIds.length) {
-      return [];
+    const scopedDistrictIds = districtIds.length
+      ? districtIds
+      : viewer.district_id
+        ? [viewer.district_id]
+        : [];
+    if (!scopedDistrictIds.length) {
+      const rows = await includeViewerRow(adminClient, viewer, []);
+      return await attachEquipmentProgress(adminClient, rows);
     }
     query = query
-      .in("district_id", districtIds)
+      .in("district_id", scopedDistrictIds)
       .in("role", [
         "district_pastor",
         "district_leader",
@@ -2255,7 +2265,27 @@ async function loadVisibleMembers(
     throw new Error(error.message);
   }
 
-  return await attachEquipmentProgress(adminClient, (data || []) as MemberDirectoryRow[]);
+  const rows = await includeViewerRow(adminClient, viewer, (data || []) as MemberDirectoryRow[]);
+  return await attachEquipmentProgress(adminClient, rows);
+}
+
+async function includeViewerRow(
+  adminClient: ReturnType<typeof createAdminClient>,
+  viewer: MemberDirectoryRow,
+  rows: MemberDirectoryRow[],
+) {
+  if (!viewer?.id || rows.some((member) => Number(member.id) === Number(viewer.id))) {
+    return rows;
+  }
+  const { data, error } = await adminClient
+    .from("member_directory")
+    .select("*")
+    .eq("id", viewer.id)
+    .maybeSingle();
+  if (error) {
+    throw new Error(error.message);
+  }
+  return data?.is_active === false ? rows : [...rows, data as MemberDirectoryRow];
 }
 
 async function attachEquipmentProgress(
@@ -2582,11 +2612,35 @@ function canCreateMembers(viewer: MemberDirectoryRow) {
   if (viewer.is_admin) {
     return true;
   }
-  return canUseAdminPanel(viewer) && !SMALL_GROUP_LEADER_ROLES.has(viewer.role);
+  return canUseAdminPanel(viewer) &&
+    hasManagementScope(viewer) &&
+    !SMALL_GROUP_LEADER_ROLES.has(viewer.role);
 }
 
 function canChangeMemberActiveStatus(viewer: MemberDirectoryRow) {
   return canUseAdminPanel(viewer) && !SMALL_GROUP_LEADER_ROLES.has(viewer.role);
+}
+
+function hasManagementScope(viewer: MemberDirectoryRow) {
+  if (viewer.is_admin) {
+    return true;
+  }
+  if (PREACHER_ROLES.has(viewer.role)) {
+    return getDistrictPastorDistrictIds(viewer).length > 0 || viewer.district_id !== null;
+  }
+  if (DISTRICT_PASTOR_ROLES.has(viewer.role)) {
+    return getDistrictPastorDistrictIds(viewer).length > 0 || viewer.district_id !== null;
+  }
+  if (DISTRICT_LEADER_ROLES.has(viewer.role)) {
+    return viewer.district_id !== null;
+  }
+  if (BIG_FAMILY_LEADER_ROLES.has(viewer.role)) {
+    return viewer.big_family_id !== null;
+  }
+  if (SMALL_GROUP_LEADER_ROLES.has(viewer.role)) {
+    return viewer.small_group_id !== null;
+  }
+  return false;
 }
 
 function canManageDistrict(viewer: MemberDirectoryRow, districtId: number | null) {
@@ -2834,9 +2888,14 @@ async function buildAdminOverview(
     throw new Error(memberError.message);
   }
 
+  const scopedMembers = await includeViewerRow(
+    adminClient,
+    viewer,
+    (members || []) as MemberDirectoryRow[],
+  );
   const enrichedMembers = await attachEquipmentProgress(
     adminClient,
-    (members || []) as MemberDirectoryRow[],
+    scopedMembers,
   );
   const memberMap = new Map<number, MemberDirectoryRow>(
     enrichedMembers.map((member) => [member.id, member]),
@@ -2988,13 +3047,22 @@ async function loadOverviewMembers(
         query = query.in("district_id", districtIds);
       } else if (viewer.district_id) {
         query = query.eq("district_id", viewer.district_id);
+      } else {
+        const rows = await includeViewerRow(adminClient, viewer, []);
+        return await attachEquipmentProgress(adminClient, rows);
       }
     } else if (DISTRICT_PASTOR_ROLES.has(viewer.role)) {
       const districtIds = getDistrictPastorDistrictIds(viewer);
-      if (!districtIds.length) {
-        return [];
+      const scopedDistrictIds = districtIds.length
+        ? districtIds
+        : viewer.district_id
+          ? [viewer.district_id]
+          : [];
+      if (!scopedDistrictIds.length) {
+        const rows = await includeViewerRow(adminClient, viewer, []);
+        return await attachEquipmentProgress(adminClient, rows);
       }
-      query = query.in("district_id", districtIds);
+      query = query.in("district_id", scopedDistrictIds);
     } else if (DISTRICT_LEADER_ROLES.has(viewer.role)) {
       if (!viewer.district_id) {
         return [];
@@ -3020,7 +3088,8 @@ async function loadOverviewMembers(
     throw new Error(error.message);
   }
 
-  return await attachEquipmentProgress(adminClient, (data || []) as MemberDirectoryRow[]);
+  const rows = await includeViewerRow(adminClient, viewer, (data || []) as MemberDirectoryRow[]);
+  return await attachEquipmentProgress(adminClient, rows);
 }
 
 async function loadOverviewOrganizations(
@@ -3394,15 +3463,20 @@ async function loadManagedDistricts(
     return (data || []) as DistrictRow[];
   }
 
-  if (DISTRICT_PASTOR_ROLES.has(viewer.role)) {
+  if (PREACHER_ROLES.has(viewer.role) || DISTRICT_PASTOR_ROLES.has(viewer.role)) {
     const districtIds = getDistrictPastorDistrictIds(viewer);
-    if (!districtIds.length) {
+    const scopedDistrictIds = districtIds.length
+      ? districtIds
+      : viewer.district_id
+        ? [viewer.district_id]
+        : [];
+    if (!scopedDistrictIds.length) {
       return [];
     }
     const { data, error } = await adminClient
       .from("districts")
       .select("*")
-      .in("id", districtIds)
+      .in("id", scopedDistrictIds)
       .order("is_active", { ascending: false })
       .order("display_order")
       .order("name");

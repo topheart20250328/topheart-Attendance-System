@@ -5232,7 +5232,10 @@ async function handleSaveMember(event) {
 }
 
 function getManagedActiveDistricts() {
-  return state.adminData.districts.filter((district) => district.is_active);
+  const viewer = getPermissionCurrentMember();
+  return state.adminData.districts.filter(
+    (district) => district.is_active && canManageMemberDistrict(viewer, district.id),
+  );
 }
 
 function getOrganizationSectionId(orgType) {
@@ -5276,9 +5279,14 @@ function renderOrganizationTools() {
   const activeDistricts = getManagedActiveDistricts();
   const canEditOrganizations = Boolean(
     viewer?.is_admin ||
-      PREACHER_ROLES.includes(viewer?.role) ||
-      DISTRICT_PASTOR_ROLES.includes(viewer?.role) ||
-      DISTRICT_LEADER_ROLES.includes(viewer?.role),
+      (
+        activeDistricts.length > 0 &&
+        (
+          PREACHER_ROLES.includes(viewer?.role) ||
+          DISTRICT_PASTOR_ROLES.includes(viewer?.role) ||
+          DISTRICT_LEADER_ROLES.includes(viewer?.role)
+        )
+      ),
   );
   setHidden(els.orgManagementPanel, !canEditOrganizations);
   setHidden(els.orgCreatePanel, !canEditOrganizations);
@@ -5792,10 +5800,9 @@ function isOrganizationTreeDistrictPastor(member) {
   return (
     isOrganizationTreeActiveMember(member) &&
     isPastoralLeaderRole(member.role) &&
-    !member.district_id &&
     !member.big_family_id &&
     !member.small_group_id &&
-    getDistrictPastorDistrictIds(member).length > 1
+    getDistrictPastorDistrictIds(member).length > 0
   );
 }
 
@@ -5808,6 +5815,9 @@ function isOrganizationTreeDistrictLeader(member, districtId) {
   }
   if (isPastoralLeaderRole(member.role) && !member.big_family_id && !member.small_group_id) {
     const managedDistrictIds = getDistrictPastorDistrictIds(member);
+    if (managedDistrictIds.length) {
+      return false;
+    }
     const districtScopeId = Number(member.district_id || managedDistrictIds[0] || 0);
     return managedDistrictIds.length <= 1 && districtScopeId === Number(districtId);
   }
@@ -7455,8 +7465,31 @@ function canCreateMembers() {
   return Boolean(
     viewer &&
       canUseManagement() &&
+      hasManagementScope(viewer) &&
       !SMALL_GROUP_LEADER_ROLES.includes(viewer.role),
   );
+}
+
+function hasManagementScope(viewer) {
+  if (!viewer) {
+    return false;
+  }
+  if (viewer.is_admin) {
+    return true;
+  }
+  if (PREACHER_ROLES.includes(viewer.role) || DISTRICT_PASTOR_ROLES.includes(viewer.role)) {
+    return getDistrictPastorDistrictIds(viewer).length > 0 || Number(viewer.district_id || 0) > 0;
+  }
+  if (DISTRICT_LEADER_ROLES.includes(viewer.role)) {
+    return Number(viewer.district_id || 0) > 0;
+  }
+  if (BIG_FAMILY_LEADER_ROLES.includes(viewer.role)) {
+    return Number(viewer.big_family_id || 0) > 0;
+  }
+  if (SMALL_GROUP_LEADER_ROLES.includes(viewer.role)) {
+    return Number(viewer.small_group_id || 0) > 0;
+  }
+  return false;
 }
 
 function canEditMemberActiveStatus(member = null) {
@@ -7586,14 +7619,26 @@ function canPurgeMember(member) {
 }
 
 function canManageMemberDistrict(viewer, districtId) {
-  if (!viewer || viewer.is_admin || PREACHER_ROLES.includes(viewer.role)) {
-    return Boolean(viewer);
+  if (!viewer) {
+    return false;
+  }
+  if (viewer.is_admin) {
+    return true;
   }
   if (!districtId) {
     return false;
   }
+  if (PREACHER_ROLES.includes(viewer.role)) {
+    const districtIds = getDistrictPastorDistrictIds(viewer);
+    return districtIds.length
+      ? districtIds.includes(Number(districtId))
+      : Number(viewer.district_id || 0) === Number(districtId);
+  }
   if (DISTRICT_PASTOR_ROLES.includes(viewer.role)) {
-    return getDistrictPastorDistrictIds(viewer).includes(Number(districtId));
+    const districtIds = getDistrictPastorDistrictIds(viewer);
+    return districtIds.length
+      ? districtIds.includes(Number(districtId))
+      : Number(viewer.district_id || 0) === Number(districtId);
   }
   return (
     DISTRICT_LEADER_ROLES.includes(viewer.role) ||

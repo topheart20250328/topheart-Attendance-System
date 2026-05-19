@@ -252,11 +252,35 @@ function canCreateMembers(viewer: MemberRow) {
   if (viewer.is_admin) {
     return true;
   }
-  return canUseManagement(viewer) && !SMALL_GROUP_LEADER_ROLES.has(viewer.role);
+  return canUseManagement(viewer) &&
+    hasManagementScope(viewer) &&
+    !SMALL_GROUP_LEADER_ROLES.has(viewer.role);
 }
 
 function canChangeMemberActiveStatus(viewer: MemberRow) {
   return canUseManagement(viewer) && !SMALL_GROUP_LEADER_ROLES.has(viewer.role);
+}
+
+function hasManagementScope(viewer: MemberRow) {
+  if (viewer.is_admin) {
+    return true;
+  }
+  if (PREACHER_ROLES.has(viewer.role)) {
+    return getDistrictPastorDistrictIds(viewer).length > 0 || viewer.district_id !== null;
+  }
+  if (DISTRICT_PASTOR_ROLES.has(viewer.role)) {
+    return getDistrictPastorDistrictIds(viewer).length > 0 || viewer.district_id !== null;
+  }
+  if (DISTRICT_LEADER_ROLES.has(viewer.role)) {
+    return viewer.district_id !== null;
+  }
+  if (BIG_FAMILY_LEADER_ROLES.has(viewer.role)) {
+    return viewer.big_family_id !== null;
+  }
+  if (SMALL_GROUP_LEADER_ROLES.has(viewer.role)) {
+    return viewer.small_group_id !== null;
+  }
+  return false;
 }
 
 function canManageDistrict(viewer: MemberRow, districtId: number | null) {
@@ -1327,6 +1351,9 @@ async function loadVisibleMembers(
           query = query.in("district_id", districtIds);
         } else if (viewer.district_id) {
           query = query.eq("district_id", viewer.district_id);
+        } else {
+          const rows = await includeViewerRow(db, viewer, []);
+          return await attachEquipmentProgress(db, rows);
         }
       }
     }
@@ -1334,16 +1361,23 @@ async function loadVisibleMembers(
     if (error) {
       throw new Error(error.message);
     }
-    return await attachEquipmentProgress(db, (data || []) as MemberRow[]);
+    const rows = await includeViewerRow(db, viewer, (data || []) as MemberRow[]);
+    return await attachEquipmentProgress(db, rows);
   }
 
   if (DISTRICT_PASTOR_ROLES.has(viewer.role)) {
     const districtIds = getDistrictPastorDistrictIds(viewer);
-    if (!districtIds.length) {
-      return [];
+    const scopedDistrictIds = districtIds.length
+      ? districtIds
+      : viewer.district_id
+        ? [viewer.district_id]
+        : [];
+    if (!scopedDistrictIds.length) {
+      const rows = await includeViewerRow(db, viewer, []);
+      return await attachEquipmentProgress(db, rows);
     }
     query = query
-      .in("district_id", districtIds)
+      .in("district_id", scopedDistrictIds)
       .in("role", ["district_pastor", "district_leader", "big_family_leader", "trainee_big_family_leader", "small_group_leader", "trainee_small_group_leader", "member", "best"]);
   } else if (DISTRICT_LEADER_ROLES.has(viewer.role)) {
     query = query
@@ -1365,7 +1399,27 @@ async function loadVisibleMembers(
   if (error) {
     throw new Error(error.message);
   }
-  return await attachEquipmentProgress(db, (data || []) as MemberRow[]);
+  const rows = await includeViewerRow(db, viewer, (data || []) as MemberRow[]);
+  return await attachEquipmentProgress(db, rows);
+}
+
+async function includeViewerRow(
+  db: ReturnType<typeof createAdminClient>,
+  viewer: MemberRow,
+  rows: MemberRow[],
+) {
+  if (!viewer?.id || rows.some((member) => Number(member.id) === Number(viewer.id))) {
+    return rows;
+  }
+  const { data, error } = await db
+    .from("member_directory")
+    .select("*")
+    .eq("id", viewer.id)
+    .maybeSingle();
+  if (error) {
+    throw new Error(error.message);
+  }
+  return data?.is_active === false ? rows : [...rows, data as MemberRow];
 }
 
 async function attachEquipmentProgress(
@@ -1582,13 +1636,22 @@ async function loadOverviewMembers(db: ReturnType<typeof createAdminClient>, vie
         query = query.in("district_id", districtIds);
       } else if (viewer.district_id) {
         query = query.eq("district_id", viewer.district_id);
+      } else {
+        const rows = await includeViewerRow(db, viewer, []);
+        return await attachEquipmentProgress(db, rows);
       }
     } else if (DISTRICT_PASTOR_ROLES.has(viewer.role)) {
       const districtIds = getDistrictPastorDistrictIds(viewer);
-      if (!districtIds.length) {
-        return [];
+      const scopedDistrictIds = districtIds.length
+        ? districtIds
+        : viewer.district_id
+          ? [viewer.district_id]
+          : [];
+      if (!scopedDistrictIds.length) {
+        const rows = await includeViewerRow(db, viewer, []);
+        return await attachEquipmentProgress(db, rows);
       }
-      query = query.in("district_id", districtIds);
+      query = query.in("district_id", scopedDistrictIds);
     } else if (DISTRICT_LEADER_ROLES.has(viewer.role)) {
       query = query.eq("district_id", viewer.district_id || -1);
     } else if (BIG_FAMILY_LEADER_ROLES.has(viewer.role)) {
@@ -1603,7 +1666,8 @@ async function loadOverviewMembers(db: ReturnType<typeof createAdminClient>, vie
   if (error) {
     throw new Error(error.message);
   }
-  return await attachEquipmentProgress(db, (data || []) as MemberRow[]);
+  const rows = await includeViewerRow(db, viewer, (data || []) as MemberRow[]);
+  return await attachEquipmentProgress(db, rows);
 }
 
 async function loadRecords(
