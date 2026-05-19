@@ -5105,6 +5105,7 @@ async function handleSaveMember(event) {
 
   const role = els.memberRoleSelect.value;
   const usesManagedDistricts = usesMultiDistrictSelect(role);
+  const shouldClearSingleDistrict = DISTRICT_PASTOR_ROLES.includes(role);
   const createScopeMode = getMemberCreateScopeMode(role);
   const body = {
     full_name: els.memberNameInput.value.trim(),
@@ -5113,7 +5114,7 @@ async function handleSaveMember(event) {
     gender: els.memberGenderSelect.value || null,
     equipment_progress: normalizeEquipmentProgress(els.memberEquipmentProgressSelect.value),
     note: els.memberNoteInput.value.trim(),
-    district_id: usesManagedDistricts
+    district_id: shouldClearSingleDistrict
       ? null
       : Number(els.memberDistrictSelect.value || 0) || null,
     district_ids: usesManagedDistricts
