@@ -3725,18 +3725,6 @@ tbody tr:last-child td {
   box-sizing: border-box;
 }
 
-.org-flow-collapse-mark {
-  position: absolute;
-  top: 3px;
-  right: 7px;
-  color: rgba(100, 116, 139, 0.26);
-  font-size: 0.74rem;
-  font-weight: 700;
-  line-height: 1;
-  pointer-events: none;
-  transition: color 160ms ease;
-}
-
 .org-flow-node.is-clickable {
   cursor: pointer;
   transition:
@@ -3749,10 +3737,6 @@ tbody tr:last-child td {
 .org-flow-node.is-clickable:hover {
   border-color: rgba(43, 111, 243, 0.42);
   box-shadow: 0 8px 18px rgba(43, 111, 243, 0.12);
-}
-
-.org-flow-node.is-clickable:hover .org-flow-collapse-mark {
-  color: rgba(71, 85, 105, 0.42);
 }
 
 .org-flow-node.is-clickable::after {

@@ -5773,16 +5773,8 @@ function renderOrganizationTreeDistrict(district) {
   const childCount = bigFamilies.length + directSmallGroups.length + (directMembers.length ? 1 : 0);
   const summary = buildOrganizationNodeSummary({
     bigFamilyCount: bigFamilies.length,
-    smallGroupCount: directSmallGroups.length + bigFamilies.reduce((total, bigFamily) => total + getOrganizationTreeChildSmallGroups(bigFamily).length, 0),
-    memberCount: countOrganizationTreePeople([
-      ...bigFamilies.flatMap((bigFamily) => [
-        ...getOrganizationTreeChildSmallGroups(bigFamily).flatMap((smallGroup) => getOrganizationTreeChildMembers(smallGroup)),
-        ...getOrganizationTreeChildMembers(bigFamily),
-      ]),
-      ...directSmallGroups.flatMap((smallGroup) => getOrganizationTreeChildMembers(smallGroup)),
-      ...directMembers,
-    ]),
-    leaderCount: districtLeaders.length,
+    smallGroupCount: countOrganizationTreeSmallGroupsByDistrict(district.id),
+    memberCount: countOrganizationTreeMembersByScope({ districtId: district.id }),
   });
   const childClass = [
     getOrganizationTreeChildrenClass(childCount),
@@ -5829,11 +5821,7 @@ function renderOrganizationTreeBigFamily(bigFamily) {
   const childCount = smallGroups.length + (directMembers.length ? 1 : 0);
   const summary = buildOrganizationNodeSummary({
     smallGroupCount: smallGroups.length,
-    memberCount: countOrganizationTreePeople([
-      ...smallGroups.flatMap((smallGroup) => getOrganizationTreeChildMembers(smallGroup)),
-      ...directMembers,
-    ]),
-    leaderCount: bigFamilyLeaders.length,
+    memberCount: countOrganizationTreeMembersByScope({ bigFamilyId: bigFamily.id }),
   });
 
   return `
@@ -5998,7 +5986,6 @@ function renderOrganizationFlowNode(type, name, { isActive = true, nodeKey = "",
       class="org-flow-node org-flow-node-${escapeHtml(type)} ${isActive ? "" : "is-archived"} ${isCollapsed ? "is-collapsed" : ""} ${canCollapse ? "is-clickable" : ""}"
       ${canCollapse ? `data-org-tree-key="${escapeHtml(nodeKey)}" title="點擊可${isCollapsed ? "展開" : "收合"}" role="button" tabindex="0" aria-expanded="${isCollapsed ? "false" : "true"}"` : ""}
     >
-      ${canCollapse ? `<span class="org-flow-collapse-mark" aria-hidden="true">${isCollapsed ? "›" : "⌄"}</span>` : ""}
       <strong>${escapeHtml(name)}</strong>
       ${summary ? `<span class="org-flow-node-summary">${escapeHtml(summary)}</span>` : ""}
     </div>
@@ -6009,14 +5996,38 @@ function buildOrganizationNodeSummary({
   bigFamilyCount = 0,
   smallGroupCount = 0,
   memberCount = 0,
-  leaderCount = 0,
 } = {}) {
   return [
     bigFamilyCount ? `${bigFamilyCount} 大家` : "",
     smallGroupCount ? `${smallGroupCount} 小家` : "",
     memberCount ? `${memberCount} 人` : "",
-    leaderCount ? `${leaderCount} 領袖` : "",
   ].filter(Boolean).join(" / ");
+}
+
+function countOrganizationTreeMembersByScope({ districtId = 0, bigFamilyId = 0, smallGroupId = 0 } = {}) {
+  return countOrganizationTreePeople(
+    state.adminData.members.filter((member) => {
+      if (member.is_active === false) {
+        return false;
+      }
+      if (smallGroupId) {
+        return Number(member.small_group_id || 0) === Number(smallGroupId);
+      }
+      if (bigFamilyId) {
+        return Number(member.big_family_id || 0) === Number(bigFamilyId);
+      }
+      if (districtId) {
+        return Number(member.district_id || 0) === Number(districtId);
+      }
+      return false;
+    }),
+  );
+}
+
+function countOrganizationTreeSmallGroupsByDistrict(districtId) {
+  return state.adminData.smallGroups.filter(
+    (smallGroup) => Number(smallGroup.district_id || 0) === Number(districtId),
+  ).length;
 }
 
 function countOrganizationTreePeople(members) {
@@ -6025,20 +6036,6 @@ function countOrganizationTreePeople(members) {
       .filter((member) => member?.id && member.is_active !== false)
       .map((member) => member.id),
   ).size;
-}
-
-function getOrganizationTreeChildSmallGroups(node) {
-  return Array.isArray(node?.smallGroups) ? node.smallGroups : [];
-}
-
-function getOrganizationTreeChildMembers(node) {
-  if (Array.isArray(node?.members)) {
-    return node.members;
-  }
-  if (Array.isArray(node?.directMembers)) {
-    return node.directMembers;
-  }
-  return [];
 }
 
 function getOrganizationTreeKey(type, id) {
