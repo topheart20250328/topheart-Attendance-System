@@ -1352,8 +1352,7 @@ async function loadVisibleMembers(
         } else if (viewer.district_id) {
           query = query.eq("district_id", viewer.district_id);
         } else {
-          const rows = await includeViewerRow(db, viewer, []);
-          return await attachEquipmentProgress(db, rows);
+          return [];
         }
       }
     }
@@ -1373,8 +1372,7 @@ async function loadVisibleMembers(
         ? [viewer.district_id]
         : [];
     if (!scopedDistrictIds.length) {
-      const rows = await includeViewerRow(db, viewer, []);
-      return await attachEquipmentProgress(db, rows);
+      return [];
     }
     query = query
       .in("district_id", scopedDistrictIds)
@@ -1637,8 +1635,7 @@ async function loadOverviewMembers(db: ReturnType<typeof createAdminClient>, vie
       } else if (viewer.district_id) {
         query = query.eq("district_id", viewer.district_id);
       } else {
-        const rows = await includeViewerRow(db, viewer, []);
-        return await attachEquipmentProgress(db, rows);
+        return [];
       }
     } else if (DISTRICT_PASTOR_ROLES.has(viewer.role)) {
       const districtIds = getDistrictPastorDistrictIds(viewer);
@@ -1648,8 +1645,7 @@ async function loadOverviewMembers(db: ReturnType<typeof createAdminClient>, vie
           ? [viewer.district_id]
           : [];
       if (!scopedDistrictIds.length) {
-        const rows = await includeViewerRow(db, viewer, []);
-        return await attachEquipmentProgress(db, rows);
+        return [];
       }
       query = query.in("district_id", scopedDistrictIds);
     } else if (DISTRICT_LEADER_ROLES.has(viewer.role)) {

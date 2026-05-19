@@ -520,6 +520,22 @@ body:not(.is-authenticated) #attendanceSaveBar {
   color: #ffffff;
 }
 
+.admin-mode-toggle:hover,
+.admin-mode-toggle:active,
+.admin-mode-toggle[aria-pressed="false"]:hover,
+.admin-mode-toggle[aria-pressed="false"]:active {
+  background: #ffffff;
+  border-color: #2563eb;
+  color: var(--primary-strong);
+}
+
+.admin-mode-toggle[aria-pressed="true"]:hover,
+.admin-mode-toggle[aria-pressed="true"]:active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #ffffff;
+}
+
 .admin-mode-toggle:focus-visible {
   outline: 3px solid rgba(43, 111, 243, 0.18);
   outline-offset: 2px;
@@ -3814,6 +3830,7 @@ tbody tr:last-child td {
   background: transparent;
   box-sizing: border-box;
   justify-self: center;
+  align-self: center;
 }
 
 .org-flow-leader-strip::before {
@@ -3830,12 +3847,25 @@ tbody tr:last-child td {
 .org-flow-leaders {
   display: grid;
   justify-items: center;
+  justify-content: center;
   gap: 4px;
 }
 
 .org-flow-leader-strip .org-member-pill {
   width: 78px;
   min-width: 78px;
+}
+
+.org-tree-board.is-compact-tree .org-flow-column-district,
+.org-tree-board.is-compact-tree .org-flow-column-big {
+  justify-items: center;
+}
+
+.org-tree-board.is-compact-tree .org-flow-column-district > .org-flow-leader-strip,
+.org-tree-board.is-compact-tree .org-flow-column-big > .org-flow-leader-strip {
+  justify-self: center;
+  margin-right: auto;
+  margin-left: auto;
 }
 
 .org-flow-unassigned {

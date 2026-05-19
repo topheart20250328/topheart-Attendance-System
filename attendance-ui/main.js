@@ -5640,7 +5640,7 @@ function renderOrganizationTreeUnassignedMembers(members) {
   return `
     <article class="org-flow-row org-flow-unassigned ${isCollapsed ? "is-collapsed" : ""}">
       <div class="org-flow-column org-flow-column-unassigned">
-        ${renderOrganizationFlowNode("unassigned", "直屬人員", { nodeKey, isCollapsed })}
+        ${renderOrganizationFlowNode("unassigned", "特殊職務", { nodeKey, isCollapsed })}
       </div>
       <div class="org-flow-members org-flow-unassigned-members org-flow-children">
         ${members.map(renderOrganizationTreeMember).join("")}
