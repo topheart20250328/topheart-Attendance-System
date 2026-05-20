@@ -1836,19 +1836,21 @@ function getAttendanceScopeModeLabel() {
 }
 
 function renderWeekSummary() {
-  const visibleCount = state.roster.length;
-  const pendingCount = state.roster.filter(hasPendingAttendance).length;
+  const attendanceRateRoster = state.roster.filter(isAttendanceRateMember);
+  const visibleCount = attendanceRateRoster.length;
+  const pendingCount = attendanceRateRoster.filter(hasPendingAttendance).length;
   const completedCount = Math.max(visibleCount - pendingCount, 0);
-  const completedRate = formatPercent(completedCount, visibleCount);
-  const sundayPresentCount = countStatus("sunday_service", "present");
+  const completedRate = formatAttendanceSummaryRate(completedCount, visibleCount);
+  const sundayPresentCount = countStatus("sunday_service", "present", attendanceRateRoster);
   const fellowshipPresentCount = countStatus(
     "small_group_fellowship",
     "present",
+    attendanceRateRoster,
   );
 
   els.weekSummary.innerHTML = `
     <div class="summary-item">
-      <span class="info-label">總人數</span>
+      <span class="info-label">計算人數</span>
       <strong>${visibleCount}</strong>
     </div>
     <div class="summary-item attendance-completion-summary">
@@ -1857,19 +1859,21 @@ function renderWeekSummary() {
     </div>
     <div class="summary-item">
       <span class="info-label">主日</span>
-      <strong>${sundayPresentCount} / ${formatPercent(
-        sundayPresentCount,
-        visibleCount,
-      )}</strong>
+      <strong>${sundayPresentCount} / ${formatAttendanceSummaryRate(sundayPresentCount, visibleCount)}</strong>
     </div>
     <div class="summary-item">
       <span class="info-label">小家</span>
-      <strong>${fellowshipPresentCount} / ${formatPercent(
-        fellowshipPresentCount,
-        visibleCount,
-      )}</strong>
+      <strong>${fellowshipPresentCount} / ${formatAttendanceSummaryRate(fellowshipPresentCount, visibleCount)}</strong>
     </div>
   `;
+}
+
+function isAttendanceRateMember(member) {
+  return member?.role !== "best";
+}
+
+function formatAttendanceSummaryRate(numerator, denominator) {
+  return denominator ? formatPercent(numerator, denominator) : "不計";
 }
 
 function renderAttendanceReminderEntry() {
@@ -2685,8 +2689,8 @@ function renderAttendanceSelect(member, eventType) {
   `;
 }
 
-function countStatus(eventType, status) {
-  return state.roster.filter(
+function countStatus(eventType, status, members = state.roster) {
+  return members.filter(
     (member) => getSelectedAttendanceStatus(member.id, eventType) === status,
   ).length;
 }
@@ -2893,6 +2897,7 @@ function shouldConfirmInitialSmallGroupAttendanceSave() {
 
   return state.roster.some(
     (member) =>
+      isAttendanceRateMember(member) &&
       member.can_edit_attendance &&
       (
         getAttendanceStatus(member, "sunday_service") === "unknown" ||
@@ -3523,7 +3528,7 @@ function getOverviewCompletionMetrics(stats, memberCount = 0) {
 function getOverviewCompletionState(stats, memberCount = 0) {
   const { expectedCount, confirmedCount } = getOverviewCompletionMetrics(stats, memberCount);
   if (!expectedCount) {
-    return { label: "尚無資料", tone: "neutral", chipClass: "neutral", isZero: false };
+    return { label: "不計出席率", tone: "neutral", chipClass: "neutral", isZero: false };
   }
   if (!confirmedCount) {
     return { label: "填寫率 0%", tone: "danger", chipClass: "danger", isZero: true };
@@ -3536,6 +3541,9 @@ function getOverviewCompletionState(stats, memberCount = 0) {
 
 function formatOverviewHeadline(stats, memberCount = 0) {
   const { expectedCount, confirmedCount } = getOverviewCompletionMetrics(stats, memberCount);
+  if (!expectedCount) {
+    return "不計出席率";
+  }
   if (expectedCount && !confirmedCount) {
     return "尚未填寫";
   }
@@ -3638,10 +3646,16 @@ function getOverviewMemberAlerts(member) {
 }
 
 function getOverviewAttendanceReminder(member) {
+  if (!isAttendanceRateMember(member)) {
+    return null;
+  }
   return getAttendanceReminderForEvent(member, state.ui.overviewEvent);
 }
 
 function getDashboardAttendanceReminder(member) {
+  if (!isAttendanceRateMember(member)) {
+    return null;
+  }
   const historySource = hasMemberReminderHistory(member)
     ? member
     : findLoadedOverviewMemberById(member?.id) || member;
@@ -3897,6 +3911,10 @@ function createEmptyOverviewDetail() {
 }
 
 function formatOverviewRate(stats, memberCount = 0) {
+  const { expectedCount } = getOverviewCompletionMetrics(stats, memberCount);
+  if (!expectedCount) {
+    return "不計出席率";
+  }
   const confirmedCount = Number(stats?.confirmed_count || 0);
   return confirmedCount
     ? formatPercent(stats?.present_count || 0, confirmedCount)

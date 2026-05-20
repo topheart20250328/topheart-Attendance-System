@@ -1053,7 +1053,9 @@ async function handleDashboard(
       is_self: member.id === viewer.id,
       can_edit_attendance: canEditAttendance(effectiveViewer, member),
       can_edit_note: canEditNote(effectiveViewer, member),
-      history: historyMap.get(member.id) || createEmptyHistorySummary(weekStart),
+      history: isAttendanceRateMember(member)
+        ? historyMap.get(member.id) || createEmptyHistorySummary(weekStart)
+        : createEmptyHistorySummary(weekStart),
       attendance: {
         sunday_service: statusOf(recordMap.get(`${member.id}:sunday_service`)?.status),
         small_group_fellowship: statusOf(recordMap.get(`${member.id}:small_group_fellowship`)?.status),
@@ -1895,6 +1897,10 @@ function unit(
   return result;
 }
 
+function isAttendanceRateMember(member: MemberRow) {
+  return member.role !== "best";
+}
+
 function filterOverviewUnits(units: any[], options: OverviewRequestOptions) {
   const filtered = units.filter((overviewUnit) => {
     if (options.unitType && overviewUnit.type !== options.unitType) {
@@ -1992,13 +1998,14 @@ function aggregateUnitHistory(
   members: MemberRow[],
   historyMap: Map<number, Record<string, any>>,
 ) {
-  const firstHistory = members
+  const rateMembers = members.filter(isAttendanceRateMember);
+  const firstHistory = rateMembers
     .map((member) => historyMap.get(member.id))
     .find(Boolean);
   const anchorWeekStart = firstHistory?.month?.end_date || formatDate(new Date());
   const result = createEmptyHistorySummary(anchorWeekStart);
 
-  for (const member of members) {
+  for (const member of rateMembers) {
     const memberHistory = historyMap.get(member.id);
     if (!memberHistory) {
       continue;
@@ -2033,14 +2040,15 @@ function addStats(target: any, source: any) {
 }
 
 function stats(members: MemberRow[], recordMap: Map<string, any>, eventType: string) {
+  const rateMembers = members.filter(isAttendanceRateMember);
   const result = {
     present_count: 0,
     absent_count: 0,
     unknown_count: 0,
     confirmed_count: 0,
-    expected_count: members.length,
+    expected_count: rateMembers.length,
   };
-  for (const member of members) {
+  for (const member of rateMembers) {
     const status = normalizeStatus(recordMap.get(`${member.id}:${eventType}`)?.status);
     if (status === "present") {
       result.present_count += 1;
@@ -2065,6 +2073,10 @@ function detail(
   for (const member of members) {
     const record = recordMap.get(`${member.id}:${eventType}`);
     const status = normalizeStatus(record?.status);
+    const memberHistory = historyMap.get(member.id) || createEmptyHistorySummary(formatDate(new Date()));
+    const detailHistory = isAttendanceRateMember(member)
+      ? memberHistory
+      : createEmptyHistorySummary(memberHistory.month?.end_date || formatDate(new Date()));
     result[status].push({
       id: member.id,
       full_name: member.full_name,
@@ -2074,7 +2086,7 @@ function detail(
       equipment_progress: member.equipment_progress || "none",
       note: String(record?.note || "").trim(),
       note_priority_high: Boolean(record?.note && record?.note_priority_high),
-      history: historyMap.get(member.id) || createEmptyHistorySummary(formatDate(new Date())),
+      history: detailHistory,
     });
   }
   return result;

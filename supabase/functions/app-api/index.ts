@@ -120,6 +120,7 @@ type AttendanceEventAnalytics = {
   absent_count: number;
   unknown_count: number;
   confirmed_count: number;
+  expected_count: number;
 };
 
 type AttendanceAnalyticsRange = {
@@ -382,7 +383,7 @@ async function handleGetDashboard(
   );
   const analytics = await loadAttendanceAnalytics(
     adminClient,
-    rosterMembers.map((member) => member.id),
+    rosterMembers.filter(isAttendanceRateMember).map((member) => member.id),
     weekStart,
   );
 
@@ -2396,6 +2397,7 @@ function createEmptyAttendanceEventAnalytics(): AttendanceEventAnalytics {
     absent_count: 0,
     unknown_count: 0,
     confirmed_count: 0,
+    expected_count: 0,
   };
 }
 
@@ -2446,6 +2448,10 @@ function accumulateAttendanceAnalytics(
   }
 
   stats.unknown_count += 1;
+}
+
+function isAttendanceRateMember(member: MemberDirectoryRow) {
+  return member.role !== "best";
 }
 
 async function loadAttendanceAnalytics(
@@ -3309,8 +3315,10 @@ function summarizeOverviewEvent(
   recordMap: Map<string, any>,
   eventType: string,
 ) {
+  const rateMembers = members.filter(isAttendanceRateMember);
   const stats = createEmptyAttendanceEventAnalytics();
-  for (const member of members) {
+  stats.expected_count = rateMembers.length;
+  for (const member of rateMembers) {
     const record = recordMap.get(`${member.id}:${eventType}`);
     accumulateAttendanceAnalytics(stats, String(record?.status || "unknown"));
   }
