@@ -441,6 +441,10 @@ const orgTreePinch = {
   scrollTop: 0,
 };
 
+const orgTreeViewState = {
+  needsInitialPlacement: true,
+};
+
 boot()
   .catch((error) => {
     console.error(error);
@@ -1413,7 +1417,9 @@ function renderActiveView() {
   setHidden(els.orgsView, state.ui.activeTab !== TABS.orgs || !canUseOrganizationManagement());
   setHidden(els.invitesView, state.ui.activeTab !== TABS.invites || !canUseInvites());
   if (state.ui.activeTab === TABS.orgs && canUseOrganizationManagement()) {
-    scheduleOrganizationTreeConnectorSync();
+    scheduleOrganizationTreeConnectorSync({
+      placeTopCenter: orgTreeViewState.needsInitialPlacement,
+    });
   }
 }
 
@@ -6243,7 +6249,11 @@ function renderOrganizationTree() {
     return;
   }
 
-  const viewportCenter = getOrganizationTreeViewportCenter();
+  const canMeasureTree = isOrganizationTreeMeasurable();
+  const viewportCenter = canMeasureTree ? getOrganizationTreeViewportCenter() : null;
+  if (!canMeasureTree) {
+    orgTreeViewState.needsInitialPlacement = true;
+  }
   syncOrganizationTreeControls();
   syncOrganizationTreePanel();
   els.orgTreeBody.classList.toggle("is-compact-tree", state.ui.orgTreeMode !== "vertical");
@@ -6275,10 +6285,12 @@ function renderOrganizationTree() {
   `;
   resetOrganizationTreeConnectors();
   applyOrganizationTreeScale(state.ui.orgTreeScale, { syncConnectors: false });
-  if (viewportCenter) {
+  if (viewportCenter && !orgTreeViewState.needsInitialPlacement) {
     restoreOrganizationTreeViewportCenter(viewportCenter);
   }
-  scheduleOrganizationTreeConnectorSync();
+  scheduleOrganizationTreeConnectorSync({
+    placeTopCenter: orgTreeViewState.needsInitialPlacement,
+  });
 }
 
 function getOrganizationTreeDistrictColumns(districtCount) {
@@ -6844,6 +6856,7 @@ function fitOrganizationTreeToView() {
   const nextScale = Math.min(ORG_TREE_MAX_SCALE, Math.max(ORG_TREE_MIN_SCALE, fitScale));
   applyOrganizationTreeScale(nextScale);
   placeOrganizationTreeAtTopCenter();
+  orgTreeViewState.needsInitialPlacement = false;
   saveUiPreferences();
 }
 
@@ -6868,11 +6881,13 @@ function setOrganizationTreeScale(scale) {
   if (viewportCenter) {
     restoreOrganizationTreeViewportCenter(viewportCenter);
   }
+  orgTreeViewState.needsInitialPlacement = false;
 }
 
 function resetOrganizationTreeView() {
   applyOrganizationTreeScale(1);
   placeOrganizationTreeAtTopCenter();
+  orgTreeViewState.needsInitialPlacement = false;
   saveUiPreferences();
 }
 
@@ -6943,14 +6958,17 @@ function syncOrganizationTreeZoomControls() {
   }
 }
 
-function scheduleOrganizationTreeConnectorSync() {
+function scheduleOrganizationTreeConnectorSync({ placeTopCenter = false } = {}) {
   if (!els.orgTreeBody) {
     return;
   }
   const syncLayout = () => {
     const viewportCenter = getOrganizationTreeViewportCenter();
     updateOrganizationTreeScaledShellSize();
-    if (viewportCenter) {
+    if (placeTopCenter && isOrganizationTreeMeasurable()) {
+      placeOrganizationTreeAtTopCenter();
+      orgTreeViewState.needsInitialPlacement = false;
+    } else if (viewportCenter) {
       restoreOrganizationTreeViewportCenter(viewportCenter);
     }
     if (state.ui.orgTreeMode !== "vertical") {
@@ -7033,6 +7051,7 @@ function handleOrganizationTreeTouchMove(event) {
     0,
     gutter.y + orgTreePinch.contentY * nextScale - orgTreePinch.centerY,
   );
+  orgTreeViewState.needsInitialPlacement = false;
   event.preventDefault();
 }
 
@@ -7112,6 +7131,7 @@ function handleOrganizationTreePointerMove(event) {
 
   orgTreeDrag.isDragging = true;
   orgTreeDrag.suppressClick = true;
+  orgTreeViewState.needsInitialPlacement = false;
   els.orgTreeBody.classList.add("is-dragging");
   els.orgTreeBody.scrollLeft = orgTreeDrag.scrollLeft - deltaX;
   els.orgTreeBody.scrollTop = orgTreeDrag.scrollTop - deltaY;
