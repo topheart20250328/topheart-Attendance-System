@@ -4067,7 +4067,7 @@ tbody tr:last-child td {
 
 .org-tree-actions {
   display: grid;
-  grid-template-columns: auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   justify-content: center;
   gap: 5px;
@@ -4077,9 +4077,9 @@ tbody tr:last-child td {
 .org-tree-panel > .section-toolbar {
   display: grid;
   grid-template-columns: 1fr;
-  justify-items: center;
+  justify-items: stretch;
   gap: 10px;
-  text-align: center;
+  text-align: left;
 }
 
 .org-tree-zoom-control {
@@ -4087,7 +4087,9 @@ tbody tr:last-child td {
   grid-template-columns: minmax(150px, 190px) auto auto auto;
   align-items: center;
   gap: 4px;
-  width: min(100%, 282px);
+  justify-self: center;
+  width: 100%;
+  max-width: 420px;
   padding: 3px;
   min-height: 34px;
   box-sizing: border-box;
