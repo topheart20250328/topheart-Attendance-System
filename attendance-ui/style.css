@@ -4069,15 +4069,25 @@ tbody tr:last-child td {
   display: grid;
   grid-template-columns: auto;
   align-items: center;
-  justify-content: end;
+  justify-content: center;
   gap: 5px;
+  width: 100%;
+}
+
+.org-tree-panel > .section-toolbar {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 10px;
+  text-align: center;
 }
 
 .org-tree-zoom-control {
   display: inline-grid;
-  grid-template-columns: minmax(150px, 164px) auto auto auto;
+  grid-template-columns: minmax(150px, 190px) auto auto auto;
   align-items: center;
   gap: 4px;
+  width: min(100%, 282px);
   padding: 3px;
   min-height: 34px;
   box-sizing: border-box;
