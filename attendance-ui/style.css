@@ -2526,6 +2526,7 @@ tbody tr:last-child td {
   display: flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
   margin: 6px 0 8px;
   padding-bottom: 2px;
   overflow-x: auto;
@@ -2606,6 +2607,7 @@ tbody tr:last-child td {
 
 .overview-reminder-button {
   flex: 0 0 auto;
+  margin-left: auto;
   min-height: 34px;
   padding: 0.34rem 0.6rem;
   border: 1px solid var(--border);
@@ -2615,6 +2617,10 @@ tbody tr:last-child td {
   font-size: 0.84rem;
   font-weight: 800;
   white-space: nowrap;
+}
+
+#memberBirthdayInput {
+  letter-spacing: 0.02em;
 }
 
 .overview-unit-list {

@@ -514,6 +514,7 @@ function bindEvents() {
   els.closeBulkMemberEditorBtn?.addEventListener("click", closeBulkMemberEditor);
 
   els.memberForm.addEventListener("submit", handleSaveMember);
+  els.memberBirthdayInput?.addEventListener("blur", handleBirthdayInputBlur);
   els.memberRoleSelect.addEventListener("change", () => {
     const editingMember = state.ui.editingMemberId
       ? state.adminData.members.find((member) => member.id === state.ui.editingMemberId)
@@ -1901,15 +1902,19 @@ function buildOverviewReminders() {
 
   const eventType = state.ui.overviewEvent;
   const memberByKey = new Map();
-  for (const unit of getFilteredOverviewUnits(state.overviewData.units || [])) {
+  const units = getReminderOverviewUnits();
+  for (const unit of units) {
     const detail = unit.detail?.[eventType] || {};
     for (const status of ["present", "absent", "unknown"]) {
       for (const member of detail[status] || []) {
         const key = getOverviewMemberKey(member);
         if (!memberByKey.has(key)) {
+          const level = unit.level || unit.type;
           memberByKey.set(key, {
             ...member,
             reminderUnitName: unit.name,
+            reminderUnitLevel: level,
+            reminderParentName: unit.parent_name || "",
             reminderUnitKey: getOverviewUnitKey(unit),
           });
         }
@@ -1936,8 +1941,24 @@ function buildMemberReminders(member, context = "overview") {
     unitKey: member.reminderUnitKey || "",
     fullName: member.full_name,
     role: member.role,
+    unitLevel: member.reminderUnitLevel || "",
+    parentName: member.reminderParentName || "",
     scope: member.reminderUnitName || formatMemberScopeSummary(member),
   }));
+}
+
+function getReminderOverviewUnits() {
+  const units = getFilteredOverviewUnits(state.overviewData?.units || []);
+  if (state.ui.overviewUnitType) {
+    return units;
+  }
+
+  const levelPreference = { small_group: 1, big_family: 2, district: 3 };
+  return [...units].sort((left, right) => {
+    const leftLevel = left.level || left.type;
+    const rightLevel = right.level || right.type;
+    return (levelPreference[leftLevel] || 9) - (levelPreference[rightLevel] || 9);
+  });
 }
 
 function sortReminderItems(left, right) {
@@ -2033,7 +2054,7 @@ function renderReminderItem(context, item) {
     >
       <span class="reminder-item-main">
         <strong>${escapeHtml(item.fullName || "未命名")}</strong>
-        <span>${escapeHtml([getRoleLabel(item.role), item.scope].filter(Boolean).join(" / "))}</span>
+        <span>${escapeHtml(formatReminderItemScope(item))}</span>
       </span>
       <span class="reminder-item-meta">
         <span class="overview-alert-badge ${escapeHtml(item.tone)}">${escapeHtml(item.label)}</span>
@@ -2041,6 +2062,13 @@ function renderReminderItem(context, item) {
       </span>
     </button>
   `;
+}
+
+function formatReminderItemScope(item) {
+  const levelLabel = item.unitLevel ? getOverviewLevelLabel(item.unitLevel) : "";
+  const scope = [levelLabel, item.scope].filter(Boolean).join("｜");
+  const parent = item.parentName ? `（${item.parentName}）` : "";
+  return [getRoleLabel(item.role), `${scope}${parent}`].filter(Boolean).join(" / ");
 }
 
 function handleReminderSheetClick(event) {
@@ -2636,6 +2664,13 @@ function handleAttendanceFieldChange(event) {
   refreshReminderSheetIfOpen();
 }
 
+function handleBirthdayInputBlur(event) {
+  const normalized = normalizeBirthdayInputValue(event.target.value);
+  if (normalized) {
+    event.target.value = normalized;
+  }
+}
+
 function handleRosterActions(event) {
   const attendanceOption = event.target.closest(".attendance-option");
   if (attendanceOption) {
@@ -2793,6 +2828,36 @@ function formatPercent(numerator, denominator) {
 function normalizeNote(value) {
   const note = String(value || "").trim();
   return note.length > NOTE_MAX_LENGTH ? note.slice(0, NOTE_MAX_LENGTH) : note;
+}
+
+function normalizeBirthdayInputValue(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return null;
+  }
+
+  const compactMatch = raw.match(/^(\d{4})(\d{2})(\d{2})$/);
+  const separatedMatch = raw.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  const match = compactMatch || separatedMatch;
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (
+    year < 1900 ||
+    year > new Date().getFullYear() ||
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return formatDate(date);
 }
 
 function renderGenderBadge(gender) {
@@ -3454,14 +3519,40 @@ function getOverviewAttendanceReminder(member) {
 }
 
 function getDashboardAttendanceReminder(member) {
+  const historySource = hasMemberReminderHistory(member)
+    ? member
+    : findLoadedOverviewMemberById(member?.id) || member;
   const reminders = ["sunday_service", "small_group_fellowship"]
-    .map((eventType) => getAttendanceReminderForEvent(member, eventType))
+    .map((eventType) => getAttendanceReminderForEvent(historySource, eventType))
     .filter(Boolean);
   if (!reminders.length) {
     return null;
   }
 
   return reminders.sort(compareAttendanceReminderSeverity)[0];
+}
+
+function hasMemberReminderHistory(member) {
+  return Boolean(member?.history?.month || member?.history?.three_months);
+}
+
+function findLoadedOverviewMemberById(memberId) {
+  if (!memberId || !state.overviewData) {
+    return null;
+  }
+
+  for (const unit of state.overviewData.units || []) {
+    for (const detail of Object.values(unit.detail || {})) {
+      for (const status of ["present", "absent", "unknown"]) {
+        const member = (detail?.[status] || []).find((item) => Number(item.id) === Number(memberId));
+        if (member) {
+          return member;
+        }
+      }
+    }
+  }
+
+  return null;
 }
 
 function compareAttendanceReminderSeverity(left, right) {
@@ -5444,7 +5535,7 @@ function fillMemberForm(mode, member) {
     els.memberNameInput.value = member.full_name || "";
     els.memberRoleSelect.value = member.role;
     els.memberGenderSelect.value = member.gender || "";
-    els.memberBirthdayInput.value = member.birthday || "";
+    els.memberBirthdayInput.value = member.birthday ? String(member.birthday).slice(0, 10) : "";
     els.memberEquipmentProgressSelect.value = normalizeEquipmentProgress(member.equipment_progress);
     els.memberNoteInput.value = member.note || "";
     els.memberActiveSelect.value = member.is_active ? "true" : "false";
@@ -5578,12 +5669,18 @@ async function handleSaveMember(event) {
   const usesManagedDistricts = usesMultiDistrictSelect(role);
   const shouldClearSingleDistrict = DISTRICT_PASTOR_ROLES.includes(role);
   const createScopeMode = getMemberCreateScopeMode(role);
+  const birthdayInput = els.memberBirthdayInput.value.trim();
+  const normalizedBirthday = normalizeBirthdayInputValue(birthdayInput);
+  if (birthdayInput && !normalizedBirthday) {
+    showToast("生日格式請輸入西元年月日，例如 19900524 或 1990-05-24。");
+    return;
+  }
   const body = {
     full_name: els.memberNameInput.value.trim(),
     role,
     create_scope_mode: mode === "create" ? createScopeMode : undefined,
     gender: els.memberGenderSelect.value || null,
-    birthday: els.memberBirthdayInput.value || null,
+    birthday: normalizedBirthday,
     equipment_progress: normalizeEquipmentProgress(els.memberEquipmentProgressSelect.value),
     note: els.memberNoteInput.value.trim(),
     district_id: shouldClearSingleDistrict
