@@ -609,6 +609,7 @@ async function createMemberFromBody(
     .from("members")
     .insert({
       full_name: fullName,
+      birthday: body?.birthday ? String(body.birthday) : null,
       role,
       gender: normalizeGender(body?.gender),
       note,
@@ -710,6 +711,7 @@ async function handleUpdateMember(
     .from("members")
     .update({
       full_name: String(body?.full_name || target.full_name).trim(),
+      birthday: body?.birthday ? String(body.birthday) : null,
       role: targetRole,
       gender: normalizeGender(body?.gender),
       note,

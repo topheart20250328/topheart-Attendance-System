@@ -2619,6 +2619,19 @@ tbody tr:last-child td {
   white-space: nowrap;
 }
 
+.overview-reminder-button.has-reminders {
+  border-color: #2b6ff3;
+  background: #2b6ff3;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(43, 111, 243, 0.2);
+}
+
+.overview-reminder-button.has-reminders:hover,
+.overview-reminder-button.has-reminders:active {
+  background: #1d57c8;
+  color: #ffffff;
+}
+
 #memberBirthdayInput {
   letter-spacing: 0.02em;
 }

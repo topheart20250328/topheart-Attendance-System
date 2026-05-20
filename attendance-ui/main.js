@@ -2172,27 +2172,34 @@ function focusOverviewReminderMember(memberKey, unitKey = "", statusKey = "") {
   if (!memberKey) {
     return;
   }
-  state.ui.overviewOpenMemberKeys.add(memberKey);
-  if (unitKey) {
-    state.ui.overviewOpenUnitKey = unitKey;
-  }
-  if (unitKey && statusKey) {
-    state.ui.overviewOpenStatusKey = `${unitKey}:${statusKey}`;
-  }
+  state.ui.overviewOpenMemberKeys = new Set([memberKey]);
+  state.ui.overviewOpenUnitKey = unitKey || "";
+  state.ui.overviewOpenStatusKey = unitKey && statusKey ? `${unitKey}:${statusKey}` : "";
   renderOverviewUnits();
   window.requestAnimationFrame(() => {
-    const details = els.overviewUnitList?.querySelector(`[data-overview-member-key="${escapeCssIdentifier(memberKey)}"]`);
-    if (!details) {
+    const unitScope = unitKey
+      ? els.overviewUnitList?.querySelector(`[data-overview-unit-key="${escapeCssIdentifier(unitKey)}"]`)
+      : els.overviewUnitList;
+    if (!unitScope) {
       return;
     }
-    const unitDetails = details.closest(".overview-unit-details");
-    if (unitDetails) {
-      unitDetails.open = true;
-      state.ui.overviewOpenUnitKey = unitDetails.dataset.overviewUnitKey || state.ui.overviewOpenUnitKey;
+    if (unitScope.matches?.(".overview-unit-details")) {
+      unitScope.open = true;
     }
-    const statusDetails = details.closest(".overview-status-details");
-    if (statusDetails) {
-      statusDetails.open = true;
+
+    const statusScope = statusKey
+      ? unitScope.querySelector(`.overview-status-details[data-overview-status="${escapeCssIdentifier(statusKey)}"]`)
+      : unitScope;
+    if (!statusScope) {
+      return;
+    }
+    if (statusScope.matches?.(".overview-status-details")) {
+      statusScope.open = true;
+    }
+
+    const details = statusScope.querySelector(`[data-overview-member-key="${escapeCssIdentifier(memberKey)}"]`);
+    if (!details) {
+      return;
     }
     details.open = true;
     details.scrollIntoView({ behavior: "smooth", block: "center" });
