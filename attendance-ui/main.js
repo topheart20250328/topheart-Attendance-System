@@ -1910,6 +1910,7 @@ function buildOverviewReminders() {
           memberByKey.set(key, {
             ...member,
             reminderUnitName: unit.name,
+            reminderUnitKey: getOverviewUnitKey(unit),
           });
         }
       }
@@ -1924,7 +1925,7 @@ function buildOverviewReminders() {
 function buildMemberReminders(member, context = "overview") {
   const reminders = [
     getBirthdayReminder(member),
-    context === "overview" ? getOverviewAttendanceReminder(member) : null,
+    context === "attendance" ? getDashboardAttendanceReminder(member) : getOverviewAttendanceReminder(member),
     getHighPriorityNoteReminder(member),
   ].filter(Boolean);
 
@@ -1932,6 +1933,7 @@ function buildMemberReminders(member, context = "overview") {
     ...reminder,
     memberId: member.id,
     memberKey: getOverviewMemberKey(member),
+    unitKey: member.reminderUnitKey || "",
     fullName: member.full_name,
     role: member.role,
     scope: member.reminderUnitName || formatMemberScopeSummary(member),
@@ -1981,9 +1983,7 @@ function renderReminderSheet(context, reminders) {
     return;
   }
 
-  const title = context === "overview" ? "出席總覽提醒" : "本週提醒";
-  const summary = getReminderSummary(reminders);
-  els.reminderSheetTitle.textContent = title;
+  els.reminderSheetTitle.textContent = context === "overview" ? "出席總覽提醒" : "本週提醒";
   if (!reminders.length) {
     els.reminderSheetBody.innerHTML = `
       <div class="reminder-empty-state">
@@ -2000,14 +2000,8 @@ function renderReminderSheet(context, reminders) {
     { key: "attendance", label: "出席關注" },
     { key: "note", label: "高優先備註" },
   ];
-  els.reminderSheetBody.innerHTML = `
-    <div class="reminder-summary-row">
-      ${renderReminderSummaryChip("生日", summary.birthday, "birthday")}
-      ${renderReminderSummaryChip("出席關注", summary.attendance, "warning")}
-      ${renderReminderSummaryChip("高優先備註", summary.note, "danger")}
-    </div>
-    ${groups
-      .map((group) => {
+  els.reminderSheetBody.innerHTML = groups
+    .map((group) => {
       const items = reminders.filter((item) => item.type === group.key);
       if (!items.length) {
         return "";
@@ -2023,28 +2017,8 @@ function renderReminderSheet(context, reminders) {
           </div>
         </section>
       `;
-      })
-      .join("")}
-  `;
-}
-
-function getReminderSummary(reminders) {
-  return reminders.reduce(
-    (summary, item) => ({
-      ...summary,
-      [item.type]: (summary[item.type] || 0) + 1,
-    }),
-    { birthday: 0, attendance: 0, note: 0 },
-  );
-}
-
-function renderReminderSummaryChip(label, count, tone) {
-  return `
-    <span class="reminder-summary-chip ${escapeHtml(tone)}">
-      <strong>${escapeHtml(count)}</strong>
-      <span>${escapeHtml(label)}</span>
-    </span>
-  `;
+    })
+    .join("");
 }
 
 function renderReminderItem(context, item) {
@@ -2055,6 +2029,7 @@ function renderReminderItem(context, item) {
       data-reminder-target="${escapeHtml(context)}"
       data-member-id="${escapeHtml(item.memberId || "")}"
       data-member-key="${escapeHtml(item.memberKey || "")}"
+      data-unit-key="${escapeHtml(item.unitKey || "")}"
     >
       <span class="reminder-item-main">
         <strong>${escapeHtml(item.fullName || "未命名")}</strong>
@@ -2075,16 +2050,35 @@ function handleReminderSheetClick(event) {
   }
 
   const context = item.dataset.reminderTarget;
-  if (context === "overview") {
-    focusOverviewReminderMember(item.dataset.memberKey || "");
-  } else {
-    focusAttendanceReminderMember(Number(item.dataset.memberId || 0));
-  }
   closeReminderSheet();
+  if (context === "overview") {
+    window.requestAnimationFrame(() => focusOverviewReminderMember(
+      item.dataset.memberKey || "",
+      item.dataset.unitKey || "",
+    ));
+  } else {
+    window.requestAnimationFrame(() => focusAttendanceReminderMember(Number(item.dataset.memberId || 0)));
+  }
 }
 
 function focusAttendanceReminderMember(memberId) {
-  const card = els.rosterTableBody?.querySelector(`[data-attendance-member-id="${escapeCssIdentifier(memberId)}"]`);
+  let card = els.rosterTableBody?.querySelector(`[data-attendance-member-id="${escapeCssIdentifier(memberId)}"]`);
+  if (!card) {
+    state.ui.attendanceSearch = "";
+    state.ui.attendanceRole = "";
+    state.ui.attendanceStatus = "";
+    if (els.attendanceSearchInput) {
+      els.attendanceSearchInput.value = "";
+    }
+    if (els.attendanceRoleFilter) {
+      els.attendanceRoleFilter.value = "";
+    }
+    if (els.attendanceStatusFilter) {
+      els.attendanceStatusFilter.value = "";
+    }
+    renderAttendanceRows();
+    card = els.rosterTableBody?.querySelector(`[data-attendance-member-id="${escapeCssIdentifier(memberId)}"]`);
+  }
   if (!card) {
     return;
   }
@@ -2093,11 +2087,14 @@ function focusAttendanceReminderMember(memberId) {
   window.setTimeout(() => card.classList.remove("is-reminder-focused"), 1600);
 }
 
-function focusOverviewReminderMember(memberKey) {
+function focusOverviewReminderMember(memberKey, unitKey = "") {
   if (!memberKey) {
     return;
   }
   state.ui.overviewOpenMemberKeys.add(memberKey);
+  if (unitKey) {
+    state.ui.overviewOpenUnitKey = unitKey;
+  }
   renderOverviewUnits();
   window.requestAnimationFrame(() => {
     const details = els.overviewUnitList?.querySelector(`[data-overview-member-key="${escapeCssIdentifier(memberKey)}"]`);
@@ -3453,9 +3450,32 @@ function getOverviewMemberAlerts(member) {
 }
 
 function getOverviewAttendanceReminder(member) {
-  const eventType = state.ui.overviewEvent;
+  return getAttendanceReminderForEvent(member, state.ui.overviewEvent);
+}
+
+function getDashboardAttendanceReminder(member) {
+  const reminders = ["sunday_service", "small_group_fellowship"]
+    .map((eventType) => getAttendanceReminderForEvent(member, eventType))
+    .filter(Boolean);
+  if (!reminders.length) {
+    return null;
+  }
+
+  return reminders.sort(compareAttendanceReminderSeverity)[0];
+}
+
+function compareAttendanceReminderSeverity(left, right) {
+  const severity = { danger: 1, warning: 2, caution: 3 };
+  return (severity[left.tone] || 9) - (severity[right.tone] || 9);
+}
+
+function getAttendanceReminderForEvent(member, eventType) {
   const monthStats = member?.history?.month?.[eventType] || null;
   const threeMonthStats = member?.history?.three_months?.[eventType] || null;
+  if (!monthStats && !threeMonthStats) {
+    return null;
+  }
+  const eventLabel = eventType === "small_group_fellowship" ? "小家" : "主日";
   const monthPresent = Number(monthStats?.present_count || 0);
   const monthAbsent = Number(monthStats?.absent_count || 0);
   const monthConfirmed = Number(monthStats?.confirmed_count || monthPresent + monthAbsent);
@@ -3469,8 +3489,8 @@ function getOverviewAttendanceReminder(member) {
       type: "attendance",
       tone: "danger",
       label: "急需關注",
-      detail: `近一個月已填 ${monthConfirmed} 次，皆未出席。`,
-      panelDetail: `近一個月皆未出席（已填 ${monthConfirmed} 次）`,
+      detail: `${eventLabel}近一個月已填 ${monthConfirmed} 次，皆未出席。`,
+      panelDetail: `${eventLabel}近一個月皆未出席`,
     };
   }
 
@@ -3479,8 +3499,8 @@ function getOverviewAttendanceReminder(member) {
       type: "attendance",
       tone: "danger",
       label: "急需關注",
-      detail: `近期出席率 ${formatPercent(threePresent, threeConfirmed)}（出席 ${threePresent} / 已填 ${threeConfirmed}）。`,
-      panelDetail: `近期出席率 ${formatPercent(threePresent, threeConfirmed)}`,
+      detail: `${eventLabel}近期出席率 ${formatPercent(threePresent, threeConfirmed)}（出席 ${threePresent} / 已填 ${threeConfirmed}）。`,
+      panelDetail: `${eventLabel} ${formatPercent(threePresent, threeConfirmed)}`,
     };
   }
 
@@ -3489,8 +3509,8 @@ function getOverviewAttendanceReminder(member) {
       type: "attendance",
       tone: "warning",
       label: "關注",
-      detail: `近一個月已填 ${monthConfirmed} 次，尚無出席紀錄。`,
-      panelDetail: `近一個月尚無出席紀錄（已填 ${monthConfirmed} 次）`,
+      detail: `${eventLabel}近一個月已填 ${monthConfirmed} 次，尚無出席紀錄。`,
+      panelDetail: `${eventLabel}近一個月尚無出席`,
     };
   }
 
@@ -3499,8 +3519,8 @@ function getOverviewAttendanceReminder(member) {
       type: "attendance",
       tone: "warning",
       label: "關注",
-      detail: `近期出席率 ${formatPercent(threePresent, threeConfirmed)}（出席 ${threePresent} / 已填 ${threeConfirmed}）。`,
-      panelDetail: `近期出席率 ${formatPercent(threePresent, threeConfirmed)}`,
+      detail: `${eventLabel}近期出席率 ${formatPercent(threePresent, threeConfirmed)}（出席 ${threePresent} / 已填 ${threeConfirmed}）。`,
+      panelDetail: `${eventLabel} ${formatPercent(threePresent, threeConfirmed)}`,
     };
   }
 
@@ -3509,8 +3529,8 @@ function getOverviewAttendanceReminder(member) {
       type: "attendance",
       tone: "caution",
       label: "留意",
-      detail: `近期出席率 ${formatPercent(threePresent, threeConfirmed)}（出席 ${threePresent} / 已填 ${threeConfirmed}）。`,
-      panelDetail: `近期出席率 ${formatPercent(threePresent, threeConfirmed)}`,
+      detail: `${eventLabel}近期出席率 ${formatPercent(threePresent, threeConfirmed)}（出席 ${threePresent} / 已填 ${threeConfirmed}）。`,
+      panelDetail: `${eventLabel} ${formatPercent(threePresent, threeConfirmed)}`,
     };
   }
 

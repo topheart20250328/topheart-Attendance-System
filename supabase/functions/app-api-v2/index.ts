@@ -1019,6 +1019,7 @@ async function handleDashboard(
   const memberIds = members.map((member) => member.id);
   const records = await loadRecords(db, week.id, memberIds);
   const recordMap = new Map(records.map((record) => [`${record.member_id}:${record.event_type}`, record]));
+  const historyMap = await loadMemberHistory(db, memberIds, weekStart);
   const editableMemberIds = new Set(
     members
       .filter((member) => canEditAttendance(effectiveViewer, member))
@@ -1044,6 +1045,7 @@ async function handleDashboard(
       is_self: member.id === viewer.id,
       can_edit_attendance: canEditAttendance(effectiveViewer, member),
       can_edit_note: canEditNote(effectiveViewer, member),
+      history: historyMap.get(member.id) || createEmptyHistorySummary(weekStart),
       attendance: {
         sunday_service: statusOf(recordMap.get(`${member.id}:sunday_service`)?.status),
         small_group_fellowship: statusOf(recordMap.get(`${member.id}:small_group_fellowship`)?.status),

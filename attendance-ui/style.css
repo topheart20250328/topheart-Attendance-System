@@ -3142,11 +3142,11 @@ tbody tr:last-child td {
   left: max(12px, env(safe-area-inset-left));
   z-index: 80;
   display: grid;
-  gap: 12px;
+  gap: 9px;
   max-width: 560px;
   max-height: min(72vh, 620px);
   margin: 0 auto;
-  padding: 16px;
+  padding: 12px;
   border: 1px solid rgba(217, 226, 240, 0.92);
   border-radius: 22px;
   background:
@@ -3157,8 +3157,8 @@ tbody tr:last-child td {
 .reminder-sheet::before {
   content: "";
   justify-self: center;
-  width: 44px;
-  height: 4px;
+  width: 38px;
+  height: 3px;
   border-radius: 999px;
   background: #d9e2f0;
 }
@@ -3167,12 +3167,12 @@ tbody tr:last-child td {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
 }
 
 .reminder-sheet-head h3 {
   margin: 0;
-  font-size: 1.06rem;
+  font-size: 1rem;
 }
 
 .reminder-sheet-head .eyebrow {
@@ -3181,10 +3181,20 @@ tbody tr:last-child td {
 
 .reminder-sheet-body {
   display: grid;
-  gap: 12px;
+  gap: 8px;
   min-height: 0;
+  max-height: calc(min(72vh, 620px) - 76px);
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
+}
+
+#closeReminderSheetBtn {
+  min-height: 30px;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
 }
 
 .reminder-empty-state {
@@ -3271,8 +3281,8 @@ tbody tr:last-child td {
 
 .reminder-group {
   display: grid;
-  gap: 8px;
-  padding: 10px;
+  gap: 6px;
+  padding: 8px;
   border: 1px solid rgba(217, 226, 240, 0.78);
   border-radius: 18px;
   background: #ffffff;
@@ -3283,7 +3293,7 @@ tbody tr:last-child td {
   align-items: center;
   justify-content: space-between;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.74rem;
   font-weight: 800;
 }
 
@@ -3291,8 +3301,8 @@ tbody tr:last-child td {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.7rem;
-  min-height: 1.35rem;
+  min-width: 1.45rem;
+  min-height: 1.2rem;
   border-radius: 999px;
   background: #edf3ff;
   color: #36528b;
@@ -3300,16 +3310,17 @@ tbody tr:last-child td {
 
 .reminder-list {
   display: grid;
-  gap: 6px;
+  gap: 5px;
 }
 
 .reminder-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   width: 100%;
-  padding: 10px;
+  min-height: 46px;
+  padding: 7px 8px;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: #f8fbff;
@@ -3355,7 +3366,7 @@ tbody tr:last-child td {
 .reminder-item-main,
 .reminder-item-meta {
   display: grid;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
 }
 
@@ -3370,13 +3381,18 @@ tbody tr:last-child td {
 .reminder-item-main span,
 .reminder-item-meta span:last-child {
   color: var(--muted);
-  font-size: 0.76rem;
+  font-size: 0.7rem;
   font-weight: 750;
 }
 
 .reminder-item-meta {
   justify-items: end;
-  max-width: min(42vw, 13rem);
+  max-width: min(40vw, 10rem);
+}
+
+.reminder-item .overview-alert-badge {
+  padding: 0.11rem 0.36rem;
+  font-size: 0.66rem;
 }
 
 @media (max-width: 560px) {
@@ -3385,7 +3401,7 @@ tbody tr:last-child td {
     bottom: max(8px, env(safe-area-inset-bottom));
     left: 8px;
     max-height: min(78vh, 620px);
-    padding: 13px;
+    padding: 10px;
     border-radius: 20px 20px 18px 18px;
   }
 
@@ -3407,19 +3423,19 @@ tbody tr:last-child td {
   }
 
   .reminder-item {
-    grid-template-columns: 1fr;
-    gap: 7px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
   }
 
   .reminder-item-meta {
-    justify-items: start;
-    max-width: 100%;
+    justify-items: end;
+    max-width: 42vw;
   }
 
   .reminder-item-main strong,
   .reminder-item-main span,
   .reminder-item-meta span:last-child {
-    white-space: normal;
+    white-space: nowrap;
   }
 }
 
