@@ -398,6 +398,7 @@ const state = {
     peopleRole: "",
     peopleOpenGroups: new Set(),
     overviewOpenUnitKey: "",
+    overviewOpenStatusKey: "",
     overviewOpenMemberKeys: new Set(),
     reminderSheetContext: "",
     inviteSort: "created_desc",
@@ -408,6 +409,7 @@ const state = {
   saveFeedbackTimer: null,
   dashboardCache: new Map(),
   prefetchingWeeks: new Set(),
+  reminderHydratingWeeks: new Set(),
 };
 
 const tabSwipe = {
@@ -1113,6 +1115,7 @@ function renderLayout() {
   renderTabs();
   renderActiveView();
   syncAttendanceFilterVisibility();
+  renderAttendanceReminderEntry();
 }
 
 function renderTopBar() {
@@ -1556,6 +1559,29 @@ function applyDashboardData(data, weekStart) {
   renderAttendanceRows();
   renderAttendanceReminderEntry();
   syncWeekControls();
+  hydrateAttendanceReminderHistory(weekStart);
+}
+
+async function hydrateAttendanceReminderHistory(weekStart) {
+  if (
+    !canUseOverview() ||
+    !state.roster.length ||
+    state.roster.some(hasMemberReminderHistory) ||
+    state.reminderHydratingWeeks.has(weekStart)
+  ) {
+    return;
+  }
+
+  state.reminderHydratingWeeks.add(weekStart);
+  try {
+    await loadAttendanceOverview(weekStart);
+    renderAttendanceReminderEntry();
+    refreshReminderSheetIfOpen();
+  } catch (error) {
+    console.warn("Unable to hydrate attendance reminders", error);
+  } finally {
+    state.reminderHydratingWeeks.delete(weekStart);
+  }
 }
 
 function getDashboardCacheKey(weekStart) {
@@ -1817,7 +1843,7 @@ function renderAttendanceReminderEntry() {
       ? `本週提醒 ${totalCount}`
       : "本週提醒";
   els.attendanceReminderBtn.textContent = label;
-  els.attendanceReminderBtn.classList.toggle("has-reminders", totalCount > 0);
+  els.attendanceReminderBtn.classList.toggle("has-reminders", false);
   els.attendanceReminderBtn.classList.toggle("is-empty", totalCount === 0);
   setHidden(els.attendanceReminderBtn, !state.roster.length);
 }
@@ -1916,6 +1942,7 @@ function buildOverviewReminders() {
             reminderUnitLevel: level,
             reminderParentName: unit.parent_name || "",
             reminderUnitKey: getOverviewUnitKey(unit),
+            reminderStatus: status,
           });
         }
       }
@@ -1939,11 +1966,14 @@ function buildMemberReminders(member, context = "overview") {
     memberId: member.id,
     memberKey: getOverviewMemberKey(member),
     unitKey: member.reminderUnitKey || "",
+    statusKey: member.reminderStatus || "",
     fullName: member.full_name,
     role: member.role,
+    gender: member.gender || "",
+    equipmentProgress: normalizeEquipmentProgress(member.equipment_progress),
     unitLevel: member.reminderUnitLevel || "",
     parentName: member.reminderParentName || "",
-    scope: member.reminderUnitName || formatMemberScopeSummary(member),
+    scope: member.reminderUnitName || getNearestMemberScopeLabel(member),
   }));
 }
 
@@ -2043,6 +2073,9 @@ function renderReminderSheet(context, reminders) {
 }
 
 function renderReminderItem(context, item) {
+  const equipmentBadge = item.equipmentProgress && item.equipmentProgress !== "none"
+    ? renderEquipmentProgressBadge(item.equipmentProgress)
+    : "";
   return `
     <button
       type="button"
@@ -2051,10 +2084,15 @@ function renderReminderItem(context, item) {
       data-member-id="${escapeHtml(item.memberId || "")}"
       data-member-key="${escapeHtml(item.memberKey || "")}"
       data-unit-key="${escapeHtml(item.unitKey || "")}"
+      data-status-key="${escapeHtml(item.statusKey || "")}"
     >
       <span class="reminder-item-main">
-        <strong>${escapeHtml(item.fullName || "未命名")}</strong>
-        <span>${escapeHtml(formatReminderItemScope(item))}</span>
+        <span class="reminder-member-line">
+          <span class="name-card gender-${escapeHtml(item.gender || "unknown")}">${escapeHtml(item.fullName || "未命名")}</span>
+          <span class="role-pill role-${escapeHtml(item.role)}">${escapeHtml(getRoleLabel(item.role))}</span>
+          ${equipmentBadge}
+        </span>
+        <span class="reminder-scope-line">${escapeHtml(formatReminderItemScope(item))}</span>
       </span>
       <span class="reminder-item-meta">
         <span class="overview-alert-badge ${escapeHtml(item.tone)}">${escapeHtml(item.label)}</span>
@@ -2065,10 +2103,24 @@ function renderReminderItem(context, item) {
 }
 
 function formatReminderItemScope(item) {
+  if (!item.scope) {
+    return "未設定轄區";
+  }
   const levelLabel = item.unitLevel ? getOverviewLevelLabel(item.unitLevel) : "";
-  const scope = [levelLabel, item.scope].filter(Boolean).join("｜");
-  const parent = item.parentName ? `（${item.parentName}）` : "";
-  return [getRoleLabel(item.role), `${scope}${parent}`].filter(Boolean).join(" / ");
+  return [levelLabel, item.scope].filter(Boolean).join("｜");
+}
+
+function getNearestMemberScopeLabel(member) {
+  if (member?.small_group_name) {
+    return member.small_group_name;
+  }
+  if (member?.big_family_name) {
+    return member.big_family_name;
+  }
+  if (member?.district_name) {
+    return member.district_name;
+  }
+  return "";
 }
 
 function handleReminderSheetClick(event) {
@@ -2083,6 +2135,7 @@ function handleReminderSheetClick(event) {
     window.requestAnimationFrame(() => focusOverviewReminderMember(
       item.dataset.memberKey || "",
       item.dataset.unitKey || "",
+      item.dataset.statusKey || "",
     ));
   } else {
     window.requestAnimationFrame(() => focusAttendanceReminderMember(Number(item.dataset.memberId || 0)));
@@ -2115,13 +2168,16 @@ function focusAttendanceReminderMember(memberId) {
   window.setTimeout(() => card.classList.remove("is-reminder-focused"), 1600);
 }
 
-function focusOverviewReminderMember(memberKey, unitKey = "") {
+function focusOverviewReminderMember(memberKey, unitKey = "", statusKey = "") {
   if (!memberKey) {
     return;
   }
   state.ui.overviewOpenMemberKeys.add(memberKey);
   if (unitKey) {
     state.ui.overviewOpenUnitKey = unitKey;
+  }
+  if (unitKey && statusKey) {
+    state.ui.overviewOpenStatusKey = `${unitKey}:${statusKey}`;
   }
   renderOverviewUnits();
   window.requestAnimationFrame(() => {
@@ -2133,6 +2189,10 @@ function focusOverviewReminderMember(memberKey, unitKey = "") {
     if (unitDetails) {
       unitDetails.open = true;
       state.ui.overviewOpenUnitKey = unitDetails.dataset.overviewUnitKey || state.ui.overviewOpenUnitKey;
+    }
+    const statusDetails = details.closest(".overview-status-details");
+    if (statusDetails) {
+      statusDetails.open = true;
     }
     details.open = true;
     details.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -3113,6 +3173,19 @@ function handleOverviewUnitToggle(event) {
     return;
   }
 
+  if (details.matches?.(".overview-status-details")) {
+    const unitDetails = details.closest(".overview-unit-details");
+    const unitKey = unitDetails?.dataset.overviewUnitKey || "";
+    const statusKey = details.dataset.overviewStatus || "";
+    const openKey = unitKey && statusKey ? `${unitKey}:${statusKey}` : "";
+    if (details.open) {
+      state.ui.overviewOpenStatusKey = openKey;
+    } else if (state.ui.overviewOpenStatusKey === openKey) {
+      state.ui.overviewOpenStatusKey = "";
+    }
+    return;
+  }
+
   if (!details.matches?.(".overview-unit-details")) {
     return;
   }
@@ -3346,9 +3419,9 @@ function renderOverviewUnitCard(unit) {
       </summary>
       <div class="overview-detail-grid">
         ${renderOverviewUnitHistory(unit.history, stats, memberCount)}
-        ${renderOverviewStatusGroup("出席", detail.present || [], unit.type)}
-        ${renderOverviewStatusGroup("未出席", detail.absent || [], unit.type)}
-        ${renderOverviewStatusGroup("待確認", detail.unknown || [], unit.type)}
+        ${renderOverviewStatusGroup("出席", detail.present || [], unitKey, "present")}
+        ${renderOverviewStatusGroup("未出席", detail.absent || [], unitKey, "absent")}
+        ${renderOverviewStatusGroup("待確認", detail.unknown || [], unitKey, "unknown")}
       </div>
     </details>
   `;
@@ -3428,13 +3501,14 @@ function getOverviewUnitKey(unit) {
   return `${unit.type || "unit"}:${unit.id || unit.name || ""}`;
 }
 
-function renderOverviewStatusGroup(label, members, unitType = "") {
+function renderOverviewStatusGroup(label, members, unitKey = "", statusKey = "") {
   const sortedMembers = sortMembers([...(members || [])]);
   if (!sortedMembers.length) {
     return "";
   }
+  const shouldOpen = state.ui.overviewOpenStatusKey === `${unitKey}:${statusKey}`;
   return `
-    <details class="overview-status-group overview-status-details">
+    <details class="overview-status-group overview-status-details" data-overview-status="${escapeHtml(statusKey)}"${shouldOpen ? " open" : ""}>
       <summary class="overview-status-head">
         <strong>${escapeHtml(label)}</strong>
         <span class="status-chip neutral">${sortedMembers.length}</span>

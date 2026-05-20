@@ -861,16 +861,16 @@ body.layout-small .app-header h1 {
 }
 
 .reminder-trigger.has-reminders {
-  border-color: #f59e0b;
-  background: #fffbeb;
-  color: #92400e;
-  box-shadow: 0 6px 14px rgba(245, 158, 11, 0.12);
+  border-color: transparent;
+  background: #e8eefb;
+  color: var(--text);
+  box-shadow: none;
 }
 
 .reminder-trigger.is-empty {
-  border-color: rgba(217, 226, 240, 0.92);
-  background: #f8fbff;
-  color: #62738c;
+  border-color: transparent;
+  background: #e8eefb;
+  color: var(--text);
   box-shadow: none;
 }
 
@@ -3372,19 +3372,49 @@ tbody tr:last-child td {
 .reminder-item-main,
 .reminder-item-meta {
   display: grid;
-  gap: 1px;
+  gap: 3px;
   min-width: 0;
 }
 
-.reminder-item-main strong,
-.reminder-item-main span,
+.reminder-item-main > span:not(.reminder-member-line),
 .reminder-item-meta span:last-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.reminder-item-main span,
+.reminder-member-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.reminder-member-line .name-card,
+.reminder-member-line .role-pill,
+.reminder-member-line .equipment-badge {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.1rem 0.34rem;
+  font-size: 0.68rem;
+  line-height: 1.15;
+}
+
+.reminder-member-line .name-card {
+  max-width: 7.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reminder-scope-line {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.reminder-item-main > span:not(.reminder-member-line),
 .reminder-item-meta span:last-child {
   color: var(--muted);
   font-size: 0.7rem;
@@ -3439,9 +3469,13 @@ tbody tr:last-child td {
   }
 
   .reminder-item-main strong,
-  .reminder-item-main span,
+  .reminder-item-main > span:not(.reminder-member-line),
   .reminder-item-meta span:last-child {
     white-space: nowrap;
+  }
+
+  .reminder-member-line .name-card {
+    max-width: 6.2rem;
   }
 }
 
