@@ -29,7 +29,7 @@
       content="牧區點名・出席｜LINE 登入"
     />
     <title>topheart 牧區點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260520-reminders-v117" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260520-reminders-v118" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -448,6 +448,16 @@
                     <option value="leader">領袖班</option>
                   </select>
                 </label>
+              </div>
+
+              <div class="form-columns">
+                <label>
+                  <span>生日</span>
+                  <input id="memberBirthdayInput" type="date" />
+                </label>
+                <p class="field-help">
+                  生日提醒只顯示月日與距離天數；年齡只會在出席總覽展開人員卡片後顯示。
+                </p>
               </div>
 
               <div class="form-columns">
@@ -902,6 +912,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js" defer></script>
-    <script type="module" src="./attendance-ui/main.js?v=20260520-reminders-v117"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260520-reminders-v118"></script>
   </body>
 </html>

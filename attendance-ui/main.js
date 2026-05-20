@@ -245,6 +245,7 @@ const els = {
   memberNameInput: document.querySelector("#memberNameInput"),
   memberRoleSelect: document.querySelector("#memberRoleSelect"),
   memberGenderSelect: document.querySelector("#memberGenderSelect"),
+  memberBirthdayInput: document.querySelector("#memberBirthdayInput"),
   memberEquipmentProgressSelect: document.querySelector("#memberEquipmentProgressSelect"),
   memberDistrictLabel: document.querySelector("#memberDistrictLabel"),
   memberDistrictSelect: document.querySelector("#memberDistrictSelect"),
@@ -1811,9 +1812,12 @@ function renderAttendanceReminderEntry() {
   const totalCount = reminders.length;
   const label = todayBirthdayCount
     ? `今日生日 ${todayBirthdayCount}`
-    : `本週提醒 ${totalCount}`;
+    : totalCount
+      ? `本週提醒 ${totalCount}`
+      : "本週提醒";
   els.attendanceReminderBtn.textContent = label;
   els.attendanceReminderBtn.classList.toggle("has-reminders", totalCount > 0);
+  els.attendanceReminderBtn.classList.toggle("is-empty", totalCount === 0);
   setHidden(els.attendanceReminderBtn, !state.roster.length);
 }
 
@@ -1977,9 +1981,17 @@ function renderReminderSheet(context, reminders) {
     return;
   }
 
-  els.reminderSheetTitle.textContent = context === "overview" ? "出席總覽提醒" : "本週提醒";
+  const title = context === "overview" ? "出席總覽提醒" : "本週提醒";
+  const summary = getReminderSummary(reminders);
+  els.reminderSheetTitle.textContent = title;
   if (!reminders.length) {
-    els.reminderSheetBody.innerHTML = '<div class="empty-state-card">目前沒有生日、出席關注或高優先備註提醒。</div>';
+    els.reminderSheetBody.innerHTML = `
+      <div class="reminder-empty-state">
+        <span class="reminder-empty-icon">OK</span>
+        <strong>目前沒有需要提醒的項目</strong>
+        <span>生日可在人員管理的人員編輯中填寫；高優先備註會在儲存點名後納入提醒。</span>
+      </div>
+    `;
     return;
   }
 
@@ -1988,8 +2000,14 @@ function renderReminderSheet(context, reminders) {
     { key: "attendance", label: "出席關注" },
     { key: "note", label: "高優先備註" },
   ];
-  els.reminderSheetBody.innerHTML = groups
-    .map((group) => {
+  els.reminderSheetBody.innerHTML = `
+    <div class="reminder-summary-row">
+      ${renderReminderSummaryChip("生日", summary.birthday, "birthday")}
+      ${renderReminderSummaryChip("出席關注", summary.attendance, "warning")}
+      ${renderReminderSummaryChip("高優先備註", summary.note, "danger")}
+    </div>
+    ${groups
+      .map((group) => {
       const items = reminders.filter((item) => item.type === group.key);
       if (!items.length) {
         return "";
@@ -2005,8 +2023,28 @@ function renderReminderSheet(context, reminders) {
           </div>
         </section>
       `;
-    })
-    .join("");
+      })
+      .join("")}
+  `;
+}
+
+function getReminderSummary(reminders) {
+  return reminders.reduce(
+    (summary, item) => ({
+      ...summary,
+      [item.type]: (summary[item.type] || 0) + 1,
+    }),
+    { birthday: 0, attendance: 0, note: 0 },
+  );
+}
+
+function renderReminderSummaryChip(label, count, tone) {
+  return `
+    <span class="reminder-summary-chip ${escapeHtml(tone)}">
+      <strong>${escapeHtml(count)}</strong>
+      <span>${escapeHtml(label)}</span>
+    </span>
+  `;
 }
 
 function renderReminderItem(context, item) {
@@ -3156,8 +3194,8 @@ function renderOverviewWeeks() {
       選日期
       <input id="overviewDateInput" class="overview-date-input" type="date" min="${MIN_ATTENDANCE_WEEK_START}" max="${escapeHtml(currentWeekStart)}" value="${escapeHtml(state.overviewData.selectedWeekStart)}" />
     </label>
-    <button type="button" class="overview-reminder-button reminder-trigger${reminderCount ? " has-reminders" : ""}" data-overview-reminders>
-      提醒 ${reminderCount}
+    <button type="button" class="overview-reminder-button reminder-trigger${reminderCount ? " has-reminders" : " is-empty"}" data-overview-reminders>
+      ${reminderCount ? `提醒 ${reminderCount}` : "提醒"}
     </button>
   `;
 }
@@ -5366,6 +5404,7 @@ function fillMemberForm(mode, member) {
       : "可建立自己管理範圍內的人員；新增管理職時需選擇既有組織或在自己範圍內新建同名組織。";
     els.memberNameInput.value = "";
     els.memberGenderSelect.value = "";
+    els.memberBirthdayInput.value = "";
     els.memberEquipmentProgressSelect.value = "none";
     els.memberCreateScopeModeSelect.value = getDefaultCreateScopeMode(els.memberRoleSelect.value);
     els.memberNoteInput.value = "";
@@ -5385,6 +5424,7 @@ function fillMemberForm(mode, member) {
     els.memberNameInput.value = member.full_name || "";
     els.memberRoleSelect.value = member.role;
     els.memberGenderSelect.value = member.gender || "";
+    els.memberBirthdayInput.value = member.birthday || "";
     els.memberEquipmentProgressSelect.value = normalizeEquipmentProgress(member.equipment_progress);
     els.memberNoteInput.value = member.note || "";
     els.memberActiveSelect.value = member.is_active ? "true" : "false";
@@ -5523,6 +5563,7 @@ async function handleSaveMember(event) {
     role,
     create_scope_mode: mode === "create" ? createScopeMode : undefined,
     gender: els.memberGenderSelect.value || null,
+    birthday: els.memberBirthdayInput.value || null,
     equipment_progress: normalizeEquipmentProgress(els.memberEquipmentProgressSelect.value),
     note: els.memberNoteInput.value.trim(),
     district_id: shouldClearSingleDistrict
