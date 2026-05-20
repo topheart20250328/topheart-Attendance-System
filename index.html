@@ -29,7 +29,7 @@
       content="牧區點名・出席｜LINE 登入"
     />
     <title>topheart 牧區點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260520-settings-sheet-v126" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260520-page-headers-v127" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -345,12 +345,14 @@
         <div class="card-header">
           <div>
             <p class="eyebrow">Overview</p>
-            <h2>出席總覽</h2>
+            <div class="page-title-line">
+              <h2>出席總覽</h2>
+              <p id="overviewScopeSummary" class="muted">
+                正在載入出席總覽...
+              </p>
+            </div>
           </div>
         </div>
-        <p id="overviewScopeSummary" class="muted">
-          正在載入出席總覽...
-        </p>
         <div class="overview-control-row">
           <div id="overviewEventTabs" class="tab-row compact-tabs">
             <button
@@ -840,7 +842,7 @@
         <div class="card-header">
           <div>
             <p class="eyebrow">Invites</p>
-            <h2>邀請碼管理</h2>
+            <h2>邀請碼</h2>
           </div>
         </div>
         <p class="muted">
@@ -933,6 +935,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js" defer></script>
-    <script type="module" src="./attendance-ui/main.js?v=20260520-settings-sheet-v126"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260520-page-headers-v127"></script>
   </body>
 </html>

@@ -3335,8 +3335,8 @@ function renderAttendanceOverview() {
   if (els.overviewScopeSummary) {
     els.overviewScopeSummary.textContent =
       state.ui.overviewLoading
-        ? `正在更新出席總覽...目前顯示 ${buildWeekLabel(state.overviewData.selectedWeekStart)}`
-        : `${state.overviewData.scopeLabel}，目前週次 ${buildWeekLabel(state.overviewData.selectedWeekStart)}`;
+        ? `正在更新，目前週次 ${buildWeekLabel(state.overviewData.selectedWeekStart)}`
+        : `目前週次 ${buildWeekLabel(state.overviewData.selectedWeekStart)}`;
   }
 
   els.overviewView?.classList.toggle("is-loading", state.ui.overviewLoading);

@@ -354,6 +354,23 @@ code {
   line-height: 1.2;
 }
 
+.page-title-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.page-title-line h2 {
+  margin-top: 0.2rem;
+}
+
+.page-title-line .muted {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
 .card-header > div:first-child,
 .section-toolbar > div:first-child {
   min-width: 0;
@@ -2595,17 +2612,33 @@ tbody tr:last-child td {
 }
 
 .overview-filter-row {
-  align-items: stretch;
+  align-items: center;
   gap: 8px;
   margin-bottom: 6px;
 }
 
 .overview-filter-row .search-field {
-  min-width: 132px;
+  min-width: 0;
 }
 
 .overview-filter-row .overview-search-field {
+  display: flex;
+  align-items: center;
   flex: 1 1 220px;
+  gap: 8px;
+}
+
+.overview-filter-row .overview-search-field span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.overview-filter-row .overview-search-field input {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .overview-filter-row input,
@@ -2617,14 +2650,26 @@ tbody tr:last-child td {
   padding: clamp(10px, 2vw, 16px);
 }
 
-#overviewView .card-header {
-  margin-bottom: 6px;
+#overviewView .card-header,
+#peopleView .card-header,
+#orgsView .card-header,
+#invitesView .card-header {
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+#overviewView .card-header h2,
+#peopleView .card-header h2,
+#orgsView .card-header h2,
+#invitesView .card-header h2 {
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
 }
 
 #overviewView #overviewScopeSummary {
-  margin: 0 0 8px;
-  font-size: 0.9rem;
-  line-height: 1.35;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 
 #overviewView .compact-tabs .tab-btn {
@@ -6557,7 +6602,6 @@ body.is-authenticated .toast {
   }
 
   #overviewView #overviewScopeSummary {
-    margin-bottom: 6px;
     font-size: 0.78rem;
   }
 
@@ -6600,14 +6644,18 @@ body.is-authenticated .toast {
   }
 
   #overviewView .overview-filter-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
     gap: 5px;
     margin-bottom: 5px;
   }
 
   #overviewView .overview-filter-row .overview-search-field {
-    grid-column: 1 / -1;
+    flex: 1 1 auto;
+    gap: 5px;
+  }
+
+  #overviewView .overview-filter-row .overview-search-field span {
+    font-size: 0.72rem;
   }
 
   #overviewView .overview-filter-row input,
