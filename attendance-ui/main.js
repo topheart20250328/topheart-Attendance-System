@@ -4604,7 +4604,7 @@ function renderMemberEditor() {
 
 function openMemberEditor(mode, memberId = null) {
   if (mode === "create" && !canCreateMembers()) {
-    showToast("小家長不可新增人員，請由大家長或以上職分新增。");
+    showToast("新增人員請由區長或以上職分處理。");
     return;
   }
   closeBulkMemberEditor();
@@ -4647,7 +4647,7 @@ function closeMemberEditor() {
 
 function openBulkMemberEditor() {
   if (!canCreateMembers()) {
-    showToast("小家長不可新增人員，請由大家長或以上職分新增。");
+    showToast("新增人員請由區長或以上職分處理。");
     return;
   }
   closeMemberEditor();
@@ -5846,7 +5846,7 @@ async function handleSaveMember(event) {
   }
 
   if (mode === "create" && !canCreateMembers()) {
-    showToast("小家長不可新增人員，請由大家長或以上職分新增。");
+    showToast("新增人員請由區長或以上職分處理。");
     return;
   }
 
@@ -8377,6 +8377,10 @@ function canUseManagement() {
 
 function canCreateMembers() {
   const viewer = getPermissionCurrentMember();
+  return canManageMemberLifecycle(viewer);
+}
+
+function canManageMemberLifecycle(viewer = getPermissionCurrentMember()) {
   if (viewer?.is_admin) {
     return true;
   }
@@ -8384,6 +8388,7 @@ function canCreateMembers() {
     viewer &&
       canUseManagement() &&
       hasManagementScope(viewer) &&
+      !BIG_FAMILY_LEADER_ROLES.includes(viewer.role) &&
       !SMALL_GROUP_LEADER_ROLES.includes(viewer.role),
   );
 }
@@ -8418,7 +8423,7 @@ function canEditMemberActiveStatus(member = null) {
   if (viewer.is_admin) {
     return true;
   }
-  if (SMALL_GROUP_LEADER_ROLES.includes(viewer.role)) {
+  if (!canManageMemberLifecycle(viewer)) {
     return false;
   }
   return !member || (
@@ -8495,7 +8500,7 @@ function canDeleteMember(member) {
     return true;
   }
 
-  if (SMALL_GROUP_LEADER_ROLES.includes(viewer.role)) {
+  if (!canManageMemberLifecycle(viewer)) {
     return false;
   }
 
@@ -8516,7 +8521,7 @@ function canRestoreMember(member) {
     return true;
   }
 
-  if (SMALL_GROUP_LEADER_ROLES.includes(viewer.role)) {
+  if (!canManageMemberLifecycle(viewer)) {
     return false;
   }
 

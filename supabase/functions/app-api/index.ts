@@ -2627,11 +2627,17 @@ function canCreateMembers(viewer: MemberDirectoryRow) {
   }
   return canUseAdminPanel(viewer) &&
     hasManagementScope(viewer) &&
+    !BIG_FAMILY_LEADER_ROLES.has(viewer.role) &&
     !SMALL_GROUP_LEADER_ROLES.has(viewer.role);
 }
 
 function canChangeMemberActiveStatus(viewer: MemberDirectoryRow) {
-  return canUseAdminPanel(viewer) && !SMALL_GROUP_LEADER_ROLES.has(viewer.role);
+  if (viewer.is_admin) {
+    return true;
+  }
+  return canUseAdminPanel(viewer) &&
+    !BIG_FAMILY_LEADER_ROLES.has(viewer.role) &&
+    !SMALL_GROUP_LEADER_ROLES.has(viewer.role);
 }
 
 function hasManagementScope(viewer: MemberDirectoryRow) {
@@ -2819,6 +2825,10 @@ function canDeleteMember(viewer: MemberDirectoryRow, target: MemberDirectoryRow)
 
   if (viewer.is_admin) {
     return true;
+  }
+
+  if (BIG_FAMILY_LEADER_ROLES.has(viewer.role) || SMALL_GROUP_LEADER_ROLES.has(viewer.role)) {
+    return false;
   }
 
   return (

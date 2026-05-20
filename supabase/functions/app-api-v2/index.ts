@@ -257,11 +257,17 @@ function canCreateMembers(viewer: MemberRow) {
   }
   return canUseManagement(viewer) &&
     hasManagementScope(viewer) &&
+    !BIG_FAMILY_LEADER_ROLES.has(viewer.role) &&
     !SMALL_GROUP_LEADER_ROLES.has(viewer.role);
 }
 
 function canChangeMemberActiveStatus(viewer: MemberRow) {
-  return canUseManagement(viewer) && !SMALL_GROUP_LEADER_ROLES.has(viewer.role);
+  if (viewer.is_admin) {
+    return true;
+  }
+  return canUseManagement(viewer) &&
+    !BIG_FAMILY_LEADER_ROLES.has(viewer.role) &&
+    !SMALL_GROUP_LEADER_ROLES.has(viewer.role);
 }
 
 function hasManagementScope(viewer: MemberRow) {
