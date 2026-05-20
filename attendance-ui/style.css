@@ -2620,16 +2620,17 @@ tbody tr:last-child td {
 }
 
 .overview-reminder-button.has-reminders {
-  border-color: #2b6ff3;
-  background: #2b6ff3;
-  color: #ffffff;
-  box-shadow: 0 8px 18px rgba(43, 111, 243, 0.2);
+  border-color: rgba(43, 111, 243, 0.38);
+  background: #dbeafe;
+  color: var(--primary-strong);
+  box-shadow: none;
 }
 
 .overview-reminder-button.has-reminders:hover,
 .overview-reminder-button.has-reminders:active {
-  background: #1d57c8;
-  color: #ffffff;
+  border-color: rgba(43, 111, 243, 0.48);
+  background: #c7dcff;
+  color: var(--primary-strong);
 }
 
 #memberBirthdayInput {
@@ -3411,14 +3412,21 @@ tbody tr:last-child td {
   min-width: 0;
   max-width: 100%;
   padding: 0.1rem 0.34rem;
-  font-size: 0.68rem;
   line-height: 1.15;
 }
 
 .reminder-member-line .name-card {
-  max-width: 7.5rem;
+  max-width: 8.4rem;
+  padding: 0.13rem 0.42rem;
+  font-size: 0.8rem;
+  font-weight: 900;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.reminder-member-line .role-pill,
+.reminder-member-line .equipment-badge {
+  font-size: 0.68rem;
 }
 
 .reminder-scope-line {
@@ -3488,7 +3496,8 @@ tbody tr:last-child td {
   }
 
   .reminder-member-line .name-card {
-    max-width: 6.2rem;
+    max-width: 7.2rem;
+    font-size: 0.78rem;
   }
 }
 

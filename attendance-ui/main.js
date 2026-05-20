@@ -2106,8 +2106,7 @@ function formatReminderItemScope(item) {
   if (!item.scope) {
     return "未設定轄區";
   }
-  const levelLabel = item.unitLevel ? getOverviewLevelLabel(item.unitLevel) : "";
-  return [levelLabel, item.scope].filter(Boolean).join("｜");
+  return item.scope;
 }
 
 function getNearestMemberScopeLabel(member) {
