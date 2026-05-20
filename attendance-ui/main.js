@@ -585,7 +585,7 @@ function bindEvents() {
   els.orgTreeVerticalBtn?.addEventListener("click", () => switchOrganizationTreeMode("vertical"));
   els.orgTreeZoomRange?.addEventListener("input", () => setOrganizationTreeScale(Number(els.orgTreeZoomRange.value) / 100));
   els.orgTreeFitBtn?.addEventListener("click", fitOrganizationTreeToView);
-  els.orgTreeZoomResetBtn?.addEventListener("click", () => setOrganizationTreeScale(1));
+  els.orgTreeZoomResetBtn?.addEventListener("click", resetOrganizationTreeView);
   els.orgTreeBody?.addEventListener("click", handleOrganizationTreeClick);
   els.orgTreeBody?.addEventListener("keydown", handleOrganizationTreeKeydown);
   els.orgTreeBody?.addEventListener("pointerdown", handleOrganizationTreePointerDown);
@@ -6805,7 +6805,7 @@ function fitOrganizationTreeToView() {
   const fitScale = availableWidth / contentWidth;
   const nextScale = Math.min(ORG_TREE_MAX_SCALE, Math.max(ORG_TREE_MIN_SCALE, fitScale));
   applyOrganizationTreeScale(nextScale);
-  centerOrganizationTreeView();
+  placeOrganizationTreeAtTopCenter();
   saveUiPreferences();
 }
 
@@ -6830,6 +6830,12 @@ function setOrganizationTreeScale(scale) {
   if (viewportCenter) {
     restoreOrganizationTreeViewportCenter(viewportCenter);
   }
+}
+
+function resetOrganizationTreeView() {
+  applyOrganizationTreeScale(1);
+  placeOrganizationTreeAtTopCenter();
+  saveUiPreferences();
 }
 
 function getOrganizationTreeViewGutters() {
@@ -6866,18 +6872,17 @@ function restoreOrganizationTreeViewportCenter(center) {
   els.orgTreeBody.scrollTop = Math.max(0, gutter.y + center.y * scale - els.orgTreeBody.clientHeight / 2);
 }
 
-function centerOrganizationTreeView() {
-  const canvas = getOrganizationTreeCanvas();
-  if (!els.orgTreeBody || !canvas) {
+function placeOrganizationTreeAtTopCenter() {
+  if (!els.orgTreeBody) {
     return;
   }
-  restoreOrganizationTreeViewportCenter({
-    x: canvas.scrollWidth / 2,
-    y: Math.min(
-      canvas.scrollHeight / 2,
-      Math.max(0, els.orgTreeBody.clientHeight * 0.42 / Math.max(ORG_TREE_MIN_SCALE, state.ui.orgTreeScale)),
-    ),
-  });
+  updateOrganizationTreeScaledShellSize();
+  const gutter = getOrganizationTreeViewGutters();
+  const maxScrollLeft = Math.max(0, els.orgTreeBody.scrollWidth - els.orgTreeBody.clientWidth);
+  const maxScrollTop = Math.max(0, els.orgTreeBody.scrollHeight - els.orgTreeBody.clientHeight);
+  const preferredTopMargin = Math.min(28, Math.max(16, els.orgTreeBody.clientHeight * 0.06));
+  els.orgTreeBody.scrollLeft = maxScrollLeft / 2;
+  els.orgTreeBody.scrollTop = Math.min(maxScrollTop, Math.max(0, gutter.y - preferredTopMargin));
 }
 
 function syncOrganizationTreeZoomControls() {
