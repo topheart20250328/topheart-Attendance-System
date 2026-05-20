@@ -15,6 +15,7 @@ type MemberRow = {
   small_group_id: number | null;
   small_group_name: string | null;
   gender: string | null;
+  birthday: string | null;
   note: string | null;
   note_carry_forward: boolean | null;
   note_priority_high: boolean | null;
@@ -2059,6 +2060,7 @@ function detail(
       full_name: member.full_name,
       role: member.role,
       gender: member.gender,
+      birthday: member.birthday,
       equipment_progress: member.equipment_progress || "none",
       note: String(record?.note || "").trim(),
       note_priority_high: Boolean(record?.note && record?.note_priority_high),

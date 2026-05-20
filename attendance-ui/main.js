@@ -79,6 +79,7 @@ const STATUS_LABELS = {
 
 const MIN_ATTENDANCE_DATE = "2025-03-28";
 const MIN_ATTENDANCE_WEEK_START = "2025-03-23";
+const BIRTHDAY_REMINDER_DAYS = 30;
 
 const LOGIN_ROLES = [
   "preacher",
@@ -208,6 +209,7 @@ const els = {
   prevWeekBtn: document.querySelector("#prevWeekBtn"),
   nextWeekBtn: document.querySelector("#nextWeekBtn"),
   refreshBtn: document.querySelector("#refreshBtn"),
+  attendanceReminderBtn: document.querySelector("#attendanceReminderBtn"),
   saveAttendanceBtn: document.querySelector("#saveAttendanceBtn"),
   saveAttendanceBtnBottom: document.querySelector("#saveAttendanceBtnBottom"),
   attendanceSaveBar: document.querySelector("#attendanceSaveBar"),
@@ -343,6 +345,11 @@ const els = {
   latestInviteTarget: document.querySelector("#latestInviteTarget"),
   copyLatestInviteBtn: document.querySelector("#copyLatestInviteBtn"),
   inviteTableBody: document.querySelector("#inviteTableBody"),
+  reminderSheet: document.querySelector("#reminderSheet"),
+  reminderSheetBackdrop: document.querySelector("#reminderSheetBackdrop"),
+  reminderSheetTitle: document.querySelector("#reminderSheetTitle"),
+  reminderSheetBody: document.querySelector("#reminderSheetBody"),
+  closeReminderSheetBtn: document.querySelector("#closeReminderSheetBtn"),
   toast: document.querySelector("#toast"),
 };
 
@@ -391,6 +398,7 @@ const state = {
     peopleOpenGroups: new Set(),
     overviewOpenUnitKey: "",
     overviewOpenMemberKeys: new Set(),
+    reminderSheetContext: "",
     inviteSort: "created_desc",
   },
   bulkMembers: [],
@@ -473,6 +481,7 @@ function bindEvents() {
   els.prevWeekBtn.addEventListener("click", () => handleShiftWeek(-7));
   els.nextWeekBtn.addEventListener("click", () => handleShiftWeek(7));
   els.refreshBtn.addEventListener("click", handleRefreshDashboard);
+  els.attendanceReminderBtn?.addEventListener("click", () => openReminderSheet("attendance"));
   els.saveAttendanceBtn.addEventListener("click", handleSaveAttendance);
   els.saveAttendanceBtnBottom.addEventListener("click", handleSaveAttendance);
   els.weekInput.addEventListener("change", handleWeekChange);
@@ -590,6 +599,9 @@ function bindEvents() {
   els.inviteSortSelect?.addEventListener("change", handleInviteSortChange);
   els.inviteTableBody.addEventListener("click", handleInviteTableClick);
   els.copyLatestInviteBtn.addEventListener("click", handleCopyLatestInvite);
+  els.closeReminderSheetBtn?.addEventListener("click", closeReminderSheet);
+  els.reminderSheetBackdrop?.addEventListener("click", closeReminderSheet);
+  els.reminderSheetBody?.addEventListener("click", handleReminderSheetClick);
   window.addEventListener("resize", scheduleOrganizationTreeConnectorSync);
 
   window.addEventListener("beforeunload", (event) => {
@@ -1540,6 +1552,7 @@ function applyDashboardData(data, weekStart) {
   renderWeekSummary();
   syncAttendanceFilterVisibility();
   renderAttendanceRows();
+  renderAttendanceReminderEntry();
   syncWeekControls();
 }
 
@@ -1788,6 +1801,283 @@ function renderWeekSummary() {
   `;
 }
 
+function renderAttendanceReminderEntry() {
+  if (!els.attendanceReminderBtn) {
+    return;
+  }
+
+  const reminders = buildAttendanceReminders();
+  const todayBirthdayCount = reminders.filter((item) => item.type === "birthday" && item.daysUntil === 0).length;
+  const totalCount = reminders.length;
+  const label = todayBirthdayCount
+    ? `今日生日 ${todayBirthdayCount}`
+    : `本週提醒 ${totalCount}`;
+  els.attendanceReminderBtn.textContent = label;
+  els.attendanceReminderBtn.classList.toggle("has-reminders", totalCount > 0);
+  setHidden(els.attendanceReminderBtn, !state.roster.length);
+}
+
+function getTodayIso() {
+  return formatDate(new Date());
+}
+
+function normalizeBirthday(value) {
+  const birthday = String(value || "").trim();
+  const match = birthday.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    return null;
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (!year || month < 1 || month > 12 || day < 1 || day > 31) {
+    return null;
+  }
+  return { year, month, day };
+}
+
+function getBirthdayReminder(member, anchorIso = getTodayIso()) {
+  const birthday = normalizeBirthday(member?.birthday);
+  if (!birthday) {
+    return null;
+  }
+
+  const anchor = parseIsoDate(anchorIso);
+  const birthdayThisYear = new Date(anchor.getFullYear(), birthday.month - 1, birthday.day);
+  const nextBirthday = birthdayThisYear.getTime() < stripTime(anchor).getTime()
+    ? new Date(anchor.getFullYear() + 1, birthday.month - 1, birthday.day)
+    : birthdayThisYear;
+  const daysUntil = Math.round((stripTime(nextBirthday).getTime() - stripTime(anchor).getTime()) / 86400000);
+  if (daysUntil < 0 || daysUntil > BIRTHDAY_REMINDER_DAYS) {
+    return null;
+  }
+
+  const turnsAge = nextBirthday.getFullYear() - birthday.year;
+  const dateLabel = `${birthday.month}/${birthday.day}`;
+  const distanceLabel = daysUntil === 0 ? "今天" : `${daysUntil}天後`;
+  return {
+    type: "birthday",
+    tone: daysUntil === 0 ? "birthday-today" : "birthday",
+    label: daysUntil === 0 ? "今日生日" : `${daysUntil}天後生日`,
+    detail: `生日｜${dateLabel}｜${distanceLabel}｜${turnsAge}歲`,
+    panelDetail: `${dateLabel}｜${distanceLabel}`,
+    dateLabel,
+    daysUntil,
+    age: turnsAge,
+  };
+}
+
+function stripTime(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function getHighPriorityNoteReminder(member) {
+  if (!member?.note_priority_high || !String(member.note || "").trim()) {
+    return null;
+  }
+  return {
+    type: "note",
+    tone: "danger",
+    label: "高優先備註",
+    detail: `高優先備註：${String(member.note || "").trim()}`,
+    panelDetail: String(member.note || "").trim(),
+  };
+}
+
+function buildAttendanceReminders() {
+  return (state.roster || [])
+    .flatMap((member) => buildMemberReminders(member, "attendance"))
+    .sort(sortReminderItems);
+}
+
+function buildOverviewReminders() {
+  if (!state.overviewData) {
+    return [];
+  }
+
+  const eventType = state.ui.overviewEvent;
+  const memberByKey = new Map();
+  for (const unit of getFilteredOverviewUnits(state.overviewData.units || [])) {
+    const detail = unit.detail?.[eventType] || {};
+    for (const status of ["present", "absent", "unknown"]) {
+      for (const member of detail[status] || []) {
+        const key = getOverviewMemberKey(member);
+        if (!memberByKey.has(key)) {
+          memberByKey.set(key, {
+            ...member,
+            reminderUnitName: unit.name,
+          });
+        }
+      }
+    }
+  }
+
+  return Array.from(memberByKey.values())
+    .flatMap((member) => buildMemberReminders(member, "overview"))
+    .sort(sortReminderItems);
+}
+
+function buildMemberReminders(member, context = "overview") {
+  const reminders = [
+    getBirthdayReminder(member),
+    context === "overview" ? getOverviewAttendanceReminder(member) : null,
+    getHighPriorityNoteReminder(member),
+  ].filter(Boolean);
+
+  return reminders.map((reminder) => ({
+    ...reminder,
+    memberId: member.id,
+    memberKey: getOverviewMemberKey(member),
+    fullName: member.full_name,
+    role: member.role,
+    scope: member.reminderUnitName || formatMemberScopeSummary(member),
+  }));
+}
+
+function sortReminderItems(left, right) {
+  const typeOrder = { birthday: 1, attendance: 2, note: 3 };
+  const leftType = typeOrder[left.type] || 9;
+  const rightType = typeOrder[right.type] || 9;
+  if (leftType !== rightType) {
+    return leftType - rightType;
+  }
+  if (left.type === "birthday" && right.type === "birthday") {
+    return Number(left.daysUntil || 0) - Number(right.daysUntil || 0);
+  }
+  return String(left.fullName || "").localeCompare(String(right.fullName || ""), "zh-Hant");
+}
+
+function openReminderSheet(context) {
+  const reminders = context === "overview" ? buildOverviewReminders() : buildAttendanceReminders();
+  state.ui.reminderSheetContext = context;
+  renderReminderSheet(context, reminders);
+  setHidden(els.reminderSheetBackdrop, false);
+  setHidden(els.reminderSheet, false);
+  document.body.classList.add("reminder-sheet-open");
+}
+
+function closeReminderSheet() {
+  state.ui.reminderSheetContext = "";
+  setHidden(els.reminderSheetBackdrop, true);
+  setHidden(els.reminderSheet, true);
+  document.body.classList.remove("reminder-sheet-open");
+}
+
+function refreshReminderSheetIfOpen() {
+  if (!state.ui.reminderSheetContext || els.reminderSheet?.classList.contains("hidden")) {
+    return;
+  }
+  const context = state.ui.reminderSheetContext;
+  const reminders = context === "overview" ? buildOverviewReminders() : buildAttendanceReminders();
+  renderReminderSheet(context, reminders);
+}
+
+function renderReminderSheet(context, reminders) {
+  if (!els.reminderSheetBody || !els.reminderSheetTitle) {
+    return;
+  }
+
+  els.reminderSheetTitle.textContent = context === "overview" ? "出席總覽提醒" : "本週提醒";
+  if (!reminders.length) {
+    els.reminderSheetBody.innerHTML = '<div class="empty-state-card">目前沒有生日、出席關注或高優先備註提醒。</div>';
+    return;
+  }
+
+  const groups = [
+    { key: "birthday", label: "生日" },
+    { key: "attendance", label: "出席關注" },
+    { key: "note", label: "高優先備註" },
+  ];
+  els.reminderSheetBody.innerHTML = groups
+    .map((group) => {
+      const items = reminders.filter((item) => item.type === group.key);
+      if (!items.length) {
+        return "";
+      }
+      return `
+        <section class="reminder-group">
+          <div class="reminder-group-title">
+            <strong>${escapeHtml(group.label)}</strong>
+            <span>${items.length}</span>
+          </div>
+          <div class="reminder-list">
+            ${items.map((item) => renderReminderItem(context, item)).join("")}
+          </div>
+        </section>
+      `;
+    })
+    .join("");
+}
+
+function renderReminderItem(context, item) {
+  return `
+    <button
+      type="button"
+      class="reminder-item ${escapeHtml(item.tone)}"
+      data-reminder-target="${escapeHtml(context)}"
+      data-member-id="${escapeHtml(item.memberId || "")}"
+      data-member-key="${escapeHtml(item.memberKey || "")}"
+    >
+      <span class="reminder-item-main">
+        <strong>${escapeHtml(item.fullName || "未命名")}</strong>
+        <span>${escapeHtml([getRoleLabel(item.role), item.scope].filter(Boolean).join(" / "))}</span>
+      </span>
+      <span class="reminder-item-meta">
+        <span class="overview-alert-badge ${escapeHtml(item.tone)}">${escapeHtml(item.label)}</span>
+        <span>${escapeHtml(item.panelDetail || item.detail || "")}</span>
+      </span>
+    </button>
+  `;
+}
+
+function handleReminderSheetClick(event) {
+  const item = event.target.closest("[data-reminder-target]");
+  if (!item) {
+    return;
+  }
+
+  const context = item.dataset.reminderTarget;
+  if (context === "overview") {
+    focusOverviewReminderMember(item.dataset.memberKey || "");
+  } else {
+    focusAttendanceReminderMember(Number(item.dataset.memberId || 0));
+  }
+  closeReminderSheet();
+}
+
+function focusAttendanceReminderMember(memberId) {
+  const card = els.rosterTableBody?.querySelector(`[data-attendance-member-id="${escapeCssIdentifier(memberId)}"]`);
+  if (!card) {
+    return;
+  }
+  card.scrollIntoView({ behavior: "smooth", block: "center" });
+  card.classList.add("is-reminder-focused");
+  window.setTimeout(() => card.classList.remove("is-reminder-focused"), 1600);
+}
+
+function focusOverviewReminderMember(memberKey) {
+  if (!memberKey) {
+    return;
+  }
+  state.ui.overviewOpenMemberKeys.add(memberKey);
+  renderOverviewUnits();
+  window.requestAnimationFrame(() => {
+    const details = els.overviewUnitList?.querySelector(`[data-overview-member-key="${escapeCssIdentifier(memberKey)}"]`);
+    if (!details) {
+      return;
+    }
+    const unitDetails = details.closest(".overview-unit-details");
+    if (unitDetails) {
+      unitDetails.open = true;
+      state.ui.overviewOpenUnitKey = unitDetails.dataset.overviewUnitKey || state.ui.overviewOpenUnitKey;
+    }
+    details.open = true;
+    details.scrollIntoView({ behavior: "smooth", block: "center" });
+    details.classList.add("is-reminder-focused");
+    window.setTimeout(() => details.classList.remove("is-reminder-focused"), 1600);
+  });
+}
+
 function renderAnalyticsSummaryCard(label, stats) {
   const breakdown = formatAnalyticsBreakdown(stats);
   return `
@@ -1891,7 +2181,7 @@ function renderAttendanceRows() {
       const equipmentClass = escapeHtml(getEquipmentProgressClass(member.equipment_progress));
       return `
         ${groupHeader}
-        <article class="attendance-card equipment-surface ${equipmentClass}${member.can_edit_attendance ? "" : " is-readonly"}${member.note_priority_high ? " has-priority-note" : ""}${member.is_self ? " is-self" : ""}">
+        <article class="attendance-card equipment-surface ${equipmentClass}${member.can_edit_attendance ? "" : " is-readonly"}${member.note_priority_high ? " has-priority-note" : ""}${member.is_self ? " is-self" : ""}" data-attendance-member-id="${member.id}">
           <div class="attendance-card-head">
             <div class="row-meta">
               <div class="attendance-name-line">
@@ -2307,6 +2597,8 @@ function handleAttendanceFieldChange(event) {
     syncNoteSummary(event.target.closest(".attendance-note-details"), member);
   }
   syncDirtyFromAttendanceChanges();
+  renderAttendanceReminderEntry();
+  refreshReminderSheetIfOpen();
 }
 
 function handleRosterActions(event) {
@@ -2655,10 +2947,18 @@ function switchOverviewUnitType(unitType) {
 
 function handleOverviewFilters() {
   state.ui.overviewSearch = els.overviewSearchInput?.value.trim() || "";
+  renderOverviewWeeks();
   renderOverviewUnits();
 }
 
 function handleOverviewWeekClick(event) {
+  const reminderButton = event.target.closest("[data-overview-reminders]");
+  if (reminderButton) {
+    event.preventDefault();
+    openReminderSheet("overview");
+    return;
+  }
+
   const dateButton = event.target.closest("[data-overview-date-button]");
   if (dateButton) {
     const input = els.overviewWeekScroller?.querySelector("#overviewDateInput");
@@ -2838,6 +3138,7 @@ function renderOverviewWeeks() {
   ];
   const quickWeekSet = new Set(quickWeeks.map((week) => week.week_start_date));
   const isCustomWeek = !quickWeekSet.has(state.overviewData.selectedWeekStart);
+  const reminderCount = buildOverviewReminders().length;
   els.overviewWeekScroller.innerHTML = `
     <div class="overview-week-quick">
       ${quickWeeks.map((week) => `
@@ -2855,6 +3156,9 @@ function renderOverviewWeeks() {
       選日期
       <input id="overviewDateInput" class="overview-date-input" type="date" min="${MIN_ATTENDANCE_WEEK_START}" max="${escapeHtml(currentWeekStart)}" value="${escapeHtml(state.overviewData.selectedWeekStart)}" />
     </label>
+    <button type="button" class="overview-reminder-button reminder-trigger${reminderCount ? " has-reminders" : ""}" data-overview-reminders>
+      提醒 ${reminderCount}
+    </button>
   `;
 }
 
@@ -3081,6 +3385,7 @@ function renderOverviewMember(member) {
   const hasRegularNote = Boolean(member.note && !member.note_priority_high);
   const memberKey = getOverviewMemberKey(member);
   const shouldOpen = state.ui.overviewOpenMemberKeys.has(memberKey);
+  const birthdayReminder = getBirthdayReminder(member);
   return `
     <details
       class="overview-member-details equipment-surface ${escapeHtml(getEquipmentProgressClass(member.equipment_progress))}${alerts.length ? " has-alerts" : ""}"
@@ -3093,7 +3398,8 @@ function renderOverviewMember(member) {
         ${alerts.map(renderOverviewAlertBadge).join("")}
         ${hasRegularNote ? '<span class="overview-note-badge">有備註</span>' : ""}
       </summary>
-      ${alerts.length ? renderOverviewAlertPanel(alerts) : ""}
+      ${birthdayReminder ? renderOverviewBirthdayDetail(birthdayReminder) : ""}
+      ${renderOverviewAlertPanel(alerts.filter((alert) => alert.type !== "birthday"))}
       ${hasRegularNote ? renderOverviewNotePanel(member.note) : ""}
       ${renderOverviewMemberHistory(member.history)}
     </details>
@@ -3101,53 +3407,76 @@ function renderOverviewMember(member) {
 }
 
 function getOverviewMemberAlerts(member) {
-  const alerts = [];
+  return [
+    getBirthdayReminder(member),
+    getOverviewAttendanceReminder(member),
+    getHighPriorityNoteReminder(member),
+  ].filter(Boolean);
+}
+
+function getOverviewAttendanceReminder(member) {
   const eventType = state.ui.overviewEvent;
-  const monthStats = member.history?.month?.[eventType] || null;
-  const threeMonthStats = member.history?.three_months?.[eventType] || null;
-  let attendanceAlert = null;
-
-  if (member.note_priority_high && member.note) {
-    alerts.push({
-      tone: "danger",
-      label: "高優先備註",
-      detail: `高優先備註：${member.note}`,
-    });
-  }
-
+  const monthStats = member?.history?.month?.[eventType] || null;
+  const threeMonthStats = member?.history?.three_months?.[eventType] || null;
   const monthPresent = Number(monthStats?.present_count || 0);
   const monthAbsent = Number(monthStats?.absent_count || 0);
   const monthConfirmed = Number(monthStats?.confirmed_count || monthPresent + monthAbsent);
-  if (monthConfirmed >= 2 && monthAbsent >= 2 && monthPresent === 0) {
-    attendanceAlert = {
-      tone: "danger",
-      label: "出席率提醒",
-      detail: `近一個月已填 ${monthConfirmed} 次，皆未出席。`,
-    };
-  } else if (monthAbsent >= 1 && monthPresent === 0 && monthConfirmed >= 1) {
-    attendanceAlert = {
-      tone: "warning",
-      label: "出席率提醒",
-      detail: `近一個月已填 ${monthConfirmed} 次，尚無出席紀錄。`,
-    };
-  }
-
   const threePresent = Number(threeMonthStats?.present_count || 0);
   const threeAbsent = Number(threeMonthStats?.absent_count || 0);
   const threeConfirmed = Number(threeMonthStats?.confirmed_count || threePresent + threeAbsent);
   const threeRate = threeConfirmed ? threePresent / threeConfirmed : null;
-  if (!attendanceAlert && threeConfirmed >= 8 && threeRate !== null && threeRate < 0.5) {
-    attendanceAlert = {
-      tone: "warning",
-      label: "出席率提醒",
-      detail: `近期出席率 ${formatPercent(threePresent, threeConfirmed)}（出席 ${threePresent} / 已填 ${threeConfirmed}）。`,
+
+  if (monthConfirmed >= 2 && monthAbsent >= 2 && monthPresent === 0) {
+    return {
+      type: "attendance",
+      tone: "danger",
+      label: "急需關注",
+      detail: `近一個月已填 ${monthConfirmed} 次，皆未出席。`,
+      panelDetail: `近一個月皆未出席（已填 ${monthConfirmed} 次）`,
     };
   }
-  if (attendanceAlert) {
-    alerts.push(attendanceAlert);
+
+  if (threeConfirmed >= 8 && threeRate !== null && threeRate < 0.3) {
+    return {
+      type: "attendance",
+      tone: "danger",
+      label: "急需關注",
+      detail: `近期出席率 ${formatPercent(threePresent, threeConfirmed)}（出席 ${threePresent} / 已填 ${threeConfirmed}）。`,
+      panelDetail: `近期出席率 ${formatPercent(threePresent, threeConfirmed)}`,
+    };
   }
 
-  return alerts;
+  if (monthAbsent >= 1 && monthPresent === 0 && monthConfirmed >= 1) {
+    return {
+      type: "attendance",
+      tone: "warning",
+      label: "關注",
+      detail: `近一個月已填 ${monthConfirmed} 次，尚無出席紀錄。`,
+      panelDetail: `近一個月尚無出席紀錄（已填 ${monthConfirmed} 次）`,
+    };
+  }
+
+  if (threeConfirmed >= 8 && threeRate !== null && threeRate < 0.5) {
+    return {
+      type: "attendance",
+      tone: "warning",
+      label: "關注",
+      detail: `近期出席率 ${formatPercent(threePresent, threeConfirmed)}（出席 ${threePresent} / 已填 ${threeConfirmed}）。`,
+      panelDetail: `近期出席率 ${formatPercent(threePresent, threeConfirmed)}`,
+    };
+  }
+
+  if (threeConfirmed >= 4 && threeRate !== null && threeRate < 0.7) {
+    return {
+      type: "attendance",
+      tone: "caution",
+      label: "留意",
+      detail: `近期出席率 ${formatPercent(threePresent, threeConfirmed)}（出席 ${threePresent} / 已填 ${threeConfirmed}）。`,
+      panelDetail: `近期出席率 ${formatPercent(threePresent, threeConfirmed)}`,
+    };
+  }
+
+  return null;
 }
 
 function renderOverviewAlertBadge(alert) {
@@ -3155,11 +3484,23 @@ function renderOverviewAlertBadge(alert) {
 }
 
 function renderOverviewAlertPanel(alerts) {
+  if (!alerts.length) {
+    return "";
+  }
+
   return `
     <div class="overview-alert-panel">
       ${alerts.map((alert) => `
         <span class="overview-alert-reason ${escapeHtml(alert.tone)}">${escapeHtml(alert.detail)}</span>
       `).join("")}
+    </div>
+  `;
+}
+
+function renderOverviewBirthdayDetail(reminder) {
+  return `
+    <div class="overview-birthday-detail ${escapeHtml(reminder.tone)}">
+      ${escapeHtml(reminder.detail)}
     </div>
   `;
 }
@@ -8350,4 +8691,12 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function escapeCssIdentifier(value) {
+  const text = String(value ?? "");
+  if (window.CSS?.escape) {
+    return window.CSS.escape(text);
+  }
+  return text.replace(/["\\]/g, "\\$&");
 }

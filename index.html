@@ -29,7 +29,7 @@
       content="牧區點名・出席｜LINE 登入"
     />
     <title>topheart 牧區點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260519-org-tree-measure-v116" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260520-reminders-v117" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -262,9 +262,14 @@
               </button>
             </div>
             <div class="toolbar-group">
-              <button id="refreshBtn" type="button" class="secondary">
-                重新整理
-              </button>
+              <div class="attendance-reminder-actions">
+                <button id="refreshBtn" type="button" class="secondary">
+                  重新整理
+                </button>
+                <button id="attendanceReminderBtn" type="button" class="secondary reminder-trigger hidden">
+                  本週提醒
+                </button>
+              </div>
               <button id="saveAttendanceBtn" type="button">儲存變更</button>
             </div>
           </div>
@@ -881,9 +886,22 @@
       </section>
 
       <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+      <div id="reminderSheetBackdrop" class="reminder-sheet-backdrop hidden"></div>
+      <section id="reminderSheet" class="reminder-sheet hidden" aria-live="polite" aria-label="關注提醒">
+        <div class="reminder-sheet-head">
+          <div>
+            <p class="eyebrow">Reminder</p>
+            <h3 id="reminderSheetTitle">關注提醒</h3>
+          </div>
+          <button id="closeReminderSheetBtn" type="button" class="secondary">關閉</button>
+        </div>
+        <div id="reminderSheetBody" class="reminder-sheet-body">
+          <div class="empty-state-card">目前沒有提醒。</div>
+        </div>
+      </section>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js" defer></script>
-    <script type="module" src="./attendance-ui/main.js?v=20260519-org-tree-measure-v116"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260520-reminders-v117"></script>
   </body>
 </html>

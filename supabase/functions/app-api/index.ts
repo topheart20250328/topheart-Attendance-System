@@ -3326,6 +3326,7 @@ function buildOverviewEventDetail(
       full_name: member.full_name,
       role: member.role,
       gender: member.gender,
+      birthday: member.birthday,
       note: String(record?.note || "").trim(),
       note_priority_high: Boolean(record?.note && record?.note_priority_high),
     });
