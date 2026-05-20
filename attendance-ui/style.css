@@ -4065,9 +4065,18 @@ tbody tr:last-child td {
 }
 
 .org-tree-scaled-shell {
+  --org-tree-view-gutter-x: 24px;
+  --org-tree-view-gutter-y: 18px;
   position: relative;
+  box-sizing: content-box;
   min-width: 1px;
   min-height: 1px;
+  padding: var(--org-tree-view-gutter-y) var(--org-tree-view-gutter-x);
+}
+
+.org-tree-board.is-exporting .org-tree-scaled-shell {
+  --org-tree-view-gutter-x: 10px !important;
+  --org-tree-view-gutter-y: 10px !important;
 }
 
 .org-tree-canvas {
