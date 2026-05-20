@@ -349,9 +349,24 @@ code {
 }
 
 .card-header h2,
-.section-toolbar h3 {
+.section-toolbar h3,
+.section-toolbar h4,
+.card-subsection > h3 {
   margin: 0.2rem 0 0;
   line-height: 1.2;
+}
+
+.section-toolbar h3,
+.card-subsection > h3 {
+  color: var(--text);
+  font-size: clamp(0.95rem, 1.55vw, 1.08rem);
+  font-weight: 800;
+}
+
+.section-toolbar h4 {
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 800;
 }
 
 .page-title-line {
@@ -2043,7 +2058,7 @@ body.is-authenticated #invitesView {
 
 #invitesView .card-subsection h3 {
   margin: 0 0 8px;
-  font-size: 1rem;
+  font-size: 0.96rem;
 }
 
 #invitesView .form-grid {
@@ -4052,28 +4067,15 @@ tbody tr:last-child td {
 
 .org-tree-actions {
   display: grid;
-  grid-template-columns: auto auto;
+  grid-template-columns: auto;
   align-items: center;
   justify-content: end;
   gap: 5px;
 }
 
-.org-tree-mode-control {
-  display: inline-grid;
-  grid-template-columns: repeat(3, auto);
-  align-items: center;
-  gap: 4px;
-  padding: 3px;
-  min-height: 34px;
-  box-sizing: border-box;
-  border: 1px solid rgba(217, 226, 240, 0.92);
-  border-radius: 999px;
-  background: #f8fbff;
-}
-
 .org-tree-zoom-control {
   display: inline-grid;
-  grid-template-columns: minmax(150px, 164px) auto auto;
+  grid-template-columns: minmax(150px, 164px) auto auto auto;
   align-items: center;
   gap: 4px;
   padding: 3px;
@@ -4168,39 +4170,19 @@ tbody tr:last-child td {
   font-size: 0.76rem;
 }
 
-.org-tree-mode-control > button {
-  min-height: 24px;
-  padding: 0.18rem 0.48rem;
-  border-radius: 999px;
-  box-shadow: none;
-  font-size: 0.76rem;
-}
-
-.org-tree-mode-control > button.is-active {
-  border-color: var(--primary);
-  background: var(--primary);
-  color: #fff;
-}
-
 @media (max-width: 640px) {
   .org-tree-actions {
-    grid-template-columns: 1fr 1fr;
     width: 100%;
   }
 
-  .org-tree-mode-control,
   .org-tree-zoom-control {
     grid-column: 1 / -1;
     display: grid;
     width: 100%;
   }
 
-  .org-tree-mode-control {
-    grid-template-columns: 1fr 1fr 1fr;
-  }
-
   .org-tree-zoom-control {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     border: 1px solid rgba(217, 226, 240, 0.92);
     border-radius: 18px;
     background: #f8fbff;
@@ -4215,7 +4197,7 @@ tbody tr:last-child td {
     padding: 0;
   }
 
-  .org-tree-actions > button {
+  .org-tree-zoom-control > button {
     min-height: 34px;
     padding: 0.36rem 0.5rem;
   }
@@ -7149,9 +7131,12 @@ body.is-authenticated .toast {
     margin-bottom: 6px;
   }
 
-  #invitesView .card-header h2,
-  #invitesView .card-subsection h3 {
+  #invitesView .card-header h2 {
     font-size: 1rem;
+  }
+
+  #invitesView .card-subsection h3 {
+    font-size: 0.94rem;
   }
 
   #invitesView .card-subsection,

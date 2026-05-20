@@ -29,7 +29,7 @@
       content="牧區點名・出席｜LINE 登入"
     />
     <title>topheart 牧區點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260520-page-headers-v127" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260520-purge-confirm-v129" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -653,17 +653,6 @@
               <h3>組織樹狀圖</h3>
             </div>
             <div class="button-row compact-buttons org-tree-actions">
-              <div class="segmented-control org-tree-mode-control" role="group" aria-label="組織樹顯示模式">
-                <button id="orgTreeCompactBtn" type="button" class="secondary is-active">
-                  橫向導覽
-                </button>
-                <button id="orgTreeVerticalBtn" type="button" class="secondary">
-                  直向導覽
-                </button>
-                <button id="captureOrgTreeBtn" type="button" class="secondary">
-                  截圖
-                </button>
-              </div>
               <div class="segmented-control org-tree-zoom-control" role="group" aria-label="組織樹縮放">
                 <label class="org-tree-zoom-field">
                   <span>縮放</span>
@@ -675,6 +664,9 @@
                 </button>
                 <button id="orgTreeZoomResetBtn" type="button" class="secondary">
                   重設
+                </button>
+                <button id="captureOrgTreeBtn" type="button" class="secondary">
+                  截圖
                 </button>
               </div>
             </div>
@@ -935,6 +927,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js" defer></script>
-    <script type="module" src="./attendance-ui/main.js?v=20260520-page-headers-v127"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260520-purge-confirm-v129"></script>
   </body>
 </html>

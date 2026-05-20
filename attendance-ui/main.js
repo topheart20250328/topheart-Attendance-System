@@ -307,8 +307,6 @@ const els = {
   smallGroupSubmitBtn: document.querySelector("#smallGroupSubmitBtn"),
   orgTreePanel: document.querySelector("#orgTreePanel"),
   orgTreeBody: document.querySelector("#orgTreeBody"),
-  orgTreeCompactBtn: document.querySelector("#orgTreeCompactBtn"),
-  orgTreeVerticalBtn: document.querySelector("#orgTreeVerticalBtn"),
   orgTreeZoomRange: document.querySelector("#orgTreeZoomRange"),
   orgTreeZoomValue: document.querySelector("#orgTreeZoomValue"),
   orgTreeFitBtn: document.querySelector("#orgTreeFitBtn"),
@@ -589,8 +587,6 @@ function bindEvents() {
   els.districtTableBody.addEventListener("click", handleOrgTableClick);
   els.bigFamilyTableBody.addEventListener("click", handleOrgTableClick);
   els.smallGroupTableBody.addEventListener("click", handleOrgTableClick);
-  els.orgTreeCompactBtn?.addEventListener("click", () => switchOrganizationTreeMode("compact"));
-  els.orgTreeVerticalBtn?.addEventListener("click", () => switchOrganizationTreeMode("vertical"));
   els.orgTreeZoomRange?.addEventListener("input", () => setOrganizationTreeScale(Number(els.orgTreeZoomRange.value) / 100));
   els.orgTreeFitBtn?.addEventListener("click", fitOrganizationTreeToView);
   els.orgTreeZoomResetBtn?.addEventListener("click", resetOrganizationTreeView);
@@ -4547,8 +4543,11 @@ async function handleDeleteMember(button, memberId, memberName) {
 }
 
 async function handlePurgeMember(button, memberId, memberName) {
-  const confirmName = window.prompt(`請輸入「${memberName}」確認完全刪除。`);
-  if (confirmName !== memberName) {
+  if (
+    !window.confirm(
+      `確定要完全刪除「${memberName}」嗎？\n\n此操作會永久刪除人員資料，無法復原。`,
+    )
+  ) {
     showToast("已取消完全刪除。");
     return;
   }
@@ -7130,20 +7129,7 @@ function handleOrganizationTreePointerUp(event) {
   orgTreeDrag.isDragging = false;
 }
 
-function switchOrganizationTreeMode(mode) {
-  if (!ORG_TREE_MODES.includes(mode) || state.ui.orgTreeMode === mode) {
-    return;
-  }
-
-  state.ui.orgTreeMode = mode;
-  saveUiPreferences();
-  renderOrganizationTree();
-}
-
 function syncOrganizationTreeControls() {
-  const isVertical = state.ui.orgTreeMode === "vertical";
-  els.orgTreeCompactBtn?.classList.toggle("is-active", !isVertical);
-  els.orgTreeVerticalBtn?.classList.toggle("is-active", isVertical);
   syncOrgTreeDefaultModeInputs();
   syncOrganizationTreeZoomControls();
 }
