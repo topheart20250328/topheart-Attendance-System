@@ -172,8 +172,11 @@ const els = {
   toggleSettingsBtn: document.querySelector("#toggleSettingsBtn"),
   manageAllWrap: document.querySelector("#manageAllWrap"),
   manageAllInput: document.querySelector("#manageAllInput"),
+  uiSettingsBackdrop: document.querySelector("#uiSettingsBackdrop"),
   uiSettingsCard: document.querySelector("#uiSettingsCard"),
+  closeUiSettingsBtn: document.querySelector("#closeUiSettingsBtn"),
   layoutSizeInputs: document.querySelectorAll('input[name="layoutSize"]'),
+  orgTreeDefaultModeInputs: document.querySelectorAll('input[name="orgTreeDefaultMode"]'),
   setupCard: document.querySelector("#setupCard"),
   configForm: document.querySelector("#configForm"),
   projectUrlInput: document.querySelector("#projectUrlInput"),
@@ -468,9 +471,14 @@ function bindEvents() {
   els.clearConfigBtn.addEventListener("click", handleClearConfig);
   els.loginSettingsBtn.addEventListener("click", handleToggleSettings);
   els.toggleSettingsBtn.addEventListener("click", handleToggleSettings);
+  els.closeUiSettingsBtn?.addEventListener("click", closeUiSettings);
+  els.uiSettingsBackdrop?.addEventListener("click", closeUiSettings);
   els.manageAllWrap?.addEventListener("click", handleManageAllToggleClick);
   els.layoutSizeInputs?.forEach((input) => {
     input.addEventListener("change", handleLayoutSizeChange);
+  });
+  els.orgTreeDefaultModeInputs?.forEach((input) => {
+    input.addEventListener("change", handleOrgTreeDefaultModeChange);
   });
   els.signOutBtn.addEventListener("click", handleSignOut);
   els.bindForm.addEventListener("submit", handleBindInvite);
@@ -631,6 +639,7 @@ function hydrateLocalState() {
   state.ui.orgTreeMode = uiPreferences.orgTreeMode;
   state.ui.orgTreeScale = uiPreferences.orgTreeScale;
   els.projectUrlInput.value = state.config.projectUrl || "";
+  syncOrgTreeDefaultModeInputs();
   if (els.overviewUnitTypeSelect) {
     els.overviewUnitTypeSelect.value = state.ui.overviewUnitType;
   }
@@ -709,6 +718,12 @@ function applyLayoutSize() {
   }
   els.layoutSizeInputs?.forEach((input) => {
     input.checked = input.value === state.ui.layoutSize;
+  });
+}
+
+function syncOrgTreeDefaultModeInputs() {
+  els.orgTreeDefaultModeInputs?.forEach((input) => {
+    input.checked = input.value === state.ui.orgTreeMode;
   });
 }
 
@@ -903,6 +918,11 @@ function handleToggleSettings() {
   renderLayout();
 }
 
+function closeUiSettings() {
+  state.ui.settingsOpen = false;
+  renderLayout();
+}
+
 async function handleManageAllToggleClick() {
   await setManageAllMode(!state.ui.manageAll);
 }
@@ -945,6 +965,21 @@ function handleLayoutSizeChange(event) {
   state.ui.layoutSize = size;
   saveUiPreferences();
   applyLayoutSize();
+}
+
+function handleOrgTreeDefaultModeChange(event) {
+  const mode = event.target.value;
+  if (!ORG_TREE_MODES.includes(mode)) {
+    return;
+  }
+
+  state.ui.orgTreeMode = mode;
+  saveUiPreferences();
+  syncOrgTreeDefaultModeInputs();
+  syncOrganizationTreeControls();
+  if (state.ui.activeTab === TABS.orgs && canUseOrganizationManagement()) {
+    renderOrganizationTree();
+  }
 }
 
 async function handleSignOut() {
@@ -1093,10 +1128,14 @@ function renderLayout() {
   setHidden(els.navCard, !isAuthenticated);
   setHidden(els.toggleSettingsBtn, !isAuthenticated);
   setHidden(els.uiSettingsCard, !isAuthenticated || !state.ui.settingsOpen);
+  setHidden(els.uiSettingsBackdrop, !isAuthenticated || !state.ui.settingsOpen);
+  document.body.classList.toggle("settings-sheet-open", isAuthenticated && state.ui.settingsOpen);
 
   if (!isAuthenticated) {
     setHidden(els.manageAllWrap, true);
     setHidden(els.uiSettingsCard, true);
+    setHidden(els.uiSettingsBackdrop, true);
+    document.body.classList.remove("settings-sheet-open");
     setHidden(els.attendanceView, true);
     setHidden(els.overviewView, true);
     setHidden(els.peopleView, true);
@@ -7105,6 +7144,7 @@ function syncOrganizationTreeControls() {
   const isVertical = state.ui.orgTreeMode === "vertical";
   els.orgTreeCompactBtn?.classList.toggle("is-active", !isVertical);
   els.orgTreeVerticalBtn?.classList.toggle("is-active", isVertical);
+  syncOrgTreeDefaultModeInputs();
   syncOrganizationTreeZoomControls();
 }
 

@@ -554,15 +554,102 @@ body:not(.is-authenticated) #attendanceSaveBar {
   outline-offset: 2px;
 }
 
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(15, 23, 42, 0.3);
+  backdrop-filter: blur(2px);
+}
+
 .settings-card {
   position: fixed;
-  top: max(72px, calc(12px + env(safe-area-inset-top)));
   right: max(12px, env(safe-area-inset-right));
-  z-index: 12;
-  width: min(420px, calc(100vw - 24px));
-  max-height: calc(100dvh - 96px);
-  overflow: auto;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  left: max(12px, env(safe-area-inset-left));
+  z-index: 80;
+  display: grid;
+  gap: 10px;
+  width: auto;
+  max-width: 560px;
+  max-height: min(76vh, 640px);
+  margin: 0 auto;
+  padding: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(217, 226, 240, 0.92);
+  border-radius: 22px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+}
+
+.settings-card::before {
+  content: "";
+  justify-self: center;
+  width: 38px;
+  height: 3px;
+  border-radius: 999px;
+  background: #d9e2f0;
+}
+
+.settings-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.settings-sheet-head h2 {
   margin: 0;
+  font-size: 1.05rem;
+}
+
+.settings-sheet-head .eyebrow {
+  margin-bottom: 2px;
+}
+
+#closeUiSettingsBtn {
+  min-height: 30px;
+  padding: 0.28rem 0.62rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+}
+
+.settings-sheet-body {
+  display: grid;
+  gap: 9px;
+  min-height: 0;
+  max-height: calc(min(76vh, 640px) - 78px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
+}
+
+.settings-section-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(217, 226, 240, 0.86);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+
+.settings-section-title {
+  display: grid;
+  gap: 2px;
+}
+
+.settings-section-title strong {
+  color: var(--text);
+  font-size: 0.96rem;
+}
+
+.settings-section-title span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .layout-size-options {
@@ -572,6 +659,17 @@ body:not(.is-authenticated) #attendanceSaveBar {
   margin: 0 0 10px;
   padding: 0;
   border: 0;
+}
+
+.settings-option-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0;
+}
+
+.settings-option-grid-compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .layout-size-options legend {
@@ -585,12 +683,24 @@ body:not(.is-authenticated) #attendanceSaveBar {
 .layout-size-options label {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  min-width: 86px;
-  padding: 0.7rem 0.95rem;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0.58rem 0.72rem;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: #f8fbff;
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.layout-size-options label:has(input:checked) {
+  border-color: rgba(43, 111, 243, 0.45);
+  background: #eff6ff;
+  color: var(--primary-strong);
+  box-shadow: inset 0 0 0 1px rgba(43, 111, 243, 0.08);
 }
 
 .layout-size-options input {
@@ -602,16 +712,17 @@ body:not(.is-authenticated) #attendanceSaveBar {
 }
 
 .label-guide {
-  margin-top: 12px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--surface-alt);
+  margin-top: 0;
+  padding: 11px 12px;
+  border: 1px solid rgba(217, 226, 240, 0.86);
+  border-radius: 18px;
+  background: rgba(248, 251, 255, 0.9);
 }
 
 .label-guide summary {
   cursor: pointer;
   font-weight: 800;
+  color: var(--text);
 }
 
 .label-guide-section {
@@ -3453,6 +3564,29 @@ tbody tr:last-child td {
 }
 
 @media (max-width: 560px) {
+  .settings-card {
+    right: 8px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: 8px;
+    max-height: min(80vh, 640px);
+    padding: 10px;
+    border-radius: 20px 20px 18px 18px;
+  }
+
+  .settings-sheet-head {
+    align-items: flex-start;
+  }
+
+  .settings-option-grid,
+  .settings-option-grid-compact {
+    gap: 6px;
+  }
+
+  .settings-section-card {
+    padding: 10px;
+    border-radius: 16px;
+  }
+
   .reminder-sheet {
     right: 8px;
     bottom: max(8px, env(safe-area-inset-bottom));
