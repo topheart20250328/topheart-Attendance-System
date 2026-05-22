@@ -1575,6 +1575,7 @@ function shouldIgnoreTabSwipe(target) {
         ".tab-row",
         ".overview-week-scroller",
         ".overview-history-grid",
+        ".profile-table-wrap",
         ".org-tree-board",
         ".attendance-save-bar",
       ].join(","),
@@ -3101,8 +3102,6 @@ function renderProfileTable(members) {
       <div class="profile-table" role="table" aria-label="個人資料清冊">
         <div class="profile-table-row profile-table-head" role="row">
           <span class="profile-table-cell profile-name-cell" role="columnheader">姓名</span>
-          <span class="profile-table-cell profile-role-cell" role="columnheader">職分</span>
-          <span class="profile-table-cell profile-scope-cell" role="columnheader">轄區</span>
           <span class="profile-table-cell profile-birthday-cell" role="columnheader">生日</span>
           <span class="profile-table-cell profile-age-cell" role="columnheader">年齡</span>
           <span class="profile-table-cell profile-phone-cell" role="columnheader">電話</span>
@@ -3118,16 +3117,11 @@ function renderProfileTable(members) {
 function renderProfileTableRow(member) {
   const birthday = normalizeBirthday(member.birthday);
   const age = calculateAgeFromBirthday(birthday);
-  const path = formatPeopleScopeSummary(member);
   return `
     <div class="profile-table-row${member.is_active ? "" : " is-inactive"}" role="row" data-profile-member-id="${member.id}">
       <span class="profile-table-cell profile-name-cell" role="cell">
         <strong class="name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</strong>
       </span>
-      <span class="profile-table-cell profile-role-cell" role="cell">
-        <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
-      </span>
-      <span class="profile-table-cell profile-scope-cell" role="cell">${escapeHtml(path || "未設定")}</span>
       ${renderProfileCopyCell("profile-birthday-cell", formatProfileBirthdayDate(member.birthday), member.birthday, "生日")}
       <span class="profile-table-cell profile-age-cell" role="cell">${escapeHtml(age === null ? "-" : `${age}`)}</span>
       ${renderProfileCopyCell("profile-phone-cell", formatProfileValue(member.phone), member.phone, "電話")}

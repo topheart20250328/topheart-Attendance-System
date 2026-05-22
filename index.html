@@ -29,7 +29,7 @@
       content="牧區點名・出席｜LINE 登入"
     />
     <title>topheart 牧區點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260522-profile-excel-v140" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260522-profile-final-table-v142" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -410,7 +410,7 @@
         <div class="section-toolbar profile-filter-row">
           <label class="search-field profile-search-field">
             <span>搜尋</span>
-            <input id="profileSearchInput" type="search" placeholder="搜尋姓名、電話、住址或記錄" />
+            <input id="profileSearchInput" type="search" placeholder="搜尋姓名、電話、住址、記錄" />
           </label>
         </div>
 
@@ -437,16 +437,16 @@
               </label>
               <label>
                 <span>電話</span>
-                <input id="profilePhoneInput" type="tel" inputmode="tel" autocomplete="tel" placeholder="可留空" />
+                <input id="profilePhoneInput" type="tel" inputmode="tel" autocomplete="tel" placeholder="未填寫" />
               </label>
             </div>
             <label>
               <span>住址</span>
-              <input id="profileAddressInput" type="text" autocomplete="street-address" placeholder="可留空" />
+              <input id="profileAddressInput" type="text" autocomplete="street-address" placeholder="未填寫" />
             </label>
             <label>
               <span>記錄</span>
-              <textarea id="profileNoteInput" rows="5" maxlength="2000" placeholder="固定個人記錄，不會跟著點名週次變動"></textarea>
+              <textarea id="profileNoteInput" rows="5" maxlength="2000" placeholder="未填寫"></textarea>
             </label>
             <div class="button-row">
               <button id="profileSubmitBtn" type="submit">儲存個人資料</button>
@@ -983,6 +983,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js" defer></script>
-    <script type="module" src="./attendance-ui/main.js?v=20260522-profile-excel-v140"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260522-profile-final-table-v142"></script>
   </body>
 </html>
