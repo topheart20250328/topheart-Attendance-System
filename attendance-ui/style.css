@@ -1717,10 +1717,10 @@ body.is-authenticated #invitesView {
 
 .profile-row {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(220px, 1.35fr) auto;
+  grid-template-columns: minmax(210px, 1.05fr) minmax(220px, 1.2fr);
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 6px 8px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: #fff;
@@ -1739,12 +1739,14 @@ body.is-authenticated #invitesView {
 .profile-member-line {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 5px;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .profile-path {
-  max-width: 100%;
+  min-width: 0;
+  max-width: min(46vw, 260px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1758,10 +1760,11 @@ body.is-authenticated #invitesView {
 }
 
 .profile-field {
-  display: grid;
-  gap: 2px;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
   min-width: 0;
-  padding: 6px 8px;
+  padding: 5px 7px;
   border: 1px solid rgba(217, 226, 240, 0.8);
   border-radius: 10px;
   background: #f8fbff;
@@ -1782,14 +1785,12 @@ button.profile-field {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.86rem;
+  font-size: 0.84rem;
 }
 
-.profile-edit-hint {
-  justify-self: end;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 800;
+.profile-field .info-label {
+  flex: 0 0 auto;
+  line-height: 1.15;
 }
 
 #peopleView .member-card-title strong {
@@ -2774,6 +2775,7 @@ tbody tr:last-child td {
 }
 
 #overviewView .card-header h2,
+#profileView .card-header h2,
 #peopleView .card-header h2,
 #orgsView .card-header h2,
 #invitesView .card-header h2 {
@@ -5889,10 +5891,11 @@ tbody tr:last-child td {
 }
 
 #profileEditorCard.editor-sheet .section-toolbar {
-  display: flex;
-  flex-wrap: nowrap;
-  justify-content: space-between;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 #profileEditorCard.editor-sheet .section-toolbar > div {
@@ -5907,9 +5910,41 @@ tbody tr:last-child td {
 }
 
 #profileEditorCard.editor-sheet #closeProfileEditorBtn {
-  flex: 0 0 auto;
   width: auto;
   min-width: 64px;
+  min-height: 34px;
+  padding: 0.42rem 0.68rem;
+  align-self: start;
+  justify-self: end;
+}
+
+#profileEditorCard.editor-sheet #profileForm {
+  gap: 9px;
+  padding-top: 2px;
+}
+
+#profileEditorCard.editor-sheet #profileForm label {
+  gap: 4px;
+}
+
+#profileEditorCard.editor-sheet #profileForm label span {
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+#profileEditorCard.editor-sheet #profileForm input,
+#profileEditorCard.editor-sheet #profileForm textarea {
+  min-height: 40px;
+  border-radius: 13px;
+}
+
+#profileEditorCard.editor-sheet #profileForm textarea {
+  min-height: 132px;
+  resize: vertical;
+}
+
+#profileEditorCard.editor-sheet #profileSubmitBtn {
+  width: 100%;
 }
 
 #memberEditorCard.editor-sheet #memberForm,
@@ -5957,16 +5992,44 @@ tbody tr:last-child td {
 
   .profile-row {
     grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
+    gap: 4px;
+    padding: 6px 7px;
   }
 
   .profile-row-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
   }
 
-  .profile-edit-hint {
-    justify-self: start;
-    font-size: 0.74rem;
+  .profile-member-line {
+    gap: 4px;
+  }
+
+  .profile-path {
+    max-width: 35vw;
+  }
+
+  .profile-field {
+    padding: 4px 6px;
+    gap: 4px;
+  }
+
+  .profile-field strong {
+    font-size: 0.8rem;
+  }
+
+  #profileEditorCard.editor-sheet .section-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  #profileEditorCard.editor-sheet #closeProfileEditorBtn {
+    min-width: 58px;
+    padding-inline: 0.58rem;
+  }
+
+  #profileEditorCard.editor-sheet #profileForm {
+    gap: 8px;
   }
 }
 

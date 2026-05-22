@@ -3123,13 +3123,12 @@ function renderProfileRow(member) {
         <div class="profile-member-line">
           <strong class="name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</strong>
           <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
+          ${path ? `<span class="profile-path muted small-text">${escapeHtml(path)}</span>` : ""}
         </div>
-        ${path ? `<div class="profile-path muted small-text">${escapeHtml(path)}</div>` : ""}
       </div>
       <div class="profile-row-fields">
         ${fields.join("")}
       </div>
-      <span class="profile-edit-hint">編輯</span>
     </article>
   `;
 }
@@ -3164,7 +3163,26 @@ function formatProfileValue(value) {
 
 function formatProfileBirthday(value) {
   const birthday = normalizeBirthday(value);
-  return birthday ? `${birthday.month}/${birthday.day}` : "未填寫";
+  if (!birthday) {
+    return "未填寫";
+  }
+  const age = calculateAgeFromBirthday(birthday);
+  return age === null
+    ? `${birthday.year}/${birthday.month}/${birthday.day}`
+    : `${birthday.year}/${birthday.month}/${birthday.day}（${age}歲）`;
+}
+
+function calculateAgeFromBirthday(birthday, anchorIso = getTodayIso()) {
+  if (!birthday?.year || !birthday?.month || !birthday?.day) {
+    return null;
+  }
+  const anchor = parseIsoDate(anchorIso);
+  let age = anchor.getFullYear() - birthday.year;
+  const birthdayThisYear = new Date(anchor.getFullYear(), birthday.month - 1, birthday.day);
+  if (stripTime(anchor).getTime() < stripTime(birthdayThisYear).getTime()) {
+    age -= 1;
+  }
+  return age >= 0 ? age : null;
 }
 
 function compareProfileMembers(left, right) {
