@@ -144,6 +144,7 @@ const V2_API_ACTIONS = new Set([
   "purge-member",
   "reset-member-line-binding",
   "update-member",
+  "update-member-profile",
 ]);
 
 const INVITE_SORT_OPTIONS = [
@@ -156,6 +157,7 @@ const INVITE_SORT_OPTIONS = [
 const TABS = {
   attendance: "attendance",
   overview: "overview",
+  profile: "profile",
   people: "people",
   orgs: "orgs",
   invites: "invites",
@@ -201,6 +203,7 @@ const els = {
   navCard: document.querySelector("#navCard"),
   tabAttendanceBtn: document.querySelector("#tabAttendanceBtn"),
   tabOverviewBtn: document.querySelector("#tabOverviewBtn"),
+  tabProfileBtn: document.querySelector("#tabProfileBtn"),
   tabPeopleBtn: document.querySelector("#tabPeopleBtn"),
   tabOrgsBtn: document.querySelector("#tabOrgsBtn"),
   tabInvitesBtn: document.querySelector("#tabInvitesBtn"),
@@ -232,6 +235,21 @@ const els = {
   overviewWeekScroller: document.querySelector("#overviewWeekScroller"),
   overviewScopeSummary: document.querySelector("#overviewScopeSummary"),
   overviewUnitList: document.querySelector("#overviewUnitList"),
+  profileView: document.querySelector("#profileView"),
+  profileSearchInput: document.querySelector("#profileSearchInput"),
+  profileSummary: document.querySelector("#profileSummary"),
+  profileTableBody: document.querySelector("#profileTableBody"),
+  profileEditorBackdrop: document.querySelector("#profileEditorBackdrop"),
+  profileEditorCard: document.querySelector("#profileEditorCard"),
+  profileEditorTitle: document.querySelector("#profileEditorTitle"),
+  profileEditorHint: document.querySelector("#profileEditorHint"),
+  closeProfileEditorBtn: document.querySelector("#closeProfileEditorBtn"),
+  profileForm: document.querySelector("#profileForm"),
+  profileBirthdayInput: document.querySelector("#profileBirthdayInput"),
+  profilePhoneInput: document.querySelector("#profilePhoneInput"),
+  profileAddressInput: document.querySelector("#profileAddressInput"),
+  profileNoteInput: document.querySelector("#profileNoteInput"),
+  profileSubmitBtn: document.querySelector("#profileSubmitBtn"),
   peopleView: document.querySelector("#peopleView"),
   orgsView: document.querySelector("#orgsView"),
   peopleSearchInput: document.querySelector("#peopleSearchInput"),
@@ -249,7 +267,6 @@ const els = {
   memberNameInput: document.querySelector("#memberNameInput"),
   memberRoleSelect: document.querySelector("#memberRoleSelect"),
   memberGenderSelect: document.querySelector("#memberGenderSelect"),
-  memberBirthdayInput: document.querySelector("#memberBirthdayInput"),
   memberEquipmentProgressSelect: document.querySelector("#memberEquipmentProgressSelect"),
   memberDistrictLabel: document.querySelector("#memberDistrictLabel"),
   memberDistrictSelect: document.querySelector("#memberDistrictSelect"),
@@ -290,7 +307,6 @@ const els = {
   bulkPreviewList: document.querySelector("#bulkPreviewList"),
   orgManagementPanel: document.querySelector(".org-management-panel"),
   orgCreatePanel: document.querySelector(".org-create-panel"),
-  districtDetails: document.querySelector("#districtDetails"),
   districtForm: document.querySelector("#districtForm"),
   districtDetails: document.querySelector("#districtDetails"),
   districtNameInput: document.querySelector("#districtNameInput"),
@@ -401,6 +417,8 @@ const state = {
     orgTreeScale: 1,
     orgTreePanelCollapsed: false,
     orgTreeCollapsedKeys: new Set(),
+    profileSearch: "",
+    profileEditingMemberId: null,
     peopleSearch: "",
     peopleRole: "",
     peopleOpenGroups: new Set(),
@@ -423,6 +441,11 @@ const tabSwipe = {
   startX: 0,
   startY: 0,
   target: null,
+};
+
+const profileCopyState = {
+  timer: null,
+  copied: false,
 };
 
 const orgTreeDrag = {
@@ -493,6 +516,7 @@ function bindEvents() {
 
   els.tabAttendanceBtn.addEventListener("click", () => switchTab(TABS.attendance));
   els.tabOverviewBtn?.addEventListener("click", () => switchTab(TABS.overview));
+  els.tabProfileBtn?.addEventListener("click", () => switchTab(TABS.profile));
   els.tabPeopleBtn.addEventListener("click", () => switchTab(TABS.people));
   els.tabOrgsBtn?.addEventListener("click", () => switchTab(TABS.orgs));
   els.tabInvitesBtn.addEventListener("click", () => switchTab(TABS.invites));
@@ -524,6 +548,18 @@ function bindEvents() {
   els.overviewUnitList?.addEventListener("click", handleOverviewHistoryRangeClick);
   els.overviewUnitList?.addEventListener("toggle", handleOverviewUnitToggle, true);
 
+  els.profileSearchInput?.addEventListener("input", handleProfileFilters);
+  els.profileTableBody?.addEventListener("click", handleProfileTableClick);
+  els.profileTableBody?.addEventListener("pointerdown", handleProfileCopyPointerDown);
+  els.profileTableBody?.addEventListener("pointerup", clearProfileCopyTimer);
+  els.profileTableBody?.addEventListener("pointerleave", clearProfileCopyTimer);
+  els.profileTableBody?.addEventListener("pointercancel", clearProfileCopyTimer);
+  els.profileTableBody?.addEventListener("contextmenu", handleProfileCopyContextMenu);
+  els.closeProfileEditorBtn?.addEventListener("click", closeProfileEditor);
+  els.profileEditorBackdrop?.addEventListener("click", closeProfileEditor);
+  els.profileForm?.addEventListener("submit", handleSaveMemberProfile);
+  els.profileBirthdayInput?.addEventListener("blur", handleProfileBirthdayInputBlur);
+
   els.peopleSearchInput.addEventListener("input", handlePeopleFilters);
   els.peopleRoleFilter.addEventListener("change", handlePeopleFilters);
   els.bulkMemberBtn?.addEventListener("click", openBulkMemberEditor);
@@ -535,7 +571,6 @@ function bindEvents() {
   els.closeBulkMemberEditorBtn?.addEventListener("click", closeBulkMemberEditor);
 
   els.memberForm.addEventListener("submit", handleSaveMember);
-  els.memberBirthdayInput?.addEventListener("blur", handleBirthdayInputBlur);
   els.memberRoleSelect.addEventListener("change", () => {
     const editingMember = state.ui.editingMemberId
       ? state.adminData.members.find((member) => member.id === state.ui.editingMemberId)
@@ -1150,6 +1185,7 @@ function renderLayout() {
     document.body.classList.remove("settings-sheet-open");
     setHidden(els.attendanceView, true);
     setHidden(els.overviewView, true);
+    setHidden(els.profileView, true);
     setHidden(els.peopleView, true);
     setHidden(els.orgsView, true);
     setHidden(els.invitesView, true);
@@ -1398,16 +1434,19 @@ function syncWeekControls() {
 
 function renderTabs() {
   const canViewOverview = canUseOverview();
+  const canViewProfiles = canUseProfileDirectory();
   const canManagePeople = canUseManagement();
   const canManageOrgs = canUseOrganizationManagement();
   const canManageInvites = canUseInvites();
   setHidden(els.tabOverviewBtn, !canViewOverview);
+  setHidden(els.tabProfileBtn, !canViewProfiles);
   setHidden(els.tabPeopleBtn, !canManagePeople);
   setHidden(els.tabOrgsBtn, !canManageOrgs);
   setHidden(els.tabInvitesBtn, !canManageInvites);
 
   if (
     (state.ui.activeTab === TABS.overview && !canViewOverview) ||
+    (state.ui.activeTab === TABS.profile && !canViewProfiles) ||
     (state.ui.activeTab === TABS.people && !canManagePeople) ||
     (state.ui.activeTab === TABS.orgs && !canManageOrgs) ||
     (state.ui.activeTab === TABS.invites && !canManageInvites)
@@ -1417,6 +1456,7 @@ function renderTabs() {
 
   setTabActive(els.tabAttendanceBtn, state.ui.activeTab === TABS.attendance);
   setTabActive(els.tabOverviewBtn, state.ui.activeTab === TABS.overview);
+  setTabActive(els.tabProfileBtn, state.ui.activeTab === TABS.profile);
   setTabActive(els.tabPeopleBtn, state.ui.activeTab === TABS.people);
   setTabActive(els.tabOrgsBtn, state.ui.activeTab === TABS.orgs);
   setTabActive(els.tabInvitesBtn, state.ui.activeTab === TABS.invites);
@@ -1425,6 +1465,7 @@ function renderTabs() {
 function renderActiveView() {
   setHidden(els.attendanceView, state.ui.activeTab !== TABS.attendance);
   setHidden(els.overviewView, state.ui.activeTab !== TABS.overview || !canUseOverview());
+  setHidden(els.profileView, state.ui.activeTab !== TABS.profile || !canUseProfileDirectory());
   setHidden(els.peopleView, state.ui.activeTab !== TABS.people || !canUseManagement());
   setHidden(els.orgsView, state.ui.activeTab !== TABS.orgs || !canUseOrganizationManagement());
   setHidden(els.invitesView, state.ui.activeTab !== TABS.invites || !canUseInvites());
@@ -1468,6 +1509,9 @@ function switchTab(tabId) {
   state.ui.activeTab = tabId;
   renderTabs();
   renderActiveView();
+  if (tabId === TABS.profile) {
+    renderProfileDirectory();
+  }
   if (tabId === TABS.overview) {
     loadAttendanceOverview();
   }
@@ -1543,6 +1587,7 @@ function getVisibleMainTabs() {
   return [
     TABS.attendance,
     canUseOverview() ? TABS.overview : null,
+    canUseProfileDirectory() ? TABS.profile : null,
     canUseManagement() ? TABS.people : null,
     canUseOrganizationManagement() ? TABS.orgs : null,
     canUseInvites() ? TABS.invites : null,
@@ -2099,7 +2144,7 @@ function renderReminderSheet(context, reminders) {
       <div class="reminder-empty-state">
         <span class="reminder-empty-icon">OK</span>
         <strong>目前沒有需要提醒的項目</strong>
-        <span>生日可在人員管理的人員編輯中填寫；高優先備註會在儲存點名後納入提醒。</span>
+        <span>生日可在個人資料分頁中填寫；高優先備註會在儲存點名後納入提醒。</span>
       </div>
     `;
     return;
@@ -2789,13 +2834,6 @@ function handleAttendanceFieldChange(event) {
   refreshReminderSheetIfOpen();
 }
 
-function handleBirthdayInputBlur(event) {
-  const normalized = normalizeBirthdayInputValue(event.target.value);
-  if (normalized) {
-    event.target.value = normalized;
-  }
-}
-
 function handleRosterActions(event) {
   const attendanceOption = event.target.closest(".attendance-option");
   if (attendanceOption) {
@@ -2996,10 +3034,255 @@ function renderGenderBadge(gender) {
   )}</span>`;
 }
 
+function renderProfileDirectory() {
+  if (!els.profileView) {
+    return;
+  }
+
+  if (!canUseProfileDirectory()) {
+    setHidden(els.profileView, true);
+    closeProfileEditor();
+    return;
+  }
+
+  const members = getFilteredProfileMembers();
+  const activeCount = members.filter((member) => member.is_active !== false).length;
+  els.profileSummary.textContent = members.length
+    ? `共 ${members.length} 人${activeCount !== members.length ? `，啟用 ${activeCount} 人` : ""}`
+    : "目前沒有可檢視的個人資料";
+
+  els.profileTableBody.innerHTML = members.length
+    ? members.map(renderProfileCard).join("")
+    : '<div class="empty-state-card">目前沒有符合條件的人員。</div>';
+
+  if (
+    state.ui.profileEditingMemberId &&
+    !state.adminData.members.some((member) => member.id === state.ui.profileEditingMemberId)
+  ) {
+    closeProfileEditor();
+  }
+}
+
+function getFilteredProfileMembers() {
+  const query = state.ui.profileSearch.trim().toLowerCase();
+  return state.adminData.members
+    .filter((member) => canEditProfile(member))
+    .filter((member) => !query || getProfileSearchText(member).includes(query));
+}
+
+function getProfileSearchText(member) {
+  return [
+    member.full_name,
+    member.phone,
+    member.address,
+    member.profile_note,
+    member.district_name,
+    member.big_family_name,
+    member.small_group_name,
+    getRoleLabel(member.role),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function renderProfileCard(member) {
+  const path = formatPeopleScopeSummary(member);
+  const birthday = formatProfileBirthday(member.birthday);
+  const phone = formatProfileValue(member.phone);
+  const address = formatProfileValue(member.address);
+  const profileNote = formatProfileValue(member.profile_note);
+  return `
+    <article class="profile-card${member.is_active ? "" : " is-inactive"}" data-profile-member-id="${member.id}">
+      <div class="profile-card-head">
+        <div>
+          <div class="profile-member-line">
+            <strong class="name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</strong>
+            <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
+          </div>
+          ${path ? `<div class="muted small-text">${escapeHtml(path)}</div>` : ""}
+        </div>
+        <span class="status-chip ${member.is_active ? "success" : "neutral"}">${member.is_active ? "啟用" : "封存"}</span>
+      </div>
+      <div class="profile-field-grid">
+        ${renderProfileField("生日", birthday, member.birthday)}
+        ${renderProfileField("電話", phone, member.phone)}
+        ${renderProfileField("住址", address, member.address)}
+        <div class="profile-field profile-note-field">
+          <span class="info-label">記錄</span>
+          <strong>${escapeHtml(profileNote)}</strong>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderProfileField(label, displayValue, rawValue) {
+  const canCopy = Boolean(String(rawValue || "").trim());
+  return `
+    <button
+      type="button"
+      class="profile-field ${canCopy ? "is-copyable" : ""}"
+      ${canCopy ? `data-profile-copy="${escapeHtml(String(rawValue).trim())}" data-copy-label="${escapeHtml(label)}"` : ""}
+      aria-label="${escapeHtml(canCopy ? `長按複製${label}` : `${label}尚未填寫`)}"
+    >
+      <span class="info-label">${escapeHtml(label)}</span>
+      <strong>${escapeHtml(displayValue)}</strong>
+    </button>
+  `;
+}
+
+function formatProfileValue(value) {
+  return String(value || "").trim() || "未填寫";
+}
+
+function formatProfileBirthday(value) {
+  const birthday = normalizeBirthday(value);
+  return birthday ? `${birthday.month}/${birthday.day}` : "未填寫";
+}
+
+function handleProfileFilters() {
+  state.ui.profileSearch = els.profileSearchInput?.value || "";
+  renderProfileDirectory();
+}
+
+function handleProfileTableClick(event) {
+  if (profileCopyState.copied) {
+    event.preventDefault();
+    profileCopyState.copied = false;
+    return;
+  }
+  if (event.target.closest("[data-profile-copy]")) {
+    return;
+  }
+  const card = event.target.closest("[data-profile-member-id]");
+  if (!card) {
+    return;
+  }
+  openProfileEditor(Number(card.dataset.profileMemberId || 0));
+}
+
+function handleProfileCopyPointerDown(event) {
+  const copyTarget = event.target.closest("[data-profile-copy]");
+  if (!copyTarget) {
+    return;
+  }
+  clearProfileCopyTimer();
+  profileCopyState.copied = false;
+  profileCopyState.timer = window.setTimeout(async () => {
+    const text = copyTarget.dataset.profileCopy || "";
+    const label = copyTarget.dataset.copyLabel || "資料";
+    const copied = await copyTextToClipboard(text);
+    profileCopyState.copied = copied;
+    showToast(copied ? `已複製${label}。` : `無法複製${label}。`);
+  }, 600);
+}
+
+function clearProfileCopyTimer() {
+  if (profileCopyState.timer) {
+    window.clearTimeout(profileCopyState.timer);
+    profileCopyState.timer = null;
+  }
+}
+
+async function handleProfileCopyContextMenu(event) {
+  const copyTarget = event.target.closest("[data-profile-copy]");
+  if (!copyTarget) {
+    return;
+  }
+  event.preventDefault();
+  clearProfileCopyTimer();
+  const copied = await copyTextToClipboard(copyTarget.dataset.profileCopy || "");
+  profileCopyState.copied = copied;
+  showToast(copied ? `已複製${copyTarget.dataset.copyLabel || "資料"}。` : "複製失敗。");
+}
+
+function openProfileEditor(memberId) {
+  const member = state.adminData.members.find((item) => Number(item.id) === Number(memberId));
+  if (!member || !canEditProfile(member)) {
+    showToast("沒有權限編輯這位人員的個人資料。");
+    return;
+  }
+
+  state.ui.profileEditingMemberId = member.id;
+  els.profileEditorTitle.textContent = `編輯：${member.full_name}`;
+  els.profileEditorHint.textContent = `${getRoleLabel(member.role)}${formatPeopleScopeSummary(member) ? ` / ${formatPeopleScopeSummary(member)}` : ""}`;
+  els.profileBirthdayInput.value = member.birthday ? String(member.birthday).slice(0, 10) : "";
+  els.profilePhoneInput.value = member.phone || "";
+  els.profileAddressInput.value = member.address || "";
+  els.profileNoteInput.value = member.profile_note || "";
+  setHidden(els.profileEditorBackdrop, false);
+  setHidden(els.profileEditorCard, false);
+  requestAnimationFrame(() => {
+    els.profileBirthdayInput.focus({ preventScroll: true });
+  });
+}
+
+function closeProfileEditor() {
+  state.ui.profileEditingMemberId = null;
+  els.profileForm?.reset();
+  setHidden(els.profileEditorBackdrop, true);
+  setHidden(els.profileEditorCard, true);
+}
+
+function handleProfileBirthdayInputBlur() {
+  const value = els.profileBirthdayInput.value.trim();
+  if (!value) {
+    return;
+  }
+  const normalized = normalizeBirthdayInputValue(value);
+  if (normalized) {
+    els.profileBirthdayInput.value = normalized;
+  }
+}
+
+async function handleSaveMemberProfile(event) {
+  event.preventDefault();
+  const memberId = Number(state.ui.profileEditingMemberId || 0);
+  const member = state.adminData.members.find((item) => Number(item.id) === memberId);
+  if (!member || !canEditProfile(member)) {
+    showToast("沒有權限儲存這位人員的個人資料。");
+    return;
+  }
+
+  const birthdayInput = els.profileBirthdayInput.value.trim();
+  const normalizedBirthday = normalizeBirthdayInputValue(birthdayInput);
+  if (birthdayInput && !normalizedBirthday) {
+    showToast("生日格式請輸入西元年月日，例如 19900524 或 1990-05-24。");
+    return;
+  }
+
+  setButtonLoading(els.profileSubmitBtn, true, "儲存中...");
+  try {
+    await apiRequest("update-member-profile", {
+      method: "POST",
+      authMode: "app",
+      body: {
+        ...getAdminModeRequestBody(),
+        member_id: memberId,
+        birthday: normalizedBirthday,
+        phone: els.profilePhoneInput.value.trim(),
+        address: els.profileAddressInput.value.trim(),
+        profile_note: els.profileNoteInput.value.trim(),
+      },
+    });
+    closeProfileEditor();
+    await Promise.all([loadAdminPanel(), loadDashboard({ skipDirtyCheck: true })]);
+    showToast("個人資料已更新。");
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "儲存個人資料失敗。");
+  } finally {
+    setButtonLoading(els.profileSubmitBtn, false);
+  }
+}
+
 async function loadAdminPanel() {
   if (!canUseManagement()) {
     state.adminData = emptyAdminData();
     closeMemberEditor();
+    closeProfileEditor();
+    renderProfileDirectory();
     renderManagement();
     renderInvites();
     return;
@@ -3020,6 +3303,7 @@ async function loadAdminPanel() {
       invites: data.invites || [],
       latestInvite: state.adminData.latestInvite,
     };
+    renderProfileDirectory();
     renderManagement();
     renderInvites();
   } catch (error) {
@@ -5700,7 +5984,6 @@ function fillMemberForm(mode, member) {
       : "可建立自己管理範圍內的人員；新增管理職時需選擇既有組織或在自己範圍內新建同名組織。";
     els.memberNameInput.value = "";
     els.memberGenderSelect.value = "";
-    els.memberBirthdayInput.value = "";
     els.memberEquipmentProgressSelect.value = "none";
     els.memberCreateScopeModeSelect.value = getDefaultCreateScopeMode(els.memberRoleSelect.value);
     els.memberNoteInput.value = "";
@@ -5720,7 +6003,6 @@ function fillMemberForm(mode, member) {
     els.memberNameInput.value = member.full_name || "";
     els.memberRoleSelect.value = member.role;
     els.memberGenderSelect.value = member.gender || "";
-    els.memberBirthdayInput.value = member.birthday ? String(member.birthday).slice(0, 10) : "";
     els.memberEquipmentProgressSelect.value = normalizeEquipmentProgress(member.equipment_progress);
     els.memberNoteInput.value = member.note || "";
     els.memberActiveSelect.value = member.is_active ? "true" : "false";
@@ -5854,18 +6136,11 @@ async function handleSaveMember(event) {
   const usesManagedDistricts = usesMultiDistrictSelect(role);
   const shouldClearSingleDistrict = DISTRICT_PASTOR_ROLES.includes(role);
   const createScopeMode = getMemberCreateScopeMode(role);
-  const birthdayInput = els.memberBirthdayInput.value.trim();
-  const normalizedBirthday = normalizeBirthdayInputValue(birthdayInput);
-  if (birthdayInput && !normalizedBirthday) {
-    showToast("生日格式請輸入西元年月日，例如 19900524 或 1990-05-24。");
-    return;
-  }
   const body = {
     full_name: els.memberNameInput.value.trim(),
     role,
     create_scope_mode: mode === "create" ? createScopeMode : undefined,
     gender: els.memberGenderSelect.value || null,
-    birthday: normalizedBirthday,
     equipment_progress: normalizeEquipmentProgress(els.memberEquipmentProgressSelect.value),
     note: els.memberNoteInput.value.trim(),
     district_id: shouldClearSingleDistrict
@@ -8592,6 +8867,10 @@ function canEditMemberActiveStatus(member = null) {
 }
 
 function canUseOrganizationManagement() {
+  return canUseManagement();
+}
+
+function canUseProfileDirectory() {
   return canUseManagement();
 }
 

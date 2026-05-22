@@ -1495,7 +1495,6 @@ async function handleCreateMember(
   const fullName = String(body?.full_name || "").trim();
   const role = normalizeRole(body?.role);
   const isAdmin = Boolean(body?.is_admin);
-  const birthday = body?.birthday ? String(body.birthday) : null;
   const gender = normalizeGender(body?.gender);
   const note = normalizeNote(body?.note);
   const equipmentProgress = normalizeEquipmentProgress(body?.equipment_progress);
@@ -1556,7 +1555,6 @@ async function handleCreateMember(
     .from("members")
     .insert({
       full_name: fullName,
-      birthday,
       gender,
       note,
       equipment_progress: equipmentProgress,
@@ -1671,7 +1669,6 @@ async function handleUpdateMember(
 
   const updatePayload = {
     full_name: String(body?.full_name || targetMember.full_name).trim(),
-    birthday: body?.birthday ? String(body.birthday) : null,
     gender: normalizeGender(body?.gender),
     note: normalizeNote(body?.note),
     equipment_progress: normalizeEquipmentProgress(body?.equipment_progress ?? targetMember.equipment_progress),

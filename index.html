@@ -29,7 +29,7 @@
       content="牧區點名・出席｜LINE 登入"
     />
     <title>topheart 牧區點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260522-editor-sheet-state-v136" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260522-profile-directory-v137" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -60,6 +60,7 @@
 
       <div id="uiSettingsBackdrop" class="settings-backdrop hidden"></div>
       <div id="memberEditorBackdrop" class="editor-sheet-backdrop hidden"></div>
+      <div id="profileEditorBackdrop" class="editor-sheet-backdrop hidden"></div>
       <div id="orgEditorBackdrop" class="editor-sheet-backdrop hidden"></div>
       <div id="orgCreateBackdrop" class="editor-sheet-backdrop hidden"></div>
       <section id="uiSettingsCard" class="card settings-card hidden" role="dialog" aria-modal="true" aria-label="介面設定">
@@ -256,6 +257,9 @@
           <button id="tabOverviewBtn" type="button" class="tab-btn hidden">
             出席總覽
           </button>
+          <button id="tabProfileBtn" type="button" class="tab-btn hidden">
+            個人資料
+          </button>
           <button id="tabPeopleBtn" type="button" class="tab-btn hidden">
             人員管理
           </button>
@@ -395,6 +399,72 @@
         </div>
       </section>
 
+      <section id="profileView" class="card hidden">
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">Profile</p>
+            <div class="page-title-line">
+              <h2>個人資料</h2>
+              <p class="muted">檢視與維護管轄範圍內的人員生日、電話、住址與固定記錄。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-toolbar profile-filter-row">
+          <label class="search-field">
+            <span>搜尋</span>
+            <input id="profileSearchInput" type="search" placeholder="搜尋姓名、電話、住址或記錄" />
+          </label>
+        </div>
+
+        <div id="profileSummary" class="list-count-chip">
+          尚未載入個人資料
+        </div>
+
+        <div id="profileTableBody" class="profile-card-list">
+          <div class="empty-state-card">尚未載入個人資料。</div>
+        </div>
+
+        <section id="profileEditorCard" class="card-subsection editor-sheet hidden" role="dialog" aria-modal="true" aria-labelledby="profileEditorTitle">
+          <div class="section-toolbar">
+            <div>
+              <h3 id="profileEditorTitle">編輯個人資料</h3>
+              <p id="profileEditorHint" class="muted">
+                這裡的記錄是固定個人筆記，不會隨週次更新。
+              </p>
+            </div>
+            <button id="closeProfileEditorBtn" type="button" class="secondary">
+              關閉
+            </button>
+          </div>
+
+          <form id="profileForm" class="form-grid">
+            <div class="form-columns">
+              <label>
+                <span>生日</span>
+                <input id="profileBirthdayInput" type="text" inputmode="numeric" autocomplete="bday" placeholder="例：19900524" />
+              </label>
+              <label>
+                <span>電話</span>
+                <input id="profilePhoneInput" type="tel" inputmode="tel" autocomplete="tel" placeholder="可留空" />
+              </label>
+            </div>
+            <label>
+              <span>住址</span>
+              <input id="profileAddressInput" type="text" autocomplete="street-address" placeholder="可留空" />
+            </label>
+            <label>
+              <span>記錄</span>
+              <textarea id="profileNoteInput" rows="5" maxlength="2000" placeholder="固定個人記錄，不會跟著點名週次變動"></textarea>
+            </label>
+            <p class="muted small-text">在列表中長按生日、電話或住址可複製內容。</p>
+            <div class="button-row">
+              <button id="profileSubmitBtn" type="submit">儲存個人資料</button>
+            </div>
+          </form>
+        </section>
+      </section>
+
       <section id="peopleView" class="card hidden">
         <div class="card-header">
           <div>
@@ -476,13 +546,6 @@
                     <option value="disciple">門徒班</option>
                     <option value="leader">領袖班</option>
                   </select>
-                </label>
-              </div>
-
-              <div class="form-columns">
-                <label>
-                  <span>生日</span>
-                  <input id="memberBirthdayInput" type="text" inputmode="numeric" autocomplete="bday" placeholder="例：19900524" />
                 </label>
               </div>
 
@@ -930,6 +993,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js" defer></script>
-    <script type="module" src="./attendance-ui/main.js?v=20260522-editor-sheet-state-v136"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260522-profile-directory-v137"></script>
   </body>
 </html>

@@ -16,6 +16,9 @@ type MemberRow = {
   small_group_name: string | null;
   gender: string | null;
   birthday: string | null;
+  phone: string | null;
+  address: string | null;
+  profile_note: string | null;
   note: string | null;
   note_carry_forward: boolean | null;
   note_priority_high: boolean | null;
@@ -105,6 +108,9 @@ const VALID_STATUS = new Set(["unknown", "present", "absent"]);
 const EQUIPMENT_PROGRESS_VALUES = new Set(["none", "growth", "disciple", "leader"]);
 const CREATE_SCOPE_MODES = new Set(["empty", "create", "existing"]);
 const NOTE_MAX_LENGTH = 1000;
+const PROFILE_NOTE_MAX_LENGTH = 2000;
+const PHONE_MAX_LENGTH = 80;
+const ADDRESS_MAX_LENGTH = 500;
 const MIN_ATTENDANCE_DATE = "2025-03-28";
 const MIN_ATTENDANCE_WEEK_START = "2025-03-23";
 const HISTORY_RANGES = [
@@ -162,6 +168,10 @@ Deno.serve(async (request) => {
 
     if (request.method === "POST" && action === "update-member") {
       return await handleUpdateMember(db, viewer, request);
+    }
+
+    if (request.method === "POST" && action === "update-member-profile") {
+      return await handleUpdateMemberProfile(db, viewer, request);
     }
 
     if (request.method === "POST" && action === "purge-member") {
@@ -717,7 +727,6 @@ async function handleUpdateMember(
     .from("members")
     .update({
       full_name: String(body?.full_name || target.full_name).trim(),
-      birthday: body?.birthday ? String(body.birthday) : null,
       role: targetRole,
       gender: normalizeGender(body?.gender),
       note,
@@ -775,6 +784,60 @@ async function handleUpdateMember(
       small_group_id: updated.small_group_id,
       district_ids: districtPastorDistrictIds,
     },
+    admin_mode: adminMode,
+  });
+
+  return json({ member: updated });
+}
+
+async function handleUpdateMemberProfile(
+  db: ReturnType<typeof createAdminClient>,
+  viewer: MemberRow,
+  request: Request,
+) {
+  const body = await request.json().catch(() => null);
+  const adminMode = getAdminModeFromBody(viewer, body);
+  const effectiveViewer = getEffectiveViewer(viewer, adminMode);
+  if (!canUseManagement(effectiveViewer)) {
+    return json({ error: "Forbidden." }, 403);
+  }
+
+  const memberId = toPositiveInt(body?.member_id);
+  if (!memberId) {
+    return json({ error: "member_id is required." }, 400);
+  }
+
+  const { data: target, error: targetError } = await db
+    .from("member_directory")
+    .select("*")
+    .eq("id", memberId)
+    .maybeSingle();
+  if (targetError) {
+    return json({ error: targetError.message }, 500);
+  }
+  if (!target) {
+    return json({ error: "Member not found." }, 404);
+  }
+  if (!canEditProfile(effectiveViewer, target as MemberRow)) {
+    return json({ error: "No permission to edit this member." }, 403);
+  }
+
+  const { data: updated, error } = await db
+    .from("members")
+    .update({
+      birthday: normalizeBirthdayForStorage(body?.birthday),
+      phone: normalizeProfileText(body?.phone, PHONE_MAX_LENGTH),
+      address: normalizeProfileText(body?.address, ADDRESS_MAX_LENGTH),
+      profile_note: normalizeProfileText(body?.profile_note, PROFILE_NOTE_MAX_LENGTH),
+    })
+    .eq("id", target.id)
+    .select("*")
+    .single();
+  if (error) {
+    return json({ error: error.message }, 500);
+  }
+
+  await writeAuditLog(db, viewer, "update_member_profile", "members", target.id, {
     admin_mode: adminMode,
   });
 
@@ -2193,6 +2256,16 @@ function uniqueIds(values: Array<number | null>) {
 function normalizeNote(value: unknown) {
   const note = String(value || "").trim();
   return note.length > NOTE_MAX_LENGTH ? note.slice(0, NOTE_MAX_LENGTH) : note;
+}
+
+function normalizeProfileText(value: unknown, maxLength: number) {
+  const text = String(value || "").trim();
+  return text.length > maxLength ? text.slice(0, maxLength) : text;
+}
+
+function normalizeBirthdayForStorage(value: unknown) {
+  const text = String(value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
 }
 
 function recentWeeks(anchorWeekStart: string, count: number) {

@@ -23,6 +23,9 @@ export type MemberDirectoryRow = {
   id: number;
   full_name: string;
   birthday: string | null;
+  phone: string | null;
+  address: string | null;
+  profile_note: string | null;
   gender: "brother" | "sister" | null;
   note: string;
   note_carry_forward: boolean;
