@@ -1723,7 +1723,11 @@ body.is-authenticated #invitesView {
 .profile-search-field input {
   flex: 1 1 auto;
   min-width: 0;
-  min-height: 34px;
+  min-height: 30px;
+  padding: 0.28rem 0.42rem;
+  border-radius: 12px;
+  font-size: 0.82rem;
+  line-height: 1.15;
 }
 
 .profile-table-area {
@@ -6049,6 +6053,13 @@ tbody tr:last-child td {
 
   .profile-search-field span {
     font-size: 0.72rem;
+  }
+
+  .profile-search-field input {
+    min-height: 28px;
+    padding: 0.22rem 0.34rem;
+    border-radius: 11px;
+    font-size: 0.78rem;
   }
 
   .profile-table {
