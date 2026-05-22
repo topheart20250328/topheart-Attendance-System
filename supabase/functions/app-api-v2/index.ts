@@ -418,6 +418,9 @@ async function validateRequestedScopeIds(
 }
 
 function canEditProfile(viewer: MemberRow, target: MemberRow) {
+  if (Number(viewer.id) === Number(target.id)) {
+    return true;
+  }
   if (viewer.is_admin) {
     return true;
   }

@@ -29,7 +29,7 @@
       content="牧區點名・出席｜LINE 登入"
     />
     <title>topheart 牧區點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260522-profile-directory-v137" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260522-profile-compact-v138" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -403,10 +403,7 @@
         <div class="card-header">
           <div>
             <p class="eyebrow">Profile</p>
-            <div class="page-title-line">
-              <h2>個人資料</h2>
-              <p class="muted">檢視與維護管轄範圍內的人員生日、電話、住址與固定記錄。</p>
-            </div>
+            <h2>個人資料</h2>
           </div>
         </div>
 
@@ -415,13 +412,21 @@
             <span>搜尋</span>
             <input id="profileSearchInput" type="search" placeholder="搜尋姓名、電話、住址或記錄" />
           </label>
+          <div class="segmented-control profile-view-toggle" role="group" aria-label="個人資料檢視">
+            <button id="profileContactModeBtn" type="button" class="tab-btn is-active">
+              生日/電話
+            </button>
+            <button id="profileDetailModeBtn" type="button" class="tab-btn">
+              地址/記錄
+            </button>
+          </div>
         </div>
 
         <div id="profileSummary" class="list-count-chip">
           尚未載入個人資料
         </div>
 
-        <div id="profileTableBody" class="profile-card-list">
+        <div id="profileTableBody" class="profile-row-list">
           <div class="empty-state-card">尚未載入個人資料。</div>
         </div>
 
@@ -429,9 +434,7 @@
           <div class="section-toolbar">
             <div>
               <h3 id="profileEditorTitle">編輯個人資料</h3>
-              <p id="profileEditorHint" class="muted">
-                這裡的記錄是固定個人筆記，不會隨週次更新。
-              </p>
+              <p id="profileEditorHint" class="muted"></p>
             </div>
             <button id="closeProfileEditorBtn" type="button" class="secondary">
               關閉
@@ -457,7 +460,6 @@
               <span>記錄</span>
               <textarea id="profileNoteInput" rows="5" maxlength="2000" placeholder="固定個人記錄，不會跟著點名週次變動"></textarea>
             </label>
-            <p class="muted small-text">在列表中長按生日、電話或住址可複製內容。</p>
             <div class="button-row">
               <button id="profileSubmitBtn" type="submit">儲存個人資料</button>
             </div>
@@ -993,6 +995,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js" defer></script>
-    <script type="module" src="./attendance-ui/main.js?v=20260522-profile-directory-v137"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260522-profile-compact-v138"></script>
   </body>
 </html>

@@ -237,6 +237,8 @@ const els = {
   overviewUnitList: document.querySelector("#overviewUnitList"),
   profileView: document.querySelector("#profileView"),
   profileSearchInput: document.querySelector("#profileSearchInput"),
+  profileContactModeBtn: document.querySelector("#profileContactModeBtn"),
+  profileDetailModeBtn: document.querySelector("#profileDetailModeBtn"),
   profileSummary: document.querySelector("#profileSummary"),
   profileTableBody: document.querySelector("#profileTableBody"),
   profileEditorBackdrop: document.querySelector("#profileEditorBackdrop"),
@@ -418,6 +420,7 @@ const state = {
     orgTreePanelCollapsed: false,
     orgTreeCollapsedKeys: new Set(),
     profileSearch: "",
+    profileViewMode: "contact",
     profileEditingMemberId: null,
     peopleSearch: "",
     peopleRole: "",
@@ -549,6 +552,8 @@ function bindEvents() {
   els.overviewUnitList?.addEventListener("toggle", handleOverviewUnitToggle, true);
 
   els.profileSearchInput?.addEventListener("input", handleProfileFilters);
+  els.profileContactModeBtn?.addEventListener("click", () => switchProfileViewMode("contact"));
+  els.profileDetailModeBtn?.addEventListener("click", () => switchProfileViewMode("detail"));
   els.profileTableBody?.addEventListener("click", handleProfileTableClick);
   els.profileTableBody?.addEventListener("pointerdown", handleProfileCopyPointerDown);
   els.profileTableBody?.addEventListener("pointerup", clearProfileCopyTimer);
@@ -3046,18 +3051,18 @@ function renderProfileDirectory() {
   }
 
   const members = getFilteredProfileMembers();
-  const activeCount = members.filter((member) => member.is_active !== false).length;
   els.profileSummary.textContent = members.length
-    ? `共 ${members.length} 人${activeCount !== members.length ? `，啟用 ${activeCount} 人` : ""}`
+    ? `共 ${members.length} 人`
     : "目前沒有可檢視的個人資料";
 
   els.profileTableBody.innerHTML = members.length
-    ? members.map(renderProfileCard).join("")
+    ? members.map(renderProfileRow).join("")
     : '<div class="empty-state-card">目前沒有符合條件的人員。</div>';
+  syncProfileViewToggle();
 
   if (
     state.ui.profileEditingMemberId &&
-    !state.adminData.members.some((member) => member.id === state.ui.profileEditingMemberId)
+    !getProfileDirectoryMembers().some((member) => member.id === state.ui.profileEditingMemberId)
   ) {
     closeProfileEditor();
   }
@@ -3065,9 +3070,23 @@ function renderProfileDirectory() {
 
 function getFilteredProfileMembers() {
   const query = state.ui.profileSearch.trim().toLowerCase();
-  return state.adminData.members
+  return getProfileDirectoryMembers()
     .filter((member) => canEditProfile(member))
-    .filter((member) => !query || getProfileSearchText(member).includes(query));
+    .filter((member) => !query || getProfileSearchText(member).includes(query))
+    .sort(compareProfileMembers);
+}
+
+function getProfileDirectoryMembers() {
+  const membersById = new Map(state.adminData.members.map((member) => [Number(member.id), member]));
+  const current = getPermissionCurrentMember();
+  if (current?.id && !membersById.has(Number(current.id))) {
+    membersById.set(Number(current.id), current);
+  }
+  return Array.from(membersById.values());
+}
+
+function getProfileDirectoryMember(memberId) {
+  return getProfileDirectoryMembers().find((member) => Number(member.id) === Number(memberId));
 }
 
 function getProfileSearchText(member) {
@@ -3086,33 +3105,31 @@ function getProfileSearchText(member) {
     .toLowerCase();
 }
 
-function renderProfileCard(member) {
+function renderProfileRow(member) {
   const path = formatPeopleScopeSummary(member);
-  const birthday = formatProfileBirthday(member.birthday);
-  const phone = formatProfileValue(member.phone);
-  const address = formatProfileValue(member.address);
-  const profileNote = formatProfileValue(member.profile_note);
+  const isDetailMode = state.ui.profileViewMode === "detail";
+  const fields = isDetailMode
+    ? [
+        renderProfileField("住址", formatProfileValue(member.address), member.address),
+        renderProfileStaticField("記錄", formatProfileValue(member.profile_note)),
+      ]
+    : [
+        renderProfileField("生日", formatProfileBirthday(member.birthday), member.birthday),
+        renderProfileField("電話", formatProfileValue(member.phone), member.phone),
+      ];
   return `
-    <article class="profile-card${member.is_active ? "" : " is-inactive"}" data-profile-member-id="${member.id}">
-      <div class="profile-card-head">
-        <div>
-          <div class="profile-member-line">
-            <strong class="name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</strong>
-            <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
-          </div>
-          ${path ? `<div class="muted small-text">${escapeHtml(path)}</div>` : ""}
+    <article class="profile-row${member.is_active ? "" : " is-inactive"}" data-profile-member-id="${member.id}">
+      <div class="profile-person-cell">
+        <div class="profile-member-line">
+          <strong class="name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</strong>
+          <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
         </div>
-        <span class="status-chip ${member.is_active ? "success" : "neutral"}">${member.is_active ? "啟用" : "封存"}</span>
+        ${path ? `<div class="profile-path muted small-text">${escapeHtml(path)}</div>` : ""}
       </div>
-      <div class="profile-field-grid">
-        ${renderProfileField("生日", birthday, member.birthday)}
-        ${renderProfileField("電話", phone, member.phone)}
-        ${renderProfileField("住址", address, member.address)}
-        <div class="profile-field profile-note-field">
-          <span class="info-label">記錄</span>
-          <strong>${escapeHtml(profileNote)}</strong>
-        </div>
+      <div class="profile-row-fields">
+        ${fields.join("")}
       </div>
+      <span class="profile-edit-hint">編輯</span>
     </article>
   `;
 }
@@ -3132,6 +3149,15 @@ function renderProfileField(label, displayValue, rawValue) {
   `;
 }
 
+function renderProfileStaticField(label, displayValue) {
+  return `
+    <span class="profile-field">
+      <span class="info-label">${escapeHtml(label)}</span>
+      <strong>${escapeHtml(displayValue)}</strong>
+    </span>
+  `;
+}
+
 function formatProfileValue(value) {
   return String(value || "").trim() || "未填寫";
 }
@@ -3141,18 +3167,73 @@ function formatProfileBirthday(value) {
   return birthday ? `${birthday.month}/${birthday.day}` : "未填寫";
 }
 
+function compareProfileMembers(left, right) {
+  if (left.is_active !== right.is_active) {
+    return left.is_active === false ? 1 : -1;
+  }
+
+  const districtCompare = compareMemberScopeOrder(
+    left.district_id,
+    right.district_id,
+    left.district_name,
+    right.district_name,
+    new Map(state.adminData.districts.map((item) => [item.id, Number(item.display_order)])),
+  );
+  if (districtCompare) {
+    return districtCompare;
+  }
+
+  const bigFamilyCompare = compareMemberScopeOrder(
+    left.big_family_id,
+    right.big_family_id,
+    left.big_family_name,
+    right.big_family_name,
+    new Map(state.adminData.bigFamilies.map((item) => [item.id, Number(item.display_order)])),
+  );
+  if (bigFamilyCompare) {
+    return bigFamilyCompare;
+  }
+
+  const smallGroupCompare = compareMemberScopeOrder(
+    left.small_group_id,
+    right.small_group_id,
+    left.small_group_name,
+    right.small_group_name,
+    new Map(state.adminData.smallGroups.map((item) => [item.id, Number(item.display_order)])),
+  );
+  if (smallGroupCompare) {
+    return smallGroupCompare;
+  }
+
+  const leftRole = ROLE_ORDER[left.role] || 99;
+  const rightRole = ROLE_ORDER[right.role] || 99;
+  if (leftRole !== rightRole) {
+    return leftRole - rightRole;
+  }
+
+  return String(left.full_name || "").localeCompare(String(right.full_name || ""), "zh-Hant");
+}
+
 function handleProfileFilters() {
   state.ui.profileSearch = els.profileSearchInput?.value || "";
   renderProfileDirectory();
+}
+
+function switchProfileViewMode(mode) {
+  state.ui.profileViewMode = mode === "detail" ? "detail" : "contact";
+  renderProfileDirectory();
+}
+
+function syncProfileViewToggle() {
+  const isDetail = state.ui.profileViewMode === "detail";
+  els.profileContactModeBtn?.classList.toggle("is-active", !isDetail);
+  els.profileDetailModeBtn?.classList.toggle("is-active", isDetail);
 }
 
 function handleProfileTableClick(event) {
   if (profileCopyState.copied) {
     event.preventDefault();
     profileCopyState.copied = false;
-    return;
-  }
-  if (event.target.closest("[data-profile-copy]")) {
     return;
   }
   const card = event.target.closest("[data-profile-member-id]");
@@ -3198,7 +3279,7 @@ async function handleProfileCopyContextMenu(event) {
 }
 
 function openProfileEditor(memberId) {
-  const member = state.adminData.members.find((item) => Number(item.id) === Number(memberId));
+  const member = getProfileDirectoryMember(memberId);
   if (!member || !canEditProfile(member)) {
     showToast("沒有權限編輯這位人員的個人資料。");
     return;
@@ -3239,7 +3320,7 @@ function handleProfileBirthdayInputBlur() {
 async function handleSaveMemberProfile(event) {
   event.preventDefault();
   const memberId = Number(state.ui.profileEditingMemberId || 0);
-  const member = state.adminData.members.find((item) => Number(item.id) === memberId);
+  const member = getProfileDirectoryMember(memberId);
   if (!member || !canEditProfile(member)) {
     showToast("沒有權限儲存這位人員的個人資料。");
     return;
@@ -8912,6 +8993,10 @@ function canEditProfile(member) {
   const viewer = getPermissionCurrentMember();
   if (!viewer) {
     return false;
+  }
+
+  if (Number(member?.id || 0) === Number(getRealCurrentMember()?.id || 0)) {
+    return true;
   }
 
   if (viewer.is_admin) {
