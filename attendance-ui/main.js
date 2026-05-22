@@ -237,9 +237,6 @@ const els = {
   overviewUnitList: document.querySelector("#overviewUnitList"),
   profileView: document.querySelector("#profileView"),
   profileSearchInput: document.querySelector("#profileSearchInput"),
-  profileContactModeBtn: document.querySelector("#profileContactModeBtn"),
-  profileDetailModeBtn: document.querySelector("#profileDetailModeBtn"),
-  profileSummary: document.querySelector("#profileSummary"),
   profileTableBody: document.querySelector("#profileTableBody"),
   profileEditorBackdrop: document.querySelector("#profileEditorBackdrop"),
   profileEditorCard: document.querySelector("#profileEditorCard"),
@@ -420,7 +417,6 @@ const state = {
     orgTreePanelCollapsed: false,
     orgTreeCollapsedKeys: new Set(),
     profileSearch: "",
-    profileViewMode: "contact",
     profileEditingMemberId: null,
     peopleSearch: "",
     peopleRole: "",
@@ -552,8 +548,6 @@ function bindEvents() {
   els.overviewUnitList?.addEventListener("toggle", handleOverviewUnitToggle, true);
 
   els.profileSearchInput?.addEventListener("input", handleProfileFilters);
-  els.profileContactModeBtn?.addEventListener("click", () => switchProfileViewMode("contact"));
-  els.profileDetailModeBtn?.addEventListener("click", () => switchProfileViewMode("detail"));
   els.profileTableBody?.addEventListener("click", handleProfileTableClick);
   els.profileTableBody?.addEventListener("pointerdown", handleProfileCopyPointerDown);
   els.profileTableBody?.addEventListener("pointerup", clearProfileCopyTimer);
@@ -3051,14 +3045,9 @@ function renderProfileDirectory() {
   }
 
   const members = getFilteredProfileMembers();
-  els.profileSummary.textContent = members.length
-    ? `共 ${members.length} 人`
-    : "目前沒有可檢視的個人資料";
-
   els.profileTableBody.innerHTML = members.length
-    ? members.map(renderProfileRow).join("")
+    ? renderProfileTable(members)
     : '<div class="empty-state-card">目前沒有符合條件的人員。</div>';
-  syncProfileViewToggle();
 
   if (
     state.ui.profileEditingMemberId &&
@@ -3095,6 +3084,7 @@ function getProfileSearchText(member) {
     member.phone,
     member.address,
     member.profile_note,
+    member.birthday,
     member.district_name,
     member.big_family_name,
     member.small_group_name,
@@ -3105,55 +3095,60 @@ function getProfileSearchText(member) {
     .toLowerCase();
 }
 
-function renderProfileRow(member) {
-  const path = formatPeopleScopeSummary(member);
-  const isDetailMode = state.ui.profileViewMode === "detail";
-  const fields = isDetailMode
-    ? [
-        renderProfileField("住址", formatProfileValue(member.address), member.address),
-        renderProfileStaticField("記錄", formatProfileValue(member.profile_note)),
-      ]
-    : [
-        renderProfileField("生日", formatProfileBirthday(member.birthday), member.birthday),
-        renderProfileField("電話", formatProfileValue(member.phone), member.phone),
-      ];
+function renderProfileTable(members) {
   return `
-    <article class="profile-row${member.is_active ? "" : " is-inactive"}" data-profile-member-id="${member.id}">
-      <div class="profile-person-cell">
-        <div class="profile-member-line">
-          <strong class="name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</strong>
-          <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
-          ${path ? `<span class="profile-path muted small-text">${escapeHtml(path)}</span>` : ""}
+    <div class="profile-table-wrap">
+      <div class="profile-table" role="table" aria-label="個人資料清冊">
+        <div class="profile-table-row profile-table-head" role="row">
+          <span class="profile-table-cell profile-name-cell" role="columnheader">姓名</span>
+          <span class="profile-table-cell profile-role-cell" role="columnheader">職分</span>
+          <span class="profile-table-cell profile-scope-cell" role="columnheader">轄區</span>
+          <span class="profile-table-cell profile-birthday-cell" role="columnheader">生日</span>
+          <span class="profile-table-cell profile-age-cell" role="columnheader">年齡</span>
+          <span class="profile-table-cell profile-phone-cell" role="columnheader">電話</span>
+          <span class="profile-table-cell profile-address-cell" role="columnheader">住址</span>
+          <span class="profile-table-cell profile-note-cell" role="columnheader">記錄</span>
         </div>
+        ${members.map(renderProfileTableRow).join("")}
       </div>
-      <div class="profile-row-fields">
-        ${fields.join("")}
-      </div>
-    </article>
+    </div>
   `;
 }
 
-function renderProfileField(label, displayValue, rawValue) {
+function renderProfileTableRow(member) {
+  const birthday = normalizeBirthday(member.birthday);
+  const age = calculateAgeFromBirthday(birthday);
+  const path = formatPeopleScopeSummary(member);
+  return `
+    <div class="profile-table-row${member.is_active ? "" : " is-inactive"}" role="row" data-profile-member-id="${member.id}">
+      <span class="profile-table-cell profile-name-cell" role="cell">
+        <strong class="name-card gender-${escapeHtml(member.gender || "unknown")}">${escapeHtml(member.full_name)}</strong>
+      </span>
+      <span class="profile-table-cell profile-role-cell" role="cell">
+        <span class="role-pill role-${escapeHtml(member.role)}">${escapeHtml(getRoleLabel(member.role))}</span>
+      </span>
+      <span class="profile-table-cell profile-scope-cell" role="cell">${escapeHtml(path || "未設定")}</span>
+      ${renderProfileCopyCell("profile-birthday-cell", formatProfileBirthdayDate(member.birthday), member.birthday, "生日")}
+      <span class="profile-table-cell profile-age-cell" role="cell">${escapeHtml(age === null ? "-" : `${age}`)}</span>
+      ${renderProfileCopyCell("profile-phone-cell", formatProfileValue(member.phone), member.phone, "電話")}
+      ${renderProfileCopyCell("profile-address-cell", formatProfileValue(member.address), member.address, "住址")}
+      <span class="profile-table-cell profile-note-cell" role="cell">${escapeHtml(formatProfileValue(member.profile_note))}</span>
+    </div>
+  `;
+}
+
+function renderProfileCopyCell(cellClass, displayValue, rawValue, copyLabel) {
   const canCopy = Boolean(String(rawValue || "").trim());
   return `
     <button
       type="button"
-      class="profile-field ${canCopy ? "is-copyable" : ""}"
-      ${canCopy ? `data-profile-copy="${escapeHtml(String(rawValue).trim())}" data-copy-label="${escapeHtml(label)}"` : ""}
-      aria-label="${escapeHtml(canCopy ? `長按複製${label}` : `${label}尚未填寫`)}"
+      class="profile-table-cell profile-copy-cell ${escapeHtml(cellClass)} ${canCopy ? "is-copyable" : ""}"
+      ${canCopy ? `data-profile-copy="${escapeHtml(String(rawValue).trim())}" data-copy-label="${escapeHtml(copyLabel)}"` : ""}
+      aria-label="${escapeHtml(canCopy ? `長按複製${copyLabel}` : `${copyLabel}尚未填寫`)}"
+      role="cell"
     >
-      <span class="info-label">${escapeHtml(label)}</span>
-      <strong>${escapeHtml(displayValue)}</strong>
+      ${escapeHtml(displayValue)}
     </button>
-  `;
-}
-
-function renderProfileStaticField(label, displayValue) {
-  return `
-    <span class="profile-field">
-      <span class="info-label">${escapeHtml(label)}</span>
-      <strong>${escapeHtml(displayValue)}</strong>
-    </span>
   `;
 }
 
@@ -3161,15 +3156,12 @@ function formatProfileValue(value) {
   return String(value || "").trim() || "未填寫";
 }
 
-function formatProfileBirthday(value) {
+function formatProfileBirthdayDate(value) {
   const birthday = normalizeBirthday(value);
   if (!birthday) {
     return "未填寫";
   }
-  const age = calculateAgeFromBirthday(birthday);
-  return age === null
-    ? `${birthday.year}/${birthday.month}/${birthday.day}`
-    : `${birthday.year}/${birthday.month}/${birthday.day}（${age}歲）`;
+  return `${birthday.year}/${String(birthday.month).padStart(2, "0")}/${String(birthday.day).padStart(2, "0")}`;
 }
 
 function calculateAgeFromBirthday(birthday, anchorIso = getTodayIso()) {
@@ -3237,17 +3229,6 @@ function handleProfileFilters() {
   renderProfileDirectory();
 }
 
-function switchProfileViewMode(mode) {
-  state.ui.profileViewMode = mode === "detail" ? "detail" : "contact";
-  renderProfileDirectory();
-}
-
-function syncProfileViewToggle() {
-  const isDetail = state.ui.profileViewMode === "detail";
-  els.profileContactModeBtn?.classList.toggle("is-active", !isDetail);
-  els.profileDetailModeBtn?.classList.toggle("is-active", isDetail);
-}
-
 function handleProfileTableClick(event) {
   if (profileCopyState.copied) {
     event.preventDefault();
@@ -3305,7 +3286,7 @@ function openProfileEditor(memberId) {
 
   state.ui.profileEditingMemberId = member.id;
   els.profileEditorTitle.textContent = `編輯：${member.full_name}`;
-  els.profileEditorHint.textContent = `${getRoleLabel(member.role)}${formatPeopleScopeSummary(member) ? ` / ${formatPeopleScopeSummary(member)}` : ""}`;
+  els.profileEditorHint.textContent = "";
   els.profileBirthdayInput.value = member.birthday ? String(member.birthday).slice(0, 10) : "";
   els.profilePhoneInput.value = member.phone || "";
   els.profileAddressInput.value = member.address || "";

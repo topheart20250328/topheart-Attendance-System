@@ -1693,104 +1693,130 @@ body.is-authenticated #invitesView {
 }
 
 .profile-filter-row {
-  align-items: end;
-  gap: 8px;
-}
-
-.profile-view-toggle {
-  justify-self: end;
-  width: auto;
-  padding: 3px;
-}
-
-.profile-view-toggle .tab-btn {
-  min-height: 34px;
-  padding: 0.38rem 0.62rem;
-  font-size: 0.82rem;
-}
-
-.profile-row-list {
-  display: grid;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.profile-row {
-  display: grid;
-  grid-template-columns: minmax(210px, 1.05fr) minmax(220px, 1.2fr);
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.profile-search-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: min(100%, 520px);
+}
+
+.profile-search-field span {
+  white-space: nowrap;
+}
+
+.profile-table-area {
+  margin-top: 6px;
+}
+
+.profile-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: #fff;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+  display: grid;
+}
+
+.profile-table {
+  display: grid;
+  min-width: 920px;
+}
+
+.profile-table-row {
+  display: grid;
+  grid-template-columns:
+    minmax(104px, 0.9fr)
+    minmax(86px, 0.72fr)
+    minmax(130px, 1fr)
+    minmax(102px, 0.78fr)
+    minmax(52px, 0.38fr)
+    minmax(112px, 0.86fr)
+    minmax(180px, 1.25fr)
+    minmax(180px, 1.25fr);
+  min-width: 920px;
   cursor: pointer;
 }
 
-.profile-row.is-inactive {
+.profile-table-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f8fbff;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.profile-table-row.is-inactive {
   opacity: 0.72;
 }
 
-.profile-person-cell {
-  min-width: 0;
+.profile-table-row:not(.profile-table-head):hover .profile-table-cell {
+  background: #f8fbff;
 }
 
-.profile-member-line {
+.profile-table-cell {
   display: flex;
   align-items: center;
-  gap: 5px;
-  flex-wrap: nowrap;
   min-width: 0;
-}
-
-.profile-path {
-  min-width: 0;
-  max-width: min(46vw, 260px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.profile-row-fields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  min-width: 0;
-}
-
-.profile-field {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-  min-width: 0;
+  min-height: 36px;
   padding: 5px 7px;
-  border: 1px solid rgba(217, 226, 240, 0.8);
-  border-radius: 10px;
-  background: #f8fbff;
+  border-right: 1px solid rgba(217, 226, 240, 0.78);
+  border-bottom: 1px solid rgba(217, 226, 240, 0.78);
+  background: #fff;
   color: inherit;
   text-align: left;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-button.profile-field {
+.profile-copy-cell {
   font: inherit;
 }
 
-.profile-field.is-copyable {
+.profile-copy-cell.is-copyable {
   cursor: copy;
 }
 
-.profile-field strong {
-  min-width: 0;
+.profile-name-cell {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  box-shadow: 1px 0 0 rgba(217, 226, 240, 0.96);
+}
+
+.profile-table-head .profile-name-cell {
+  z-index: 3;
+  background: #f8fbff;
+}
+
+.profile-name-cell .name-card,
+.profile-role-cell .role-pill {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.84rem;
 }
 
-.profile-field .info-label {
-  flex: 0 0 auto;
-  line-height: 1.15;
+.profile-role-cell .role-pill {
+  max-width: 100%;
+  justify-content: center;
+}
+
+.profile-note-cell,
+.profile-address-cell,
+.profile-scope-cell {
+  justify-content: flex-start;
 }
 
 #peopleView .member-card-title strong {
@@ -5895,7 +5921,9 @@ tbody tr:last-child td {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(217, 226, 240, 0.86);
 }
 
 #profileEditorCard.editor-sheet .section-toolbar > div {
@@ -5909,6 +5937,10 @@ tbody tr:last-child td {
   white-space: nowrap;
 }
 
+#profileEditorCard.editor-sheet .section-toolbar p:empty {
+  display: none;
+}
+
 #profileEditorCard.editor-sheet #closeProfileEditorBtn {
   width: auto;
   min-width: 64px;
@@ -5919,8 +5951,8 @@ tbody tr:last-child td {
 }
 
 #profileEditorCard.editor-sheet #profileForm {
-  gap: 9px;
-  padding-top: 2px;
+  gap: 10px;
+  padding-top: 4px;
 }
 
 #profileEditorCard.editor-sheet #profileForm label {
@@ -5982,40 +6014,35 @@ tbody tr:last-child td {
   }
 
   .profile-filter-row {
-    align-items: stretch;
+    align-items: center;
   }
 
-  .profile-view-toggle {
-    justify-self: stretch;
+  .profile-search-field {
+    grid-template-columns: auto minmax(0, 1fr);
     width: 100%;
   }
 
-  .profile-row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 4px;
-    padding: 6px 7px;
+  .profile-table {
+    min-width: 840px;
   }
 
-  .profile-row-fields {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 4px;
+  .profile-table-row {
+    grid-template-columns:
+      96px
+      78px
+      120px
+      96px
+      48px
+      104px
+      164px
+      164px;
+    min-width: 840px;
   }
 
-  .profile-member-line {
-    gap: 4px;
-  }
-
-  .profile-path {
-    max-width: 35vw;
-  }
-
-  .profile-field {
+  .profile-table-cell {
+    min-height: 32px;
     padding: 4px 6px;
-    gap: 4px;
-  }
-
-  .profile-field strong {
-    font-size: 0.8rem;
+    font-size: 0.78rem;
   }
 
   #profileEditorCard.editor-sheet .section-toolbar {
