@@ -240,6 +240,7 @@ const els = {
   bulkMemberBtn: document.querySelector("#bulkMemberBtn"),
   newMemberBtn: document.querySelector("#newMemberBtn"),
   peopleTableBody: document.querySelector("#peopleTableBody"),
+  memberEditorBackdrop: document.querySelector("#memberEditorBackdrop"),
   memberEditorCard: document.querySelector("#memberEditorCard"),
   memberEditorTitle: document.querySelector("#memberEditorTitle"),
   memberEditorHint: document.querySelector("#memberEditorHint"),
@@ -291,15 +292,18 @@ const els = {
   orgCreatePanel: document.querySelector(".org-create-panel"),
   districtDetails: document.querySelector("#districtDetails"),
   districtForm: document.querySelector("#districtForm"),
+  districtDetails: document.querySelector("#districtDetails"),
   districtNameInput: document.querySelector("#districtNameInput"),
   districtDescriptionInput: document.querySelector("#districtDescriptionInput"),
   districtSubmitBtn: document.querySelector("#districtSubmitBtn"),
   bigFamilyForm: document.querySelector("#bigFamilyForm"),
+  bigFamilyDetails: document.querySelector("#bigFamilyDetails"),
   bigFamilyDistrictSelect: document.querySelector("#bigFamilyDistrictSelect"),
   bigFamilyNameInput: document.querySelector("#bigFamilyNameInput"),
   bigFamilyDescriptionInput: document.querySelector("#bigFamilyDescriptionInput"),
   bigFamilySubmitBtn: document.querySelector("#bigFamilySubmitBtn"),
   smallGroupForm: document.querySelector("#smallGroupForm"),
+  smallGroupDetails: document.querySelector("#smallGroupDetails"),
   smallGroupDistrictSelect: document.querySelector("#smallGroupDistrictSelect"),
   smallGroupBigFamilySelect: document.querySelector("#smallGroupBigFamilySelect"),
   smallGroupNameInput: document.querySelector("#smallGroupNameInput"),
@@ -322,6 +326,7 @@ const els = {
   smallGroupSection: document.querySelector("#smallGroupSection"),
   smallGroupSummary: document.querySelector("#smallGroupSummary"),
   smallGroupTableBody: document.querySelector("#smallGroupTableBody"),
+  orgEditorBackdrop: document.querySelector("#orgEditorBackdrop"),
   orgEditorCard: document.querySelector("#orgEditorCard"),
   orgEditorTitle: document.querySelector("#orgEditorTitle"),
   orgEditorHint: document.querySelector("#orgEditorHint"),
@@ -334,6 +339,7 @@ const els = {
   orgNameInput: document.querySelector("#orgNameInput"),
   orgDescriptionInput: document.querySelector("#orgDescriptionInput"),
   orgSubmitBtn: document.querySelector("#orgSubmitBtn"),
+  orgCreateBackdrop: document.querySelector("#orgCreateBackdrop"),
   invitesView: document.querySelector("#invitesView"),
   inviteForm: document.querySelector("#inviteForm"),
   inviteMemberSelect: document.querySelector("#inviteMemberSelect"),
@@ -525,6 +531,7 @@ function bindEvents() {
   els.peopleTableBody.addEventListener("click", handlePeopleTableClick);
   els.peopleTableBody.addEventListener("toggle", handlePeopleGroupToggle, true);
   els.closeMemberEditorBtn.addEventListener("click", closeMemberEditor);
+  els.memberEditorBackdrop?.addEventListener("click", closeMemberEditor);
   els.closeBulkMemberEditorBtn?.addEventListener("click", closeBulkMemberEditor);
 
   els.memberForm.addEventListener("submit", handleSaveMember);
@@ -588,6 +595,10 @@ function bindEvents() {
   els.bigFamilyDistrictSelect.addEventListener("change", syncOrgSelects);
   els.smallGroupDistrictSelect.addEventListener("change", syncOrgSelects);
   els.smallGroupForm.addEventListener("submit", handleCreateSmallGroup);
+  [els.districtDetails, els.bigFamilyDetails, els.smallGroupDetails]
+    .filter(Boolean)
+    .forEach((details) => details.addEventListener("toggle", handleCreateOrgDetailsToggle));
+  els.orgCreateBackdrop?.addEventListener("click", closeCreateOrgSheets);
   els.districtTableBody.addEventListener("click", handleOrgTableClick);
   els.bigFamilyTableBody.addEventListener("click", handleOrgTableClick);
   els.smallGroupTableBody.addEventListener("click", handleOrgTableClick);
@@ -606,6 +617,7 @@ function bindEvents() {
   els.orgTreeBody?.addEventListener("touchcancel", handleOrganizationTreeTouchEnd);
   els.captureOrgTreeBtn?.addEventListener("click", handleCaptureOrganizationTree);
   els.closeOrgEditorBtn.addEventListener("click", closeOrgEditor);
+  els.orgEditorBackdrop?.addEventListener("click", closeOrgEditor);
   els.orgEditorForm.addEventListener("submit", handleSaveOrganization);
   els.orgDistrictSelect.addEventListener("change", syncOrgEditorBigFamilyOptions);
 
@@ -4248,7 +4260,7 @@ function compareHierarchyGroups(left, right) {
       return leftOrder - rightOrder;
     }
   }
-  return String(left.label || "").localeCompare(String(right.label || ""), "zh-Hant");
+  return compareOrganizationNames(left.label, right.label);
 }
 
 function renderPeopleDistrictGroup(district, shouldOpen = false) {
@@ -4608,6 +4620,7 @@ async function handlePurgeMember(button, memberId, memberName) {
 
 function renderMemberEditor() {
   if (!state.ui.editorMode) {
+    setHidden(els.memberEditorBackdrop, true);
     setHidden(els.memberEditorCard, true);
     return;
   }
@@ -4625,10 +4638,6 @@ function openMemberEditor(mode, memberId = null) {
     showToast("新增人員請由區長或以上職分處理。");
     return;
   }
-  closeBulkMemberEditor();
-  state.ui.editorMode = mode;
-  state.ui.editingMemberId = memberId;
-
   const editableMember = memberId
     ? state.adminData.members.find((member) => member.id === memberId)
     : null;
@@ -4638,6 +4647,11 @@ function openMemberEditor(mode, memberId = null) {
     return;
   }
 
+  closeBulkMemberEditor();
+  resetMemberEditorFormState();
+  state.ui.editorMode = mode;
+  state.ui.editingMemberId = memberId;
+
   populateRoleOptions(mode, editableMember);
   populateDistrictOptions(editableMember);
   fillMemberForm(mode, editableMember);
@@ -4646,6 +4660,7 @@ function openMemberEditor(mode, memberId = null) {
   syncMemberFormScope();
   setHidden(els.memberNoteLabel, true);
   setHidden(els.memberEditorCard, false);
+  setHidden(els.memberEditorBackdrop, false);
   requestAnimationFrame(() => {
     els.memberEditorCard.scrollIntoView({
       behavior: "smooth",
@@ -4658,9 +4673,27 @@ function openMemberEditor(mode, memberId = null) {
 function closeMemberEditor() {
   state.ui.editorMode = null;
   state.ui.editingMemberId = null;
-  els.memberForm.reset();
-  setHidden(els.memberNoteLabel, true);
+  resetMemberEditorFormState();
+  setHidden(els.memberEditorBackdrop, true);
   setHidden(els.memberEditorCard, true);
+}
+
+function resetMemberEditorFormState() {
+  els.memberForm.reset();
+  els.memberDistrictSelect.value = "";
+  els.memberBigFamilySelect.value = "";
+  els.memberSmallGroupSelect.value = "";
+  els.memberDistrictSelect.innerHTML = "";
+  els.memberBigFamilySelect.innerHTML = "";
+  els.memberSmallGroupSelect.innerHTML = "";
+  if (els.memberManagedDistrictList) {
+    els.memberManagedDistrictList.innerHTML = "";
+    delete els.memberManagedDistrictList.dataset.role;
+    delete els.memberManagedDistrictList.dataset.memberKey;
+  }
+  els.memberManagedDistrictWrap.open = false;
+  els.memberIsAdminWrap.open = false;
+  setHidden(els.memberNoteLabel, true);
 }
 
 function openBulkMemberEditor() {
@@ -5449,18 +5482,20 @@ function buildOrganizationName(value, orgType) {
 }
 
 function getSelectableDistricts(includeDistrictId = 0) {
-  return state.adminData.districts.filter(
-    (district) => district.is_active || district.id === includeDistrictId,
-  );
+  return state.adminData.districts
+    .filter((district) => district.is_active || district.id === includeDistrictId)
+    .sort(compareOrganizations);
 }
 
 function getSelectableBigFamilies(districtId, includeBigFamilyId = 0) {
-  return state.adminData.bigFamilies.filter((bigFamily) => {
-    const matchesDistrict = districtId
-      ? bigFamily.district_id === districtId
-      : bigFamily.id === includeBigFamilyId;
-    return matchesDistrict && (bigFamily.is_active || bigFamily.id === includeBigFamilyId);
-  });
+  return state.adminData.bigFamilies
+    .filter((bigFamily) => {
+      const matchesDistrict = districtId
+        ? bigFamily.district_id === districtId
+        : bigFamily.id === includeBigFamilyId;
+      return matchesDistrict && (bigFamily.is_active || bigFamily.id === includeBigFamilyId);
+    })
+    .sort(compareOrganizations);
 }
 
 function getSelectableSmallGroups({
@@ -5469,16 +5504,18 @@ function getSelectableSmallGroups({
   bigFamilyId,
   includeSmallGroupId = 0,
 }) {
-  return state.adminData.smallGroups.filter((smallGroup) => {
-    if (!districtId && !bigFamilyId) {
-      return smallGroup.id === includeSmallGroupId;
-    }
+  return state.adminData.smallGroups
+    .filter((smallGroup) => {
+      if (!districtId && !bigFamilyId) {
+        return smallGroup.id === includeSmallGroupId;
+      }
 
-    const matchesScope = bigFamilyId
-      ? smallGroup.big_family_id === bigFamilyId
-      : smallGroup.district_id === districtId && !smallGroup.big_family_id;
-    return matchesScope && (smallGroup.is_active || smallGroup.id === includeSmallGroupId);
-  });
+      const matchesScope = bigFamilyId
+        ? smallGroup.big_family_id === bigFamilyId
+        : smallGroup.district_id === districtId && !smallGroup.big_family_id;
+      return matchesScope && (smallGroup.is_active || smallGroup.id === includeSmallGroupId);
+    })
+    .sort(compareOrganizations);
 }
 
 function populateDistrictOptions(member) {
@@ -5599,6 +5636,8 @@ function syncEditorBigFamilyOptions(member = null) {
 
   if (member?.big_family_id) {
     els.memberBigFamilySelect.value = String(member.big_family_id);
+  } else if (member) {
+    els.memberBigFamilySelect.value = "";
   }
 }
 
@@ -5647,6 +5686,8 @@ function syncEditorSmallGroupOptions(member = null) {
 
   if (member?.small_group_id) {
     els.memberSmallGroupSelect.value = String(member.small_group_id);
+  } else if (member) {
+    els.memberSmallGroupSelect.value = "";
   }
 }
 
@@ -6056,6 +6097,7 @@ function renderOrganizationTools() {
   setHidden(els.orgCreatePanel, !canEditOrganizations);
   if (!canEditOrganizations) {
     closeOrgEditor();
+    closeCreateOrgSheets();
     return;
   }
   setHidden(els.districtDetails, !viewer?.is_admin);
@@ -6108,9 +6150,11 @@ function renderOrganizationTools() {
 function syncOrgSelects() {
   els.bigFamilySubmitBtn.disabled = !Number(els.bigFamilyDistrictSelect.value || 0);
   const districtId = Number(els.smallGroupDistrictSelect.value || 0);
-  const available = state.adminData.bigFamilies.filter((bigFamily) => {
-    return bigFamily.is_active && (districtId ? bigFamily.district_id === districtId : true);
-  });
+  const available = state.adminData.bigFamilies
+    .filter((bigFamily) => {
+      return bigFamily.is_active && (districtId ? bigFamily.district_id === districtId : true);
+    })
+    .sort(compareOrganizations);
 
   fillSelect(
     els.smallGroupBigFamilySelect,
@@ -6129,9 +6173,11 @@ function syncOrgSelects() {
 
 function syncOrgEditorBigFamilyOptions() {
   const districtId = Number(els.orgDistrictSelect.value || 0);
-  const available = state.adminData.bigFamilies.filter((bigFamily) => {
-    return bigFamily.is_active && (districtId ? bigFamily.district_id === districtId : true);
-  });
+  const available = state.adminData.bigFamilies
+    .filter((bigFamily) => {
+      return bigFamily.is_active && (districtId ? bigFamily.district_id === districtId : true);
+    })
+    .sort(compareOrganizations);
 
   fillSelect(
     els.orgBigFamilySelect,
@@ -6143,6 +6189,37 @@ function syncOrgEditorBigFamilyOptions() {
       placeholder: "可留空（無大家）",
     },
   );
+}
+
+function getCreateOrgDetails() {
+  return [els.districtDetails, els.bigFamilyDetails, els.smallGroupDetails].filter(Boolean);
+}
+
+function handleCreateOrgDetailsToggle(event) {
+  const openedDetails = event.target;
+  if (openedDetails.open) {
+    closeOrgEditor();
+    for (const details of getCreateOrgDetails()) {
+      if (details !== openedDetails) {
+        details.open = false;
+      }
+    }
+  }
+  syncCreateOrgSheetBackdrop();
+}
+
+function syncCreateOrgSheetBackdrop() {
+  setHidden(
+    els.orgCreateBackdrop,
+    !getCreateOrgDetails().some((details) => details.open),
+  );
+}
+
+function closeCreateOrgSheets() {
+  for (const details of getCreateOrgDetails()) {
+    details.open = false;
+  }
+  setHidden(els.orgCreateBackdrop, true);
 }
 
 async function handleCreateDistrict(event) {
@@ -6165,6 +6242,7 @@ async function handleCreateDistrict(event) {
     });
 
     els.districtForm.reset();
+    closeCreateOrgSheets();
     queueOrganizationFocus({
       type: "district",
       id: null,
@@ -6202,6 +6280,7 @@ async function handleCreateBigFamily(event) {
     });
 
     els.bigFamilyForm.reset();
+    closeCreateOrgSheets();
     queueOrganizationFocus({
       type: "big_family",
       id: null,
@@ -6241,6 +6320,7 @@ async function handleCreateSmallGroup(event) {
     });
 
     els.smallGroupForm.reset();
+    closeCreateOrgSheets();
     queueOrganizationFocus({
       type: "small_group",
       id: null,
@@ -7480,7 +7560,65 @@ function compareOrganizations(left, right) {
       return leftOrder - rightOrder;
     }
   }
-  return String(left.name || "").localeCompare(String(right.name || ""), "zh-Hant");
+  return compareOrganizationNames(left.name, right.name);
+}
+
+function compareOrganizationNames(leftName, rightName) {
+  const leftOrder = getOrganizationNameOrdinal(leftName);
+  const rightOrder = getOrganizationNameOrdinal(rightName);
+  if (Number.isFinite(leftOrder) || Number.isFinite(rightOrder)) {
+    if (Number.isFinite(leftOrder) !== Number.isFinite(rightOrder)) {
+      return Number.isFinite(leftOrder) ? -1 : 1;
+    }
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+  }
+  return String(leftName || "").localeCompare(String(rightName || ""), "zh-Hant", { numeric: true });
+}
+
+function getOrganizationNameOrdinal(name) {
+  const match = String(name || "").match(/第([一二三四五六七八九十百零〇兩\d]+)/);
+  return match ? parseChineseOrdinalNumber(match[1]) : Number.NaN;
+}
+
+function parseChineseOrdinalNumber(value) {
+  const text = String(value || "").trim();
+  if (/^\d+$/.test(text)) {
+    return Number(text);
+  }
+
+  const digits = {
+    零: 0,
+    〇: 0,
+    一: 1,
+    二: 2,
+    兩: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+    九: 9,
+  };
+
+  if (Object.prototype.hasOwnProperty.call(digits, text)) {
+    return digits[text];
+  }
+
+  const tenIndex = text.indexOf("十");
+  if (tenIndex >= 0) {
+    const beforeTen = text.slice(0, tenIndex);
+    const afterTen = text.slice(tenIndex + 1);
+    const tens = beforeTen ? digits[beforeTen] : 1;
+    const ones = afterTen ? digits[afterTen] : 0;
+    if (Number.isFinite(tens) && Number.isFinite(ones)) {
+      return tens * 10 + ones;
+    }
+  }
+
+  return Number.NaN;
 }
 
 function renderOrganizationSummary(element, label, items) {
@@ -7930,6 +8068,7 @@ async function handleOrganizationMove(button, orgType, orgId, direction) {
 }
 
 function openOrgEditor(type, id) {
+  closeCreateOrgSheets();
   state.ui.orgEditorMode = type;
   state.ui.editingOrgId = id;
 
@@ -7996,6 +8135,7 @@ function openOrgEditor(type, id) {
   els.orgNameInput.value = getOrganizationBaseName(entity.name, type);
   els.orgDescriptionInput.value = entity.description || "";
   setHidden(els.orgEditorCard, false);
+  setHidden(els.orgEditorBackdrop, false);
   requestAnimationFrame(() => {
     els.orgEditorCard.scrollIntoView({
       behavior: "smooth",
@@ -8011,6 +8151,7 @@ function closeOrgEditor() {
   els.orgEditorForm.reset();
   setHidden(els.orgDistrictLabel, true);
   setHidden(els.orgBigFamilyLabel, true);
+  setHidden(els.orgEditorBackdrop, true);
   setHidden(els.orgEditorCard, true);
 }
 

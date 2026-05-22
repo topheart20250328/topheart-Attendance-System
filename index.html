@@ -29,7 +29,7 @@
       content="牧區點名・出席｜LINE 登入"
     />
     <title>topheart 牧區點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260520-district-lifecycle-v134" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260522-editor-sheet-state-v136" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -59,6 +59,9 @@
       </header>
 
       <div id="uiSettingsBackdrop" class="settings-backdrop hidden"></div>
+      <div id="memberEditorBackdrop" class="editor-sheet-backdrop hidden"></div>
+      <div id="orgEditorBackdrop" class="editor-sheet-backdrop hidden"></div>
+      <div id="orgCreateBackdrop" class="editor-sheet-backdrop hidden"></div>
       <section id="uiSettingsCard" class="card settings-card hidden" role="dialog" aria-modal="true" aria-label="介面設定">
         <div class="settings-sheet-head">
           <div>
@@ -431,7 +434,7 @@
             </div>
           </section>
 
-          <section id="memberEditorCard" class="management-editor card-subsection hidden">
+          <section id="memberEditorCard" class="management-editor card-subsection editor-sheet hidden" role="dialog" aria-modal="true" aria-labelledby="memberEditorTitle">
             <div class="section-toolbar">
               <div>
                 <h3 id="memberEditorTitle">新增人員</h3>
@@ -718,7 +721,7 @@
             </section>
           </div>
 
-          <section id="orgEditorCard" class="card-subsection hidden">
+          <section id="orgEditorCard" class="card-subsection editor-sheet hidden" role="dialog" aria-modal="true" aria-labelledby="orgEditorTitle">
             <div class="section-toolbar">
               <div>
                 <h3 id="orgEditorTitle">編輯組織名稱</h3>
@@ -781,7 +784,7 @@
               </form>
             </details>
 
-            <details class="editor-details">
+            <details id="bigFamilyDetails" class="editor-details">
               <summary>建立大家</summary>
               <form id="bigFamilyForm" class="form-grid">
                 <label>
@@ -802,7 +805,7 @@
               </form>
             </details>
 
-            <details class="editor-details">
+            <details id="smallGroupDetails" class="editor-details">
               <summary>建立小家</summary>
               <form id="smallGroupForm" class="form-grid">
                 <label>
@@ -927,6 +930,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js" defer></script>
-    <script type="module" src="./attendance-ui/main.js?v=20260520-exclude-best-rates-v135"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260522-editor-sheet-state-v136"></script>
   </body>
 </html>

@@ -5737,6 +5737,87 @@ tbody tr:last-child td {
   padding: 14px 0;
 }
 
+.editor-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 64;
+  background: rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(2px);
+}
+
+#memberEditorCard.editor-sheet,
+#orgEditorCard.editor-sheet,
+#orgsView .create-org-grid .editor-details[open] {
+  position: fixed !important;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  left: auto;
+  top: auto;
+  z-index: 65;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(94vw, 620px);
+  max-height: min(82vh, 720px);
+  margin: 0;
+  padding: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(217, 226, 240, 0.92);
+  border-radius: 22px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+}
+
+#memberEditorCard.editor-sheet::before,
+#orgEditorCard.editor-sheet::before,
+#orgsView .create-org-grid .editor-details[open]::before {
+  content: "";
+  justify-self: center;
+  width: 38px;
+  height: 4px;
+  margin-bottom: 2px;
+  border-radius: 999px;
+  background: #d9e2f0;
+}
+
+#memberEditorCard.editor-sheet .section-toolbar,
+#orgEditorCard.editor-sheet .section-toolbar {
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+#memberEditorCard.editor-sheet #memberForm,
+#orgEditorCard.editor-sheet #orgEditorForm,
+#orgsView .create-org-grid .editor-details[open] > form {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 3px;
+}
+
+#orgsView .create-org-grid .editor-details[open] > summary {
+  margin: 0 0 8px;
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  font-size: 1rem;
+}
+
+#orgsView .create-org-grid .editor-details[open] > form {
+  padding: 0;
+}
+
+@media (max-width: 560px) {
+  #memberEditorCard.editor-sheet,
+  #orgEditorCard.editor-sheet,
+  #orgsView .create-org-grid .editor-details[open] {
+    right: 8px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: 8px;
+    width: auto;
+    max-height: min(84vh, 660px);
+    border-radius: 20px 20px 18px 18px;
+  }
+}
+
 .compact-panel {
   padding-top: 0;
 }
