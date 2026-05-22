@@ -1696,23 +1696,34 @@ body.is-authenticated #invitesView {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .profile-search-field {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  display: flex;
   align-items: center;
-  gap: 7px;
-  width: min(100%, 560px);
-  padding: 5px 7px;
-  border: 1px solid rgba(217, 226, 240, 0.9);
-  border-radius: 14px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  flex: 1 1 220px;
+  gap: 8px;
+  min-width: 0;
+  width: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .profile-search-field span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
   white-space: nowrap;
+}
+
+.profile-search-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 34px;
 }
 
 .profile-table-area {
@@ -6030,8 +6041,14 @@ tbody tr:last-child td {
   }
 
   .profile-search-field {
-    grid-template-columns: auto minmax(0, 1fr);
+    display: flex;
+    flex: 1 1 auto;
+    gap: 5px;
     width: 100%;
+  }
+
+  .profile-search-field span {
+    font-size: 0.72rem;
   }
 
   .profile-table {
