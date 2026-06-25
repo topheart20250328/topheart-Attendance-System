@@ -111,8 +111,8 @@ const NOTE_MAX_LENGTH = 1000;
 const PROFILE_NOTE_MAX_LENGTH = 2000;
 const PHONE_MAX_LENGTH = 80;
 const ADDRESS_MAX_LENGTH = 500;
-const MIN_ATTENDANCE_DATE = "2025-03-28";
-const MIN_ATTENDANCE_WEEK_START = "2025-03-23";
+const MIN_ATTENDANCE_DATE = "2026-04-26";
+const MIN_ATTENDANCE_WEEK_START = "2026-04-26";
 const HISTORY_RANGES = [
   { key: "month", label: "本月", weeksBack: 0 },
   { key: "three_months", label: "近三個月", weeksBack: 13 },
@@ -647,6 +647,7 @@ async function createMemberFromBody(
   }
 
   await syncDistrictPastorDistricts(db, data.id, role, districtPastorDistrictIds);
+  await seedPastAbsencesForNewMember(db, data.id, actor.id);
 
   await writeAuditLog(db, actor, "create_member", "members", data.id, {
     full_name: fullName,
@@ -1717,6 +1718,50 @@ async function ensureWeek(db: ReturnType<typeof createAdminClient>, weekStart: s
   return fallback;
 }
 
+async function seedPastAbsencesForNewMember(
+  db: ReturnType<typeof createAdminClient>,
+  memberId: number,
+  actorMemberId: number,
+) {
+  const currentWeekStart = getMondayIso(new Date());
+  const rows = [];
+  for (let weekStart = MIN_ATTENDANCE_WEEK_START; weekStart < currentWeekStart; weekStart = addWeeksIso(weekStart, 1)) {
+    const week = await ensureWeek(db, weekStart);
+    rows.push(
+      {
+        member_id: memberId,
+        attendance_week_id: week.id,
+        event_type: "sunday_service",
+        status: "absent",
+        note: "",
+        note_priority_high: false,
+        recorded_by_member_id: actorMemberId,
+        recorded_at: new Date().toISOString(),
+      },
+      {
+        member_id: memberId,
+        attendance_week_id: week.id,
+        event_type: "small_group_fellowship",
+        status: "absent",
+        note: "",
+        note_priority_high: false,
+        recorded_by_member_id: actorMemberId,
+        recorded_at: new Date().toISOString(),
+      },
+    );
+  }
+  if (!rows.length) {
+    return;
+  }
+
+  const { error } = await db
+    .from("attendance_records")
+    .upsert(rows, { onConflict: "member_id,attendance_week_id,event_type" });
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 async function loadOverviewMembers(db: ReturnType<typeof createAdminClient>, viewer: MemberRow) {
   let query = db.from("member_directory").select("*").eq("is_active", true).order("full_name");
   if (!viewer.is_admin) {
@@ -2313,6 +2358,12 @@ function getMonthStart(anchorWeekStart: string) {
 function getDateWeeksBefore(anchorWeekStart: string, weeksBack: number) {
   const date = parseIsoDate(anchorWeekStart);
   date.setDate(date.getDate() - weeksBack * 7);
+  return formatDate(date);
+}
+
+function addWeeksIso(weekStart: string, weeks: number) {
+  const date = parseIsoDate(weekStart);
+  date.setDate(date.getDate() + weeks * 7);
   return formatDate(date);
 }
 
