@@ -647,7 +647,9 @@ async function createMemberFromBody(
   }
 
   await syncDistrictPastorDistricts(db, data.id, role, districtPastorDistrictIds);
-  await seedPastAbsencesForNewMember(db, data.id, actor.id);
+  if (role === "best") {
+    await seedPastAbsencesForNewMember(db, data.id, actor.id);
+  }
 
   await writeAuditLog(db, actor, "create_member", "members", data.id, {
     full_name: fullName,
