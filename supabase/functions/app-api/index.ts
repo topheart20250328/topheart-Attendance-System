@@ -1572,9 +1572,7 @@ async function handleCreateMember(
   }
 
   await syncDistrictPastorDistricts(adminClient, data.id, role, districtPastorDistrictIds);
-  if (role === "best") {
-    await seedPastAbsencesForNewMember(adminClient, data.id, sessionContext.member.id);
-  }
+  await seedPastAbsencesForNewMember(adminClient, data.id, sessionContext.member.id);
 
   return jsonResponse({ member: data });
 }

@@ -360,8 +360,14 @@
             </div>
           </div>
         </div>
-        <div class="overview-control-row">
-          <div id="overviewEventTabs" class="tab-row compact-tabs">
+        <div class="overview-mode-tabs compact-tabs" role="group" aria-label="出席總覽檢視模式">
+          <button type="button" class="tab-btn is-active" data-overview-mode="individual">個別導覽</button>
+          <button type="button" class="tab-btn" data-overview-mode="monthly">整體總覽</button>
+        </div>
+
+        <div id="overviewIndividualPanel" class="overview-subview">
+          <div class="overview-control-row">
+            <div id="overviewEventTabs" class="tab-row compact-tabs">
             <button
               type="button"
               class="tab-btn is-active"
@@ -376,26 +382,59 @@
             >
               小家團契
             </button>
+            </div>
+            <label class="overview-unit-filter">
+              <span>範圍</span>
+              <select id="overviewUnitTypeSelect">
+                <option value="">全部</option>
+                <option value="district">區</option>
+                <option value="big_family">大家</option>
+                <option value="small_group">小家</option>
+              </select>
+            </label>
           </div>
-          <label class="overview-unit-filter">
-            <span>範圍</span>
-            <select id="overviewUnitTypeSelect">
-              <option value="">全部</option>
-              <option value="district">區</option>
-              <option value="big_family">大家</option>
-              <option value="small_group">小家</option>
-            </select>
-          </label>
+          <div class="section-toolbar overview-filter-row">
+            <label class="search-field overview-search-field">
+              <span>搜尋</span>
+              <input id="overviewSearchInput" type="search" placeholder="搜尋區、大家、小家或人員" />
+            </label>
+          </div>
+          <div id="overviewWeekScroller" class="overview-week-scroller"></div>
+          <div id="overviewUnitList" class="overview-unit-list">
+            <div class="empty-state-card">載入中...</div>
+          </div>
         </div>
-        <div class="section-toolbar overview-filter-row">
-          <label class="search-field overview-search-field">
-            <span>搜尋</span>
-            <input id="overviewSearchInput" type="search" placeholder="搜尋區、大家、小家或人員" />
-          </label>
-        </div>
-        <div id="overviewWeekScroller" class="overview-week-scroller"></div>
-        <div id="overviewUnitList" class="overview-unit-list">
-          <div class="empty-state-card">載入中...</div>
+
+        <div id="overviewMonthlyPanel" class="overview-subview hidden">
+          <div class="overview-month-toolbar">
+            <label class="overview-month-field">
+              <span>月份</span>
+              <input id="overviewMonthInput" type="month" min="2026-04" />
+            </label>
+            <label class="overview-month-field">
+              <span>層級</span>
+              <select id="overviewMonthLevelSelect">
+                <option value="small_group">小家</option>
+                <option value="big_family">大家</option>
+                <option value="district">區</option>
+              </select>
+            </label>
+            <label class="overview-month-field">
+              <span>數值</span>
+              <select id="overviewMetricModeSelect">
+                <option value="count">人數</option>
+                <option value="rate">比例</option>
+                <option value="both">人數+比例</option>
+              </select>
+            </label>
+            <div class="overview-mobile-mode" role="group" aria-label="手機顯示方式">
+              <label><input type="radio" name="overviewMobilePresentation" value="cards" checked /> 卡片</label>
+              <label><input type="radio" name="overviewMobilePresentation" value="table" /> 表格</label>
+            </div>
+          </div>
+          <p id="overviewMonthSummary" class="muted overview-month-summary">正在載入整體總覽...</p>
+          <div id="overviewMonthTable" class="overview-month-table-wrap"></div>
+          <div id="overviewMonthCards" class="overview-month-card-list"></div>
         </div>
       </section>
 

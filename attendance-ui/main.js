@@ -79,6 +79,7 @@ const STATUS_LABELS = {
 
 const MIN_ATTENDANCE_DATE = "2026-04-26";
 const MIN_ATTENDANCE_WEEK_START = "2026-04-26";
+const MIN_ATTENDANCE_MONTH = "2026-04";
 const BIRTHDAY_REMINDER_DAYS = 30;
 
 const LOGIN_ROLES = [
@@ -133,8 +134,13 @@ const LAYOUT_SIZES = ["small", "medium", "large"];
 const ORG_TREE_MODES = ["compact", "vertical"];
 const ORG_TREE_MIN_SCALE = 0.05;
 const ORG_TREE_MAX_SCALE = 1.5;
+const OVERVIEW_MODES = ["individual", "monthly"];
+const OVERVIEW_MONTH_LEVELS = ["small_group", "big_family", "district"];
+const OVERVIEW_METRIC_MODES = ["count", "rate", "both"];
+const OVERVIEW_MOBILE_PRESENTATIONS = ["cards", "table"];
 const V2_API_ACTIONS = new Set([
   "attendance-overview",
+  "attendance-month-overview",
   "create-members-batch",
   "dashboard",
   "create-member",
@@ -228,6 +234,9 @@ const els = {
   weekSummary: document.querySelector("#weekSummary"),
   rosterTableBody: document.querySelector("#rosterTableBody"),
   overviewView: document.querySelector("#overviewView"),
+  overviewModeButtons: document.querySelectorAll("[data-overview-mode]"),
+  overviewIndividualPanel: document.querySelector("#overviewIndividualPanel"),
+  overviewMonthlyPanel: document.querySelector("#overviewMonthlyPanel"),
   overviewEventTabs: document.querySelector("#overviewEventTabs"),
   overviewEventButtons: document.querySelectorAll("[data-overview-event]"),
   overviewUnitTypeSelect: document.querySelector("#overviewUnitTypeSelect"),
@@ -235,6 +244,13 @@ const els = {
   overviewWeekScroller: document.querySelector("#overviewWeekScroller"),
   overviewScopeSummary: document.querySelector("#overviewScopeSummary"),
   overviewUnitList: document.querySelector("#overviewUnitList"),
+  overviewMonthInput: document.querySelector("#overviewMonthInput"),
+  overviewMonthLevelSelect: document.querySelector("#overviewMonthLevelSelect"),
+  overviewMetricModeSelect: document.querySelector("#overviewMetricModeSelect"),
+  overviewMobilePresentationInputs: document.querySelectorAll('input[name="overviewMobilePresentation"]'),
+  overviewMonthSummary: document.querySelector("#overviewMonthSummary"),
+  overviewMonthTable: document.querySelector("#overviewMonthTable"),
+  overviewMonthCards: document.querySelector("#overviewMonthCards"),
   profileView: document.querySelector("#profileView"),
   profileSearchInput: document.querySelector("#profileSearchInput"),
   profileTableBody: document.querySelector("#profileTableBody"),
@@ -392,6 +408,7 @@ const state = {
   roster: [],
   attendanceBaseline: new Map(),
   overviewData: null,
+  overviewMonthData: null,
   adminData: emptyAdminData(),
   ui: {
     activeTab: TABS.attendance,
@@ -401,6 +418,12 @@ const state = {
     overviewEvent: "sunday_service",
     overviewWeekStart: "",
     overviewLoading: false,
+    overviewMode: "individual",
+    overviewMonth: "",
+    overviewMonthLoading: false,
+    overviewMonthlyLevel: "small_group",
+    overviewMetricMode: "count",
+    overviewMobilePresentation: "cards",
     overviewUnitType: "",
     overviewSearch: "",
     overviewHistoryRange: "month",
@@ -538,6 +561,9 @@ function bindEvents() {
   els.overviewEventButtons?.forEach((button) => {
     button.addEventListener("click", () => switchOverviewEvent(button.dataset.overviewEvent));
   });
+  els.overviewModeButtons?.forEach((button) => {
+    button.addEventListener("click", () => switchOverviewMode(button.dataset.overviewMode));
+  });
   els.overviewUnitTypeSelect?.addEventListener("change", (event) =>
     switchOverviewUnitType(event.target.value || ""),
   );
@@ -546,6 +572,12 @@ function bindEvents() {
   els.overviewWeekScroller?.addEventListener("change", handleOverviewDateChange);
   els.overviewUnitList?.addEventListener("click", handleOverviewHistoryRangeClick);
   els.overviewUnitList?.addEventListener("toggle", handleOverviewUnitToggle, true);
+  els.overviewMonthInput?.addEventListener("change", handleOverviewMonthChange);
+  els.overviewMonthLevelSelect?.addEventListener("change", handleOverviewMonthLevelChange);
+  els.overviewMetricModeSelect?.addEventListener("change", handleOverviewMetricModeChange);
+  els.overviewMobilePresentationInputs?.forEach((input) => {
+    input.addEventListener("change", handleOverviewMobilePresentationChange);
+  });
 
   els.profileSearchInput?.addEventListener("input", handleProfileFilters);
   els.profileTableBody?.addEventListener("click", handleProfileTableClick);
@@ -681,6 +713,10 @@ function hydrateLocalState() {
   const uiPreferences = loadUiPreferences();
   state.ui.layoutSize = uiPreferences.layoutSize;
   state.ui.overviewUnitType = uiPreferences.overviewUnitType;
+  state.ui.overviewMode = uiPreferences.overviewMode;
+  state.ui.overviewMonthlyLevel = uiPreferences.overviewMonthlyLevel;
+  state.ui.overviewMetricMode = uiPreferences.overviewMetricMode;
+  state.ui.overviewMobilePresentation = uiPreferences.overviewMobilePresentation;
   state.ui.inviteSort = uiPreferences.inviteSort;
   state.ui.orgTreeMode = uiPreferences.orgTreeMode;
   state.ui.orgTreeScale = uiPreferences.orgTreeScale;
@@ -689,6 +725,17 @@ function hydrateLocalState() {
   if (els.overviewUnitTypeSelect) {
     els.overviewUnitTypeSelect.value = state.ui.overviewUnitType;
   }
+  if (els.overviewMonthInput) {
+    els.overviewMonthInput.value = state.ui.overviewMonth || getCurrentMonthValue();
+    els.overviewMonthInput.max = getCurrentMonthValue();
+  }
+  if (els.overviewMonthLevelSelect) {
+    els.overviewMonthLevelSelect.value = state.ui.overviewMonthlyLevel;
+  }
+  if (els.overviewMetricModeSelect) {
+    els.overviewMetricModeSelect.value = state.ui.overviewMetricMode;
+  }
+  syncOverviewMobilePresentationInputs();
   if (els.inviteSortSelect) {
     els.inviteSortSelect.value = state.ui.inviteSort;
   }
@@ -722,6 +769,16 @@ function loadUiPreferences() {
       overviewUnitType: ["", "district", "big_family", "small_group"].includes(value.overviewUnitType)
         ? value.overviewUnitType
         : "",
+      overviewMode: OVERVIEW_MODES.includes(value.overviewMode) ? value.overviewMode : "individual",
+      overviewMonthlyLevel: OVERVIEW_MONTH_LEVELS.includes(value.overviewMonthlyLevel)
+        ? value.overviewMonthlyLevel
+        : "small_group",
+      overviewMetricMode: OVERVIEW_METRIC_MODES.includes(value.overviewMetricMode)
+        ? value.overviewMetricMode
+        : "count",
+      overviewMobilePresentation: OVERVIEW_MOBILE_PRESENTATIONS.includes(value.overviewMobilePresentation)
+        ? value.overviewMobilePresentation
+        : "cards",
       inviteSort: INVITE_SORT_OPTIONS.includes(value.inviteSort)
         ? value.inviteSort
         : "created_desc",
@@ -737,6 +794,10 @@ function loadUiPreferences() {
     return {
       layoutSize: "medium",
       overviewUnitType: "",
+      overviewMode: "individual",
+      overviewMonthlyLevel: "small_group",
+      overviewMetricMode: "count",
+      overviewMobilePresentation: "cards",
       inviteSort: "created_desc",
       orgTreeMode: "compact",
       orgTreeScale: 1,
@@ -750,6 +811,10 @@ function saveUiPreferences() {
     JSON.stringify({
       layoutSize: state.ui.layoutSize,
       overviewUnitType: state.ui.overviewUnitType,
+      overviewMode: state.ui.overviewMode,
+      overviewMonthlyLevel: state.ui.overviewMonthlyLevel,
+      overviewMetricMode: state.ui.overviewMetricMode,
+      overviewMobilePresentation: state.ui.overviewMobilePresentation,
       inviteSort: state.ui.inviteSort,
       orgTreeMode: state.ui.orgTreeMode,
       orgTreeScale: state.ui.orgTreeScale,
@@ -994,11 +1059,12 @@ async function setManageAllMode(nextValue) {
   state.prefetchingWeeks.clear();
   state.adminData = emptyAdminData();
   state.overviewData = null;
+  state.overviewMonthData = null;
   renderLayout();
   await loadDashboard({ skipDirtyCheck: true });
   await loadAdminPanel();
   if (state.ui.activeTab === TABS.overview && canUseOverview()) {
-    await loadAttendanceOverview(state.ui.overviewWeekStart);
+    await loadActiveAttendanceOverview();
   }
 }
 
@@ -1269,6 +1335,7 @@ function clearScopedDataCaches() {
   state.prefetchingWeeks.clear();
   state.adminData = emptyAdminData();
   state.overviewData = null;
+  state.overviewMonthData = null;
 }
 
 function applyCurrentMemberSnapshot(member) {
@@ -1413,6 +1480,44 @@ function clampToAllowedAttendanceWeek(weekStart, options = {}) {
   return getCurrentWeekStart();
 }
 
+function clampToAllowedAttendanceMonth(month, options = {}) {
+  const normalized = /^\d{4}-\d{2}$/.test(String(month || ""))
+    ? String(month)
+    : getCurrentMonthValue();
+  const currentMonth = getCurrentMonthValue();
+  if (normalized < MIN_ATTENDANCE_MONTH) {
+    if (options.showToast) {
+      showToast(`不能選擇早於 ${MIN_ATTENDANCE_MONTH} 的月份。`);
+    }
+    return MIN_ATTENDANCE_MONTH;
+  }
+  if (normalized > currentMonth) {
+    if (options.showToast) {
+      showToast("整體總覽不能檢視未來月份。");
+    }
+    return currentMonth;
+  }
+  return normalized;
+}
+
+function syncOverviewMobilePresentationInputs() {
+  els.overviewMobilePresentationInputs?.forEach((input) => {
+    input.checked = input.value === state.ui.overviewMobilePresentation;
+  });
+}
+
+function formatMonthNumber(value) {
+  const number = Number(value || 0);
+  return Number.isInteger(number) ? String(number) : number.toFixed(1);
+}
+
+function formatMonthRate(stats) {
+  if (!stats?.expectedCount) {
+    return "0%";
+  }
+  return `${Math.round(Number(stats.rate || 0) * 100)}%`;
+}
+
 function syncWeekControls() {
   if (!els.weekInput) {
     return;
@@ -1512,7 +1617,7 @@ function switchTab(tabId) {
     renderProfileDirectory();
   }
   if (tabId === TABS.overview) {
-    loadAttendanceOverview();
+    loadActiveAttendanceOverview();
   }
 }
 
@@ -3424,6 +3529,54 @@ async function loadAttendanceOverview(weekStart = "") {
   }
 }
 
+async function loadActiveAttendanceOverview() {
+  if (state.ui.overviewMode === "monthly") {
+    await loadAttendanceMonthOverview();
+    return;
+  }
+
+  await loadAttendanceOverview(state.ui.overviewWeekStart);
+}
+
+async function loadAttendanceMonthOverview(month = "") {
+  if (!canUseOverview()) {
+    state.overviewMonthData = null;
+    state.ui.overviewMonthLoading = false;
+    renderAttendanceOverview();
+    return;
+  }
+
+  state.ui.overviewMonthLoading = true;
+  renderAttendanceOverview();
+
+  try {
+    const targetMonth = clampToAllowedAttendanceMonth(
+      month || state.ui.overviewMonth || els.overviewMonthInput?.value || getCurrentMonthValue(),
+      { showToast: Boolean(month) },
+    );
+    const params = new URLSearchParams({
+      month: targetMonth,
+      level: state.ui.overviewMonthlyLevel,
+      admin_mode: getAdminModeQueryParam(),
+    });
+    const data = await apiRequest(
+      `attendance-month-overview&${params.toString()}`,
+      {
+        method: "GET",
+        authMode: "app",
+      },
+    );
+    state.overviewMonthData = normalizeMonthOverviewData(data);
+    state.ui.overviewMonth = state.overviewMonthData.selectedMonth;
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "載入整體總覽失敗。");
+  } finally {
+    state.ui.overviewMonthLoading = false;
+    renderAttendanceOverview();
+  }
+}
+
 function normalizeOverviewData(data) {
   const selectedWeekStart = data?.selected_week_start || getMondayIso(new Date());
   return {
@@ -3431,6 +3584,48 @@ function normalizeOverviewData(data) {
     selectedWeekStart,
     weeks: buildOverviewWeekOptions(data?.weeks || [], selectedWeekStart),
     units: normalizeOverviewEquipmentProgress(data?.units || []),
+  };
+}
+
+function normalizeMonthOverviewData(data) {
+  const selectedMonth = clampToAllowedAttendanceMonth(data?.selected_month || getCurrentMonthValue());
+  return {
+    scopeLabel: data?.scope_label || "可檢視範圍",
+    selectedMonth,
+    level: OVERVIEW_MONTH_LEVELS.includes(data?.level) ? data.level : state.ui.overviewMonthlyLevel,
+    weeks: (data?.weeks || []).map((week) => ({
+      weekStartDate: week.week_start_date,
+      label: week.label || buildShortWeekLabel(week.week_start_date),
+    })),
+    units: (data?.units || []).map((unit) => ({
+      id: unit.id,
+      level: unit.level || unit.type,
+      name: unit.name || "未命名",
+      parentName: unit.parent_name || "",
+      leaderName: unit.leader_name || "",
+      expectedCount: Number(unit.expected_count || 0),
+      monthlyAverage: normalizeMonthEventStatsMap(unit.monthly_average || {}),
+      weekly: (unit.weekly || []).map((week) => ({
+        weekStartDate: week.week_start_date,
+        sundayService: normalizeEventStats(week.sunday_service),
+        smallGroupFellowship: normalizeEventStats(week.small_group_fellowship),
+      })),
+    })),
+  };
+}
+
+function normalizeMonthEventStatsMap(statsMap) {
+  return {
+    sundayService: normalizeEventStats(statsMap.sunday_service),
+    smallGroupFellowship: normalizeEventStats(statsMap.small_group_fellowship),
+  };
+}
+
+function normalizeEventStats(stats = {}) {
+  return {
+    presentCount: Number(stats.present_count || 0),
+    expectedCount: Number(stats.expected_count || 0),
+    rate: typeof stats.rate === "number" ? stats.rate : null,
   };
 }
 
@@ -3527,6 +3722,60 @@ function switchOverviewUnitType(unitType) {
   state.ui.overviewUnitType = unitType;
   saveUiPreferences();
   renderAttendanceOverview();
+}
+
+function switchOverviewMode(mode) {
+  if (!OVERVIEW_MODES.includes(mode) || state.ui.overviewMode === mode) {
+    return;
+  }
+
+  state.ui.overviewMode = mode;
+  saveUiPreferences();
+  renderAttendanceOverview();
+  if (state.ui.activeTab === TABS.overview && canUseOverview()) {
+    loadActiveAttendanceOverview();
+  }
+}
+
+function handleOverviewMonthChange(event) {
+  const month = clampToAllowedAttendanceMonth(event.target.value, { showToast: true });
+  event.target.value = month;
+  state.ui.overviewMonth = month;
+  loadAttendanceMonthOverview(month);
+}
+
+function handleOverviewMonthLevelChange(event) {
+  const level = event.target.value;
+  if (!OVERVIEW_MONTH_LEVELS.includes(level) || state.ui.overviewMonthlyLevel === level) {
+    return;
+  }
+
+  state.ui.overviewMonthlyLevel = level;
+  state.overviewMonthData = null;
+  saveUiPreferences();
+  loadAttendanceMonthOverview(state.ui.overviewMonth);
+}
+
+function handleOverviewMetricModeChange(event) {
+  const mode = event.target.value;
+  if (!OVERVIEW_METRIC_MODES.includes(mode) || state.ui.overviewMetricMode === mode) {
+    return;
+  }
+
+  state.ui.overviewMetricMode = mode;
+  saveUiPreferences();
+  renderMonthOverview();
+}
+
+function handleOverviewMobilePresentationChange(event) {
+  if (!event.target.checked || !OVERVIEW_MOBILE_PRESENTATIONS.includes(event.target.value)) {
+    return;
+  }
+
+  state.ui.overviewMobilePresentation = event.target.value;
+  saveUiPreferences();
+  syncOverviewMobilePresentationInputs();
+  renderMonthOverview();
 }
 
 function handleOverviewFilters() {
@@ -3683,6 +3932,13 @@ function renderAttendanceOverview() {
     return;
   }
 
+  els.overviewModeButtons?.forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.overviewMode === state.ui.overviewMode);
+  });
+  setHidden(els.overviewIndividualPanel, state.ui.overviewMode !== "individual");
+  setHidden(els.overviewMonthlyPanel, state.ui.overviewMode !== "monthly");
+  els.overviewView?.classList.toggle("is-loading", state.ui.overviewLoading || state.ui.overviewMonthLoading);
+
   setTabActive(
     document.querySelector(`[data-overview-event="${state.ui.overviewEvent}"]`),
     true,
@@ -3695,6 +3951,23 @@ function renderAttendanceOverview() {
   }
   if (els.overviewSearchInput && els.overviewSearchInput.value !== state.ui.overviewSearch) {
     els.overviewSearchInput.value = state.ui.overviewSearch;
+  }
+  if (els.overviewMonthInput) {
+    els.overviewMonthInput.min = MIN_ATTENDANCE_MONTH;
+    els.overviewMonthInput.max = getCurrentMonthValue();
+    els.overviewMonthInput.value = state.ui.overviewMonth || getCurrentMonthValue();
+  }
+  if (els.overviewMonthLevelSelect) {
+    els.overviewMonthLevelSelect.value = state.ui.overviewMonthlyLevel;
+  }
+  if (els.overviewMetricModeSelect) {
+    els.overviewMetricModeSelect.value = state.ui.overviewMetricMode;
+  }
+  syncOverviewMobilePresentationInputs();
+
+  if (state.ui.overviewMode === "monthly") {
+    renderMonthOverview();
+    return;
   }
 
   if (!state.overviewData) {
@@ -3716,10 +3989,160 @@ function renderAttendanceOverview() {
         : `目前週次 ${buildWeekLabel(state.overviewData.selectedWeekStart)}`;
   }
 
-  els.overviewView?.classList.toggle("is-loading", state.ui.overviewLoading);
-
   renderOverviewWeeks();
   renderOverviewUnits();
+}
+
+function renderMonthOverview() {
+  if (!els.overviewMonthlyPanel) {
+    return;
+  }
+
+  els.overviewMonthlyPanel.classList.toggle(
+    "show-table-on-mobile",
+    state.ui.overviewMobilePresentation === "table",
+  );
+
+  if (!state.overviewMonthData) {
+    const message = canUseOverview()
+      ? "正在載入整體總覽..."
+      : "此職分無法使用出席總覽。";
+    if (els.overviewScopeSummary) {
+      els.overviewScopeSummary.textContent = message;
+    }
+    if (els.overviewMonthSummary) {
+      els.overviewMonthSummary.textContent = message;
+    }
+    if (els.overviewMonthTable) {
+      els.overviewMonthTable.innerHTML = "";
+    }
+    if (els.overviewMonthCards) {
+      els.overviewMonthCards.innerHTML = "";
+    }
+    return;
+  }
+
+  const data = state.overviewMonthData;
+  const levelLabel = getOverviewLevelLabel(data.level);
+  const summary = state.ui.overviewMonthLoading
+    ? `正在更新 ${data.selectedMonth} ${levelLabel}整體總覽`
+    : `${data.selectedMonth} ${levelLabel}整體總覽：${data.units.length} 個單位，${data.weeks.length} 個主日`;
+
+  if (els.overviewScopeSummary) {
+    els.overviewScopeSummary.textContent = `${data.scopeLabel} / ${summary}`;
+  }
+  if (els.overviewMonthSummary) {
+    els.overviewMonthSummary.textContent = summary;
+  }
+
+  renderMonthOverviewTable(data);
+  renderMonthOverviewCards(data);
+}
+
+function renderMonthOverviewTable(data) {
+  if (!els.overviewMonthTable) {
+    return;
+  }
+
+  if (!data.weeks.length) {
+    els.overviewMonthTable.innerHTML = '<div class="empty-state-card">這個月份沒有可檢視的主日週次。</div>';
+    return;
+  }
+  if (!data.units.length) {
+    els.overviewMonthTable.innerHTML = '<div class="empty-state-card">目前沒有可列入整體總覽的單位。</div>';
+    return;
+  }
+
+  els.overviewMonthTable.innerHTML = `
+    <table class="overview-month-table">
+      <thead>
+        <tr>
+          <th rowspan="2" class="overview-month-sticky-col">單位</th>
+          <th rowspan="2">上層</th>
+          <th rowspan="2">領袖</th>
+          <th rowspan="2">應到</th>
+          <th colspan="2">月平均</th>
+          ${data.weeks.map((week) => `<th colspan="2">${escapeHtml(buildShortWeekLabel(week.weekStartDate))}</th>`).join("")}
+        </tr>
+        <tr>
+          <th>主日</th>
+          <th>小家</th>
+          ${data.weeks.map(() => "<th>主日</th><th>小家</th>").join("")}
+        </tr>
+      </thead>
+      <tbody>
+        ${data.units.map(renderMonthOverviewTableRow).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderMonthOverviewTableRow(unit) {
+  return `
+    <tr>
+      <th class="overview-month-sticky-col" scope="row">
+        <span class="overview-month-unit-name">${escapeHtml(unit.name)}</span>
+      </th>
+      <td>${escapeHtml(unit.parentName || "-")}</td>
+      <td>${escapeHtml(unit.leaderName || "-")}</td>
+      <td>${escapeHtml(formatMonthNumber(unit.expectedCount))}</td>
+      <td>${renderMonthOverviewCell(unit.monthlyAverage.sundayService)}</td>
+      <td>${renderMonthOverviewCell(unit.monthlyAverage.smallGroupFellowship)}</td>
+      ${unit.weekly.map((week) => `
+        <td>${renderMonthOverviewCell(week.sundayService)}</td>
+        <td>${renderMonthOverviewCell(week.smallGroupFellowship)}</td>
+      `).join("")}
+    </tr>
+  `;
+}
+
+function renderMonthOverviewCards(data) {
+  if (!els.overviewMonthCards) {
+    return;
+  }
+
+  if (!data.weeks.length || !data.units.length) {
+    els.overviewMonthCards.innerHTML = "";
+    return;
+  }
+
+  els.overviewMonthCards.innerHTML = data.units.map((unit) => `
+    <article class="overview-month-card">
+      <div class="overview-month-card-head">
+        <div>
+          <h3>${escapeHtml(unit.name)}</h3>
+          ${unit.parentName ? `<p>${escapeHtml(unit.parentName)}</p>` : ""}
+        </div>
+        <span>${escapeHtml(formatMonthNumber(unit.expectedCount))} 應到</span>
+      </div>
+      <dl class="overview-month-meta">
+        <div><dt>領袖</dt><dd>${escapeHtml(unit.leaderName || "-")}</dd></div>
+        <div><dt>主日月平均</dt><dd>${renderMonthOverviewCell(unit.monthlyAverage.sundayService)}</dd></div>
+        <div><dt>小家月平均</dt><dd>${renderMonthOverviewCell(unit.monthlyAverage.smallGroupFellowship)}</dd></div>
+      </dl>
+      <div class="overview-month-week-list">
+        ${unit.weekly.map((week) => `
+          <div class="overview-month-week-row">
+            <strong>${escapeHtml(buildShortWeekLabel(week.weekStartDate))}</strong>
+            <span>主日 ${renderMonthOverviewCell(week.sundayService)}</span>
+            <span>小家 ${renderMonthOverviewCell(week.smallGroupFellowship)}</span>
+          </div>
+        `).join("")}
+      </div>
+    </article>
+  `).join("");
+}
+
+function renderMonthOverviewCell(stats) {
+  const countText = `${formatMonthNumber(stats.presentCount)} / ${formatMonthNumber(stats.expectedCount)}`;
+  const rateText = formatMonthRate(stats);
+  if (state.ui.overviewMetricMode === "rate") {
+    return `<span class="overview-month-rate">${escapeHtml(rateText)}</span>`;
+  }
+  if (state.ui.overviewMetricMode === "both") {
+    return `<span class="overview-month-count">${escapeHtml(countText)}</span><span class="overview-month-rate">${escapeHtml(rateText)}</span>`;
+  }
+  return `<span class="overview-month-count">${escapeHtml(countText)}</span>`;
 }
 
 function renderOverviewWeeks() {
@@ -6374,7 +6797,9 @@ async function handleSaveMember(event) {
     }
     await Promise.all([loadAdminPanel(), loadDashboard({ skipDirtyCheck: true })]);
     if (state.ui.activeTab === TABS.overview && canUseOverview()) {
-      await loadAttendanceOverview(state.ui.overviewWeekStart);
+      state.overviewData = null;
+      state.overviewMonthData = null;
+      await loadActiveAttendanceOverview();
     }
     showToast(mode === "create" ? "已建立新的人員資料。" : "人員資料已更新。");
   } catch (error) {
@@ -8405,7 +8830,7 @@ async function handleOrganizationMove(button, orgType, orgId, direction) {
     await loadAdminPanel();
     await Promise.all([
       loadDashboard({ skipDirtyCheck: true }),
-      canUseOverview() ? loadAttendanceOverview(state.ui.overviewWeekStart) : Promise.resolve(),
+      canUseOverview() ? loadActiveAttendanceOverview() : Promise.resolve(),
     ]);
     showToast("組織排序已更新。");
   } catch (error) {
@@ -9461,6 +9886,12 @@ function getMondayIso(source) {
   const diff = -day;
   date.setDate(date.getDate() + diff);
   return formatDate(date);
+}
+
+function getCurrentMonthValue() {
+  const date = new Date();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  return `${date.getFullYear()}-${month}`;
 }
 
 function addDaysIso(source, days) {

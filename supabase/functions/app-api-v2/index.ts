@@ -138,6 +138,10 @@ Deno.serve(async (request) => {
       return json(await handleAttendanceOverview(db, viewer, url));
     }
 
+    if (request.method === "GET" && action === "attendance-month-overview") {
+      return json(await handleAttendanceMonthOverview(db, viewer, url));
+    }
+
     if (request.method === "GET" && action === "dashboard") {
       return json(await handleDashboard(db, viewer, url));
     }
@@ -647,9 +651,7 @@ async function createMemberFromBody(
   }
 
   await syncDistrictPastorDistricts(db, data.id, role, districtPastorDistrictIds);
-  if (role === "best") {
-    await seedPastAbsencesForNewMember(db, data.id, actor.id);
-  }
+  await seedPastAbsencesForNewMember(db, data.id, actor.id);
 
   await writeAuditLog(db, actor, "create_member", "members", data.id, {
     full_name: fullName,
@@ -1662,6 +1664,121 @@ async function handleAttendanceOverview(
   };
 }
 
+async function handleAttendanceMonthOverview(
+  db: ReturnType<typeof createAdminClient>,
+  viewer: MemberRow,
+  url: URL,
+) {
+  const adminMode = getAdminModeFromUrl(viewer, url);
+  const effectiveViewer = getEffectiveViewer(viewer, adminMode);
+  if (!(effectiveViewer.is_admin || PREACHER_ROLES.has(effectiveViewer.role) || DISTRICT_PASTOR_ROLES.has(effectiveViewer.role) || DISTRICT_LEADER_ROLES.has(effectiveViewer.role) || BIG_FAMILY_LEADER_ROLES.has(effectiveViewer.role) || SMALL_GROUP_LEADER_ROLES.has(effectiveViewer.role))) {
+    return { scope_label: "無權限", selected_month: "", level: "small_group", weeks: [], units: [] };
+  }
+
+  const selectedMonth = clampToAllowedAttendanceMonth(url.searchParams.get("month") || formatMonth(new Date()));
+  const level = normalizeMonthOverviewLevel(url.searchParams.get("level"));
+  const weekStarts = getMonthWeekStarts(selectedMonth);
+  const members = await loadOverviewMembers(db, effectiveViewer);
+  const organizationRows = await loadOverviewOrganizationRows(db, members);
+  const recordsByWeek = await loadMonthOverviewRecords(db, weekStarts, members.map((member) => member.id));
+  const units = buildMonthOverviewUnits(level, members, organizationRows, weekStarts, recordsByWeek);
+
+  return {
+    scope_label: getScopeLabel(effectiveViewer),
+    selected_month: selectedMonth,
+    level,
+    weeks: weekStarts.map((weekStart) => ({
+      week_start_date: weekStart,
+      label: weekStart,
+    })),
+    units,
+  };
+}
+
+function normalizeMonthOverviewLevel(value: string | null) {
+  return ["district", "big_family", "small_group"].includes(String(value))
+    ? String(value)
+    : "small_group";
+}
+
+function clampToAllowedAttendanceMonth(value: string) {
+  const currentMonth = formatMonth(new Date());
+  const text = /^\d{4}-\d{2}$/.test(String(value || "")) ? String(value) : currentMonth;
+  const minimumMonth = MIN_ATTENDANCE_WEEK_START.slice(0, 7);
+  if (text < minimumMonth) {
+    return minimumMonth;
+  }
+  if (text > currentMonth) {
+    return currentMonth;
+  }
+  return text;
+}
+
+function getMonthWeekStarts(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const date = new Date(year, monthNumber - 1, 1);
+  const lastDay = new Date(year, monthNumber, 0);
+  const day = date.getDay();
+  date.setDate(date.getDate() + ((7 - day) % 7));
+
+  const currentWeekStart = getMondayIso(new Date());
+  const weeks: string[] = [];
+  while (date <= lastDay) {
+    const weekStart = formatDate(date);
+    if (weekStart >= MIN_ATTENDANCE_WEEK_START && weekStart <= currentWeekStart) {
+      weeks.push(weekStart);
+    }
+    date.setDate(date.getDate() + 7);
+  }
+  return weeks;
+}
+
+async function loadMonthOverviewRecords(
+  db: ReturnType<typeof createAdminClient>,
+  weekStarts: string[],
+  memberIds: number[],
+) {
+  const recordsByWeek = new Map<string, Map<string, any>>();
+  for (const weekStart of weekStarts) {
+    recordsByWeek.set(weekStart, new Map());
+  }
+  if (!weekStarts.length || !memberIds.length) {
+    return recordsByWeek;
+  }
+
+  const { data: weeks, error: weekError } = await db
+    .from("attendance_weeks")
+    .select("id, week_start_date")
+    .in("week_start_date", weekStarts);
+  if (weekError) {
+    throw new Error(weekError.message);
+  }
+
+  const weekStartById = new Map((weeks || []).map((week) => [week.id, String(week.week_start_date)]));
+  const weekIds = Array.from(weekStartById.keys());
+  if (!weekIds.length) {
+    return recordsByWeek;
+  }
+
+  const { data: records, error: recordError } = await db
+    .from("attendance_records")
+    .select("member_id, attendance_week_id, event_type, status")
+    .in("attendance_week_id", weekIds)
+    .in("member_id", memberIds);
+  if (recordError) {
+    throw new Error(recordError.message);
+  }
+
+  for (const record of records || []) {
+    const weekStart = weekStartById.get(record.attendance_week_id);
+    const weekRecords = weekStart ? recordsByWeek.get(weekStart) : null;
+    if (weekRecords) {
+      weekRecords.set(`${record.member_id}:${record.event_type}`, record);
+    }
+  }
+  return recordsByWeek;
+}
+
 function getOverviewRequestOptions(url: URL): OverviewRequestOptions {
   const detailMode = url.searchParams.get("detail") || "full";
   const eventType = url.searchParams.get("event_type") || "sunday_service";
@@ -1943,6 +2060,112 @@ function buildUnits(
   }
 
   return units.filter((item) => item.member_count > 0);
+}
+
+function buildMonthOverviewUnits(
+  level: string,
+  members: MemberRow[],
+  organizationRows: Awaited<ReturnType<typeof loadOverviewOrganizationRows>>,
+  weekStarts: string[],
+  recordsByWeek: Map<string, Map<string, any>>,
+) {
+  const sourceRows = level === "district"
+    ? organizationRows.districts
+    : level === "big_family"
+      ? organizationRows.bigFamilies
+      : organizationRows.smallGroups;
+
+  return sourceRows
+    .map((row) => {
+      const unitMembers = members.filter((member) => isMonthOverviewUnitMember(member, level, row.id));
+      return buildMonthOverviewUnit(level, row, unitMembers, organizationRows, weekStarts, recordsByWeek);
+    })
+    .filter((item) => item.expected_count > 0);
+}
+
+function isMonthOverviewUnitMember(member: MemberRow, level: string, unitId: number) {
+  if (level === "district") {
+    return member.district_id === unitId;
+  }
+  if (level === "big_family") {
+    return member.big_family_id === unitId;
+  }
+  return member.small_group_id === unitId;
+}
+
+function buildMonthOverviewUnit(
+  level: string,
+  row: any,
+  members: MemberRow[],
+  organizationRows: Awaited<ReturnType<typeof loadOverviewOrganizationRows>>,
+  weekStarts: string[],
+  recordsByWeek: Map<string, Map<string, any>>,
+) {
+  const weekly = weekStarts.map((weekStart) => {
+    const recordMap = recordsByWeek.get(weekStart) || new Map();
+    return {
+      week_start_date: weekStart,
+      sunday_service: stats(members, recordMap, "sunday_service"),
+      small_group_fellowship: stats(members, recordMap, "small_group_fellowship"),
+    };
+  });
+
+  return {
+    type: level,
+    level,
+    id: row.id,
+    name: row.name,
+    parent_name: getMonthOverviewParentName(level, row, organizationRows),
+    leader_name: getMonthOverviewLeaderName(level, row.id, members),
+    expected_count: members.filter(isAttendanceRateMember).length,
+    monthly_average: {
+      sunday_service: averageMonthOverviewStats(weekly.map((week) => week.sunday_service)),
+      small_group_fellowship: averageMonthOverviewStats(weekly.map((week) => week.small_group_fellowship)),
+    },
+    weekly,
+  };
+}
+
+function getMonthOverviewParentName(
+  level: string,
+  row: any,
+  organizationRows: Awaited<ReturnType<typeof loadOverviewOrganizationRows>>,
+) {
+  if (level === "district") {
+    return null;
+  }
+  if (level === "big_family") {
+    return organizationRows.districtsById.get(row.district_id)?.name || null;
+  }
+  return [
+    organizationRows.bigFamiliesById.get(row.big_family_id)?.name,
+    organizationRows.districtsById.get(row.district_id)?.name,
+  ].filter(Boolean).join(" / ") || null;
+}
+
+function getMonthOverviewLeaderName(level: string, unitId: number, members: MemberRow[]) {
+  const leaderRoles = level === "district"
+    ? DISTRICT_LEADER_ROLES
+    : level === "big_family"
+      ? BIG_FAMILY_LEADER_ROLES
+      : SMALL_GROUP_LEADER_ROLES;
+  const leaders = members
+    .filter((member) => leaderRoles.has(member.role) && isMonthOverviewUnitMember(member, level, unitId))
+    .sort((left, right) => ROLE_ORDER[left.role] - ROLE_ORDER[right.role] || left.full_name.localeCompare(right.full_name, "zh-Hant"));
+  return leaders.map((leader) => leader.full_name).join("、") || "";
+}
+
+function averageMonthOverviewStats(statsRows: any[]) {
+  if (!statsRows.length) {
+    return { present_count: 0, expected_count: 0, rate: null };
+  }
+  const presentTotal = statsRows.reduce((total, row) => total + Number(row.present_count || 0), 0);
+  const expectedTotal = statsRows.reduce((total, row) => total + Number(row.expected_count || 0), 0);
+  return {
+    present_count: roundToOneDecimal(presentTotal / statsRows.length),
+    expected_count: roundToOneDecimal(expectedTotal / statsRows.length),
+    rate: expectedTotal ? presentTotal / expectedTotal : null,
+  };
 }
 
 function compareOrganizationRows(left: any, right: any) {
@@ -2361,6 +2584,16 @@ function getDateWeeksBefore(anchorWeekStart: string, weeksBack: number) {
   const date = parseIsoDate(anchorWeekStart);
   date.setDate(date.getDate() - weeksBack * 7);
   return formatDate(date);
+}
+
+function formatMonth(date: Date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function roundToOneDecimal(value: number) {
+  return Math.round(value * 10) / 10;
 }
 
 function addWeeksIso(weekStart: string, weeks: number) {
