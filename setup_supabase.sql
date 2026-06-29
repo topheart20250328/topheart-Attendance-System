@@ -115,6 +115,7 @@ create table public.members (
   note_carry_forward boolean not null default true,
   note_priority_high boolean not null default false,
   equipment_progress text not null default 'none',
+  attendance_started_week date not null default date '2026-04-26',
   role public.member_role not null,
   is_admin boolean not null default false,
   line_user_id text unique,
@@ -269,6 +270,7 @@ create index idx_members_line_user_id on public.members (line_user_id);
 create index idx_members_district_role on public.members (district_id, role);
 create index idx_members_big_family_role on public.members (big_family_id, role);
 create index idx_members_small_group_role on public.members (small_group_id, role);
+create index idx_members_attendance_started_week on public.members (attendance_started_week);
 create index idx_district_pastor_districts_district_id
 on public.district_pastor_districts (district_id, district_pastor_id);
 create index idx_members_active_district_lookup on public.members (district_id, role, full_name)
@@ -389,6 +391,7 @@ select
   m.note_carry_forward,
   m.note_priority_high,
   m.equipment_progress,
+  m.attendance_started_week,
   m.role,
   m.is_admin,
   m.line_user_id,

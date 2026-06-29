@@ -23,6 +23,7 @@ type MemberRow = {
   note_carry_forward: boolean | null;
   note_priority_high: boolean | null;
   equipment_progress: string;
+  attendance_started_week: string | null;
   district_pastor_district_ids?: number[] | null;
 };
 
@@ -629,6 +630,10 @@ async function createMemberFromBody(
     return { status: 403, body: { error: "No permission to create in this scope." } };
   }
 
+  const attendanceStartedWeek = effectiveViewer.is_admin
+    ? normalizeAttendanceStartedWeek(body?.attendance_started_week, getMondayIso(new Date()))
+    : getMondayIso(new Date());
+
   const { data, error } = await db
     .from("members")
     .insert({
@@ -638,6 +643,7 @@ async function createMemberFromBody(
       gender: normalizeGender(body?.gender),
       note,
       equipment_progress: equipmentProgress,
+      attendance_started_week: attendanceStartedWeek,
       is_admin: viewer.is_admin ? isAdmin : false,
       is_active: body?.is_active !== false,
       district_id: scope.district_id,
@@ -652,7 +658,6 @@ async function createMemberFromBody(
   }
 
   await syncDistrictPastorDistricts(db, data.id, role, districtPastorDistrictIds);
-  await seedPastAbsencesForNewMember(db, data.id, actor.id);
 
   await writeAuditLog(db, actor, "create_member", "members", data.id, {
     full_name: fullName,
@@ -660,6 +665,7 @@ async function createMemberFromBody(
     equipment_progress: equipmentProgress,
     scope,
     district_ids: districtPastorDistrictIds,
+    attendance_started_week: data.attendance_started_week,
     admin_mode: adminMode,
   });
 
@@ -731,6 +737,14 @@ async function handleUpdateMember(
   if (requestedIsActive !== Boolean(target.is_active) && !canChangeMemberActiveStatus(effectiveViewer)) {
     return json({ error: "No permission to change member active status." }, 403);
   }
+  const currentAttendanceStartedWeek = getAttendanceStartedWeek(target as MemberRow);
+  const attendanceStartedWeek = normalizeAttendanceStartedWeek(
+    body?.attendance_started_week ?? currentAttendanceStartedWeek,
+    currentAttendanceStartedWeek,
+  );
+  if (attendanceStartedWeek !== currentAttendanceStartedWeek && !effectiveViewer.is_admin) {
+    return json({ error: "Only admins can change attendance start week." }, 403);
+  }
 
   const { error } = await db
     .from("members")
@@ -740,6 +754,7 @@ async function handleUpdateMember(
       gender: normalizeGender(body?.gender),
       note,
       equipment_progress: normalizeEquipmentProgress(body?.equipment_progress ?? target.equipment_progress),
+      attendance_started_week: attendanceStartedWeek,
       is_admin: effectiveViewer.is_admin ? Boolean(body?.is_admin) : target.is_admin,
       is_active: canChangeMemberActiveStatus(effectiveViewer) ? requestedIsActive : target.is_active,
       district_id: scope.district_id,
@@ -778,6 +793,7 @@ async function handleUpdateMember(
       full_name: target.full_name,
       role: target.role,
       equipment_progress: target.equipment_progress,
+      attendance_started_week: currentAttendanceStartedWeek,
       is_active: target.is_active,
       district_id: target.district_id,
       big_family_id: target.big_family_id,
@@ -787,6 +803,7 @@ async function handleUpdateMember(
       full_name: updated.full_name,
       role: updated.role,
       equipment_progress: updated.equipment_progress,
+      attendance_started_week: updated.attendance_started_week,
       is_active: updated.is_active,
       district_id: updated.district_id,
       big_family_id: updated.big_family_id,
@@ -1099,7 +1116,7 @@ async function handleDashboard(
   const memberIds = members.map((member) => member.id);
   const records = await loadRecords(db, week.id, memberIds);
   const recordMap = new Map(records.map((record) => [`${record.member_id}:${record.event_type}`, record]));
-  const historyMap = await loadMemberHistory(db, memberIds, weekStart);
+  const historyMap = await loadMemberHistory(db, members, weekStart);
   const editableMemberIds = new Set(
     members
       .filter((member) => canEditAttendance(effectiveViewer, member))
@@ -1115,24 +1132,28 @@ async function handleDashboard(
     },
     analytics: createEmptyAnalytics(weekStart),
     attendance_has_existing_records: hasExistingAttendanceRecords,
-    roster: members.map((member) => ({
-      ...member,
-      note: getFirstRecordValue(recordMap, member.id, "note", member.note || ""),
-      note_carry_forward: Boolean(member.note && member.note_carry_forward === true),
-      note_priority_high: Boolean(
-        getFirstRecordValue(recordMap, member.id, "note_priority_high", member.note_priority_high),
-      ),
-      is_self: member.id === viewer.id,
-      can_edit_attendance: canEditAttendance(effectiveViewer, member),
-      can_edit_note: canEditNote(effectiveViewer, member),
-      history: isAttendanceRateMember(member)
-        ? historyMap.get(member.id) || createEmptyHistorySummary(weekStart)
-        : createEmptyHistorySummary(weekStart),
-      attendance: {
-        sunday_service: statusOf(recordMap.get(`${member.id}:sunday_service`)?.status),
-        small_group_fellowship: statusOf(recordMap.get(`${member.id}:small_group_fellowship`)?.status),
-      },
-    })),
+    roster: members.map((member) => {
+      const attendanceApplicable = isAttendanceApplicable(member, weekStart);
+      return {
+        ...member,
+        attendance_applicable: attendanceApplicable,
+        note: getFirstRecordValue(recordMap, member.id, "note", member.note || ""),
+        note_carry_forward: Boolean(member.note && member.note_carry_forward === true),
+        note_priority_high: Boolean(
+          getFirstRecordValue(recordMap, member.id, "note_priority_high", member.note_priority_high),
+        ),
+        is_self: member.id === viewer.id,
+        can_edit_attendance: attendanceApplicable && canEditAttendance(effectiveViewer, member),
+        can_edit_note: canEditNote(effectiveViewer, member),
+        history: isAttendanceRateMember(member)
+          ? historyMap.get(member.id) || createEmptyHistorySummary(weekStart)
+          : createEmptyHistorySummary(weekStart),
+        attendance: {
+          sunday_service: attendanceApplicable ? statusOf(recordMap.get(`${member.id}:sunday_service`)?.status) : "unknown",
+          small_group_fellowship: attendanceApplicable ? statusOf(recordMap.get(`${member.id}:small_group_fellowship`)?.status) : "unknown",
+        },
+      };
+    }),
   };
 }
 
@@ -1180,7 +1201,7 @@ async function handleSaveAttendance(
       });
     }
 
-    if (canEditAttendance(effectiveViewer, target)) {
+    if (isAttendanceApplicable(target, requestedWeekStart) && canEditAttendance(effectiveViewer, target)) {
       rows.push(
         {
           member_id: memberId,
@@ -1704,7 +1725,7 @@ async function handleAttendanceOverview(
     : createEmptyHistoryMap(memberIds, selectedWeekStart);
   const organizationRows = await loadOverviewOrganizationRows(db, members);
   const units = filterOverviewUnits(
-    buildUnits(effectiveViewer, members, recordMap, historyMap, organizationRows, overviewOptions),
+    buildUnits(effectiveViewer, members, recordMap, historyMap, organizationRows, overviewOptions, selectedWeekStart),
     overviewOptions,
   );
 
@@ -1920,50 +1941,6 @@ async function ensureWeek(db: ReturnType<typeof createAdminClient>, weekStart: s
   return fallback;
 }
 
-async function seedPastAbsencesForNewMember(
-  db: ReturnType<typeof createAdminClient>,
-  memberId: number,
-  actorMemberId: number,
-) {
-  const currentWeekStart = getMondayIso(new Date());
-  const rows = [];
-  for (let weekStart = MIN_ATTENDANCE_WEEK_START; weekStart < currentWeekStart; weekStart = addWeeksIso(weekStart, 1)) {
-    const week = await ensureWeek(db, weekStart);
-    rows.push(
-      {
-        member_id: memberId,
-        attendance_week_id: week.id,
-        event_type: "sunday_service",
-        status: "absent",
-        note: "",
-        note_priority_high: false,
-        recorded_by_member_id: actorMemberId,
-        recorded_at: new Date().toISOString(),
-      },
-      {
-        member_id: memberId,
-        attendance_week_id: week.id,
-        event_type: "small_group_fellowship",
-        status: "absent",
-        note: "",
-        note_priority_high: false,
-        recorded_by_member_id: actorMemberId,
-        recorded_at: new Date().toISOString(),
-      },
-    );
-  }
-  if (!rows.length) {
-    return;
-  }
-
-  const { error } = await db
-    .from("attendance_records")
-    .upsert(rows, { onConflict: "member_id,attendance_week_id,event_type" });
-  if (error) {
-    throw new Error(error.message);
-  }
-}
-
 async function loadOverviewMembers(db: ReturnType<typeof createAdminClient>, viewer: MemberRow) {
   let query = db.from("member_directory").select("*").eq("is_active", true).order("full_name");
   if (!viewer.is_admin) {
@@ -2050,8 +2027,7 @@ async function loadMemberHistory(
 
   const weekRows = weeks || [];
   const weekIds = weekRows.map((item) => item.id);
-  const expectedWeekCounts = countHistoryWeeksByRange(weekRows, anchorWeekStart);
-  applyHistoryExpectedCounts(historyMap, expectedWeekCounts);
+  applyHistoryExpectedCounts(historyMap, historyMembers, weekRows, anchorWeekStart);
   if (!weekIds.length) {
     return historyMap;
   }
@@ -2069,7 +2045,10 @@ async function loadMemberHistory(
     for (const range of HISTORY_RANGES) {
       const startDate = memberHistory[range.key]?.start_date;
       if (startDate && weekStart >= startDate && weekStart <= anchorWeekStart) {
-        addHistoryRecord(memberHistory[range.key], record.event_type, record.status);
+        const member = getHistoryMember(historyMembers, record.member_id);
+        if (member && isAttendanceApplicable(member, weekStart)) {
+          addHistoryRecord(memberHistory[range.key], record.event_type, record.status);
+        }
       }
     }
   }
@@ -2107,6 +2086,7 @@ function buildUnits(
   historyMap: Map<number, Record<string, any>>,
   organizationRows: Awaited<ReturnType<typeof loadOverviewOrganizationRows>>,
   options: OverviewRequestOptions,
+  weekStart: string,
 ) {
   const units = [];
   const includeDistrict = viewer.is_admin ||
@@ -2117,14 +2097,14 @@ function buildUnits(
 
   if (includeDistrict) {
     for (const district of organizationRows.districts) {
-      units.push(unit("district", district.id, district.name, null, members.filter((member) => member.district_id === district.id), recordMap, historyMap, options));
+      units.push(unit("district", district.id, district.name, null, members.filter((member) => member.district_id === district.id), recordMap, historyMap, options, weekStart));
     }
   }
 
   if (includeBig) {
     for (const big of organizationRows.bigFamilies) {
       const parentName = organizationRows.districtsById.get(big.district_id)?.name || null;
-      units.push(unit("big_family", big.id, big.name, parentName, members.filter((member) => member.big_family_id === big.id), recordMap, historyMap, options));
+      units.push(unit("big_family", big.id, big.name, parentName, members.filter((member) => member.big_family_id === big.id), recordMap, historyMap, options, weekStart));
     }
   }
 
@@ -2133,7 +2113,7 @@ function buildUnits(
       organizationRows.bigFamiliesById.get(small.big_family_id)?.name,
       organizationRows.districtsById.get(small.district_id)?.name,
     ].filter(Boolean);
-    units.push(unit("small_group", small.id, small.name, parents.join(" / ") || null, members.filter((member) => member.small_group_id === small.id), recordMap, historyMap, options));
+    units.push(unit("small_group", small.id, small.name, parents.join(" / ") || null, members.filter((member) => member.small_group_id === small.id), recordMap, historyMap, options, weekStart));
   }
 
   return units.filter((item) => item.member_count > 0);
@@ -2179,10 +2159,17 @@ function buildMonthOverviewUnit(
     const recordMap = recordsByWeek.get(weekStart) || new Map();
     return {
       week_start_date: weekStart,
-      sunday_service: stats(members, recordMap, "sunday_service"),
-      small_group_fellowship: stats(members, recordMap, "small_group_fellowship"),
+      sunday_service: stats(members, recordMap, "sunday_service", weekStart),
+      small_group_fellowship: stats(members, recordMap, "small_group_fellowship", weekStart),
     };
   });
+  const expectedCount = Math.max(
+    0,
+    ...weekly.flatMap((week) => [
+      Number(week.sunday_service.expected_count || 0),
+      Number(week.small_group_fellowship.expected_count || 0),
+    ]),
+  );
 
   return {
     type: level,
@@ -2192,7 +2179,7 @@ function buildMonthOverviewUnit(
     parent_name: getMonthOverviewParentName(level, row, organizationRows),
     leader_name: leader.name,
     leader_gender: leader.gender,
-    expected_count: members.filter(isAttendanceRateMember).length,
+    expected_count: expectedCount,
     monthly_average: {
       sunday_service: averageMonthOverviewStats(weekly.map((week) => week.sunday_service)),
       small_group_fellowship: averageMonthOverviewStats(weekly.map((week) => week.small_group_fellowship)),
@@ -2361,6 +2348,7 @@ function unit(
   recordMap: Map<string, any>,
   historyMap: Map<number, Record<string, any>>,
   options: OverviewRequestOptions,
+  weekStart: string,
 ) {
   const result: Record<string, any> = {
     type,
@@ -2370,8 +2358,8 @@ function unit(
     parent_name: parentName,
     member_count: members.length,
     stats: {
-      sunday_service: stats(members, recordMap, "sunday_service"),
-      small_group_fellowship: stats(members, recordMap, "small_group_fellowship"),
+      sunday_service: stats(members, recordMap, "sunday_service", weekStart),
+      small_group_fellowship: stats(members, recordMap, "small_group_fellowship", weekStart),
     },
   };
 
@@ -2380,8 +2368,8 @@ function unit(
   }
   if (options.includeDetail) {
     result.detail = {
-      sunday_service: detail(members, recordMap, "sunday_service", historyMap),
-      small_group_fellowship: detail(members, recordMap, "small_group_fellowship", historyMap),
+      sunday_service: detail(members, recordMap, "sunday_service", historyMap, weekStart),
+      small_group_fellowship: detail(members, recordMap, "small_group_fellowship", historyMap, weekStart),
     };
   }
   return result;
@@ -2389,6 +2377,22 @@ function unit(
 
 function isAttendanceRateMember(member: MemberRow) {
   return member.role !== "best";
+}
+
+function getAttendanceStartedWeek(member: MemberRow) {
+  return String(member.attendance_started_week || MIN_ATTENDANCE_WEEK_START).slice(0, 10) || MIN_ATTENDANCE_WEEK_START;
+}
+
+function isAttendanceApplicable(member: MemberRow, weekStart: string) {
+  return getAttendanceStartedWeek(member) <= weekStart;
+}
+
+function normalizeAttendanceStartedWeek(value: unknown, fallback = MIN_ATTENDANCE_WEEK_START) {
+  const raw = String(value || "").trim();
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+    ? getMondayIso(raw)
+    : getMondayIso(fallback || MIN_ATTENDANCE_WEEK_START);
+  return isBeforeMinimumAttendanceWeek(normalized) ? MIN_ATTENDANCE_WEEK_START : normalized;
 }
 
 function filterOverviewUnits(units: any[], options: OverviewRequestOptions) {
@@ -2529,8 +2533,8 @@ function addStats(target: any, source: any) {
   target.expected_count += Number(source.expected_count || 0);
 }
 
-function stats(members: MemberRow[], recordMap: Map<string, any>, eventType: string) {
-  const rateMembers = members.filter(isAttendanceRateMember);
+function stats(members: MemberRow[], recordMap: Map<string, any>, eventType: string, weekStart = MIN_ATTENDANCE_WEEK_START) {
+  const rateMembers = members.filter((member) => isAttendanceRateMember(member) && isAttendanceApplicable(member, weekStart));
   const result = {
     present_count: 0,
     absent_count: 0,
@@ -2561,9 +2565,13 @@ function detail(
   recordMap: Map<string, any>,
   eventType: string,
   historyMap: Map<number, Record<string, any>>,
+  weekStart = MIN_ATTENDANCE_WEEK_START,
 ) {
   const result: Record<string, any[]> = { present: [], absent: [], unknown: [] };
   for (const member of members) {
+    if (isAttendanceRateMember(member) && !isAttendanceApplicable(member, weekStart)) {
+      continue;
+    }
     const record = recordMap.get(`${member.id}:${eventType}`);
     const status = normalizeStatus(record?.status);
     const memberHistory = historyMap.get(member.id) || createEmptyHistorySummary(formatDate(new Date()));
@@ -2622,42 +2630,45 @@ function addHistoryRecord(range: any, eventType: string, value: unknown) {
   }
 }
 
-function countHistoryWeeksByRange(weekRows: any[], anchorWeekStart: string) {
-  return Object.fromEntries(
-    HISTORY_RANGES.map((range) => {
+function applyHistoryExpectedCounts(
+  historyMap: Map<number, Record<string, any>>,
+  historyMembers: Array<MemberRow | number>,
+  weekRows: any[],
+  anchorWeekStart: string,
+) {
+  for (const [memberId, memberHistory] of historyMap.entries()) {
+    const member = getHistoryMember(historyMembers, memberId);
+    for (const range of HISTORY_RANGES) {
       const startDate = range.key === "month"
         ? getMonthStart(anchorWeekStart)
         : getDateWeeksBefore(anchorWeekStart, range.weeksBack);
-      const count = weekRows.filter((week) => {
-        const weekStart = String(week.week_start_date);
-        return weekStart >= startDate && weekStart <= anchorWeekStart;
-      }).length;
-      return [range.key, count];
-    }),
-  );
-}
-
-function applyHistoryExpectedCounts(
-  historyMap: Map<number, Record<string, any>>,
-  expectedWeekCounts: Record<string, number>,
-) {
-  for (const memberHistory of historyMap.values()) {
-    for (const range of HISTORY_RANGES) {
-      const expectedCount = Number(expectedWeekCounts[range.key] || 0);
+      const expectedCount = member
+        ? weekRows.filter((week) => {
+          const weekStart = String(week.week_start_date);
+          return weekStart >= startDate && weekStart <= anchorWeekStart && isAttendanceApplicable(member, weekStart);
+        }).length
+        : 0;
+      const rangeHistory = memberHistory[range.key] as any;
       for (const eventType of ["sunday_service", "small_group_fellowship"]) {
-        if (memberHistory[range.key]?.[eventType]) {
-          memberHistory[range.key][eventType].expected_count = expectedCount;
+        if (rangeHistory?.[eventType]) {
+          rangeHistory[eventType].expected_count = expectedCount;
         }
       }
     }
   }
 }
 
+function getHistoryMember(historyMembers: Array<MemberRow | number>, memberId: number) {
+  const member = historyMembers.find((item) => typeof item !== "number" && item.id === memberId);
+  return typeof member === "number" ? null : member || null;
+}
+
 function finalizeHistoryUnknownCounts(historyMap: Map<number, Record<string, any>>) {
   for (const memberHistory of historyMap.values()) {
     for (const range of HISTORY_RANGES) {
+      const rangeHistory = memberHistory[range.key] as any;
       for (const eventType of ["sunday_service", "small_group_fellowship"]) {
-        const stats = memberHistory[range.key]?.[eventType];
+        const stats = rangeHistory?.[eventType];
         if (!stats) {
           continue;
         }

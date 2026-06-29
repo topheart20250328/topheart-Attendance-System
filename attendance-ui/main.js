@@ -294,6 +294,8 @@ const els = {
   memberManagedDistrictList: document.querySelector("#memberManagedDistrictList"),
   memberActiveLabel: document.querySelector("#memberActiveLabel"),
   memberActiveSelect: document.querySelector("#memberActiveSelect"),
+  memberAttendanceStartedWeekLabel: document.querySelector("#memberAttendanceStartedWeekLabel"),
+  memberAttendanceStartedWeekInput: document.querySelector("#memberAttendanceStartedWeekInput"),
   memberIsAdminWrap: document.querySelector("#memberIsAdminWrap"),
   memberIsAdminInput: document.querySelector("#memberIsAdminInput"),
   memberNoteLabel: document.querySelector("#memberNoteLabel"),
@@ -1495,7 +1497,7 @@ function formatMonthNumber(value) {
 
 function formatMonthRate(stats) {
   if (!stats?.expectedCount) {
-    return "0%";
+    return "-";
   }
   const rate = typeof stats.rate === "number"
     ? stats.rate
@@ -2018,7 +2020,7 @@ function renderWeekSummary() {
 }
 
 function isAttendanceRateMember(member) {
-  return member?.role !== "best";
+  return member?.role !== "best" && member?.attendance_applicable !== false;
 }
 
 function formatAttendanceSummaryRate(numerator, denominator) {
@@ -2473,7 +2475,7 @@ function renderNonZeroSummaryItem(label, parts) {
 function formatAnalyticsRate(stats) {
   const expectedCount = Number(stats?.expected_count || 0);
   if (!expectedCount) {
-    return "尚無資料";
+    return "-";
   }
 
   return formatPercent(stats?.present_count || 0, expectedCount);
@@ -2482,7 +2484,7 @@ function formatAnalyticsRate(stats) {
 function formatCompletionRate(stats, expectedFallback = 0) {
   const expectedCount = Number(stats?.expected_count ?? expectedFallback);
   if (!expectedCount) {
-    return "尚無資料";
+    return "-";
   }
 
   return formatPercent(stats?.confirmed_count || 0, expectedCount);
@@ -2541,9 +2543,11 @@ function renderAttendanceRows() {
       const noteCarryChecked = member.note_carry_forward === true ? "checked" : "";
       const notePriorityChecked = member.note_priority_high ? "checked" : "";
       const notePriorityDisabled = member.note.trim() && member.can_edit_note ? "" : "disabled";
-      const readonlyBadge = member.can_edit_attendance
-        ? ""
-        : '<span class="status-chip neutral">僅檢視</span>';
+      const readonlyBadge = member.attendance_applicable === false
+        ? '<span class="status-chip neutral">不適用</span>'
+        : member.can_edit_attendance
+          ? ""
+          : '<span class="status-chip neutral">僅檢視</span>';
       const shouldOpenNote = window.matchMedia("(min-width: 961px)").matches;
 
       const equipmentClass = escapeHtml(getEquipmentProgressClass(member.equipment_progress));
@@ -2740,6 +2744,9 @@ function buildNoteSummary(member) {
 }
 
 function hasPendingAttendance(member) {
+  if (member?.attendance_applicable === false) {
+    return false;
+  }
   return ["sunday_service", "small_group_fellowship"].some(
     (eventType) => getAttendanceStatus(member, eventType) === "unknown",
   );
@@ -2848,6 +2855,13 @@ function syncNoteSummary(details, member) {
 
 function renderAttendanceSelect(member, eventType) {
   const label = eventType === "sunday_service" ? "主日聚會" : "小家團契";
+  if (member.attendance_applicable === false) {
+    return `
+      <div class="attendance-toggle" role="group" aria-label="${escapeHtml(member.full_name)} ${label}">
+        <span class="status-chip neutral">-</span>
+      </div>
+    `;
+  }
   const disabled = member.can_edit_attendance ? "" : "disabled";
   const currentStatus = getAttendanceStatus(member, eventType);
 
@@ -3015,7 +3029,7 @@ async function handleSaveAttendance() {
   }
 
   const entries = state.roster
-    .filter((member) => member.can_edit_attendance || member.can_edit_note)
+    .filter((member) => (member.attendance_applicable !== false && member.can_edit_attendance) || member.can_edit_note)
     .map((member) => ({
       member_id: member.id,
       sunday_service: getSelectedAttendanceStatus(member.id, "sunday_service"),
@@ -4134,6 +4148,9 @@ function getMonthOverviewLevelLabel(level) {
 }
 
 function renderMonthOverviewCell(stats) {
+  if (!stats?.expectedCount) {
+    return `<span class="overview-month-count is-empty">-</span>`;
+  }
   const countText = `${formatMonthNumber(stats.presentCount)} / ${formatMonthNumber(stats.expectedCount)}`;
   const rateText = formatMonthRate(stats);
   const rateClass = getMonthOverviewRateClass(stats);
@@ -6641,6 +6658,7 @@ function fillMemberForm(mode, member) {
     els.memberCreateScopeModeSelect.value = getDefaultCreateScopeMode(els.memberRoleSelect.value);
     els.memberNoteInput.value = "";
     els.memberActiveSelect.value = "true";
+    els.memberAttendanceStartedWeekInput.value = getCurrentWeekStart();
     els.memberIsAdminInput.checked = false;
     els.memberIsAdminWrap.open = false;
     if (Array.from(els.memberRoleSelect.options).some((option) => option.value === "member")) {
@@ -6659,6 +6677,7 @@ function fillMemberForm(mode, member) {
     els.memberEquipmentProgressSelect.value = normalizeEquipmentProgress(member.equipment_progress);
     els.memberNoteInput.value = member.note || "";
     els.memberActiveSelect.value = member.is_active ? "true" : "false";
+    els.memberAttendanceStartedWeekInput.value = clampToAllowedAttendanceWeek(member.attendance_started_week || MIN_ATTENDANCE_WEEK_START);
     els.memberIsAdminInput.checked = Boolean(member.is_admin);
     els.memberIsAdminWrap.open = false;
   }
@@ -6734,7 +6753,12 @@ function syncMemberFormScope() {
     (isManagedCreateRole && SMALL_GROUP_LEADER_ROLES.includes(role) && createScopeMode === "existing");
   const canEditActiveStatus = canEditMemberActiveStatus(editingMember);
   setHidden(els.memberActiveLabel, !canEditActiveStatus);
+  const canEditAttendanceStartedWeek = Boolean(isAdminModeActive());
+  setHidden(els.memberAttendanceStartedWeekLabel, !canEditAttendanceStartedWeek);
   els.memberActiveSelect.disabled = !canEditActiveStatus;
+  els.memberAttendanceStartedWeekInput.disabled = !canEditAttendanceStartedWeek;
+  els.memberAttendanceStartedWeekInput.min = MIN_ATTENDANCE_WEEK_START;
+  els.memberAttendanceStartedWeekInput.max = getCurrentWeekStart();
   els.memberIsAdminInput.disabled = !canEditAdminPermission;
   els.memberCreateScopeModeSelect.disabled = !isManagedCreateRole;
   if (isManagedCreateRole) {
@@ -6808,6 +6832,9 @@ async function handleSaveMember(event) {
     small_group_id: DISTRICT_PASTOR_ROLES.includes(role)
       ? null
       : Number(els.memberSmallGroupSelect.value || 0) || null,
+    attendance_started_week: isAdminModeActive()
+      ? clampToAllowedAttendanceWeek(els.memberAttendanceStartedWeekInput.value || getCurrentWeekStart())
+      : undefined,
     is_admin: els.memberIsAdminInput.checked,
     is_active: els.memberActiveSelect.value === "true",
   };

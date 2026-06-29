@@ -52,6 +52,16 @@ on public.attendance_records (attendance_week_id, status);
 create index if not exists idx_attendance_records_recorded_by_member_id
 on public.attendance_records (recorded_by_member_id);
 
+-- =========================================================
+-- 0A-3. 既有資料庫升級：人員出席統計起算週
+-- 已經跑過新版 setup_supabase.sql 的全新資料庫不需要再跑。
+-- =========================================================
+alter table public.members
+add column if not exists attendance_started_week date not null default date '2026-04-26';
+
+create index if not exists idx_members_attendance_started_week
+on public.members (attendance_started_week);
+
 create index if not exists idx_login_invites_created_by_member_id
 on public.login_invites (created_by_member_id);
 
@@ -125,6 +135,7 @@ select
   m.note,
   m.note_carry_forward,
   m.note_priority_high,
+  m.attendance_started_week,
   m.role,
   m.is_admin,
   m.line_user_id,
@@ -212,6 +223,7 @@ select
   m.note_carry_forward,
   m.note_priority_high,
   m.equipment_progress,
+  m.attendance_started_week,
   m.role,
   m.is_admin,
   m.line_user_id,
