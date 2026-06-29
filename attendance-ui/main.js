@@ -4561,8 +4561,8 @@ function getOverviewAttendanceReminder(member) {
     const highest = reminders.sort(compareAttendanceReminderSeverity)[0];
     return {
       ...highest,
-      detail: reminders.map((reminder) => reminder.detail).join("；"),
-      panelDetail: reminders.map((reminder) => reminder.panelDetail || reminder.detail).join("；"),
+      detail: reminders.map((reminder) => reminder.detail).join("\n"),
+      panelDetail: reminders.map((reminder) => reminder.panelDetail || reminder.detail).join("\n"),
     };
   }
   return getAttendanceReminderForEvent(member, state.ui.overviewEvent);
