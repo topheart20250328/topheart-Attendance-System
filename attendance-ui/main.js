@@ -4304,14 +4304,13 @@ function renderOverviewAllEventSummary(unit, memberCount = 0) {
   const presentCount = combinedDetail.present.length;
   const absentCount = combinedDetail.absent.length;
   const unknownCount = combinedDetail.unknown.length;
-  const totalCount = presentCount + absentCount + unknownCount;
   const filledText = OVERVIEW_EVENT_TYPES.map((eventType) => {
     const stats = unit.stats?.[eventType] || createEmptyEventStats();
     return `${getOverviewEventShortLabel(eventType)} ${formatCompletionRate(stats)}`;
   }).join(" / ");
   return `
     <span class="overview-all-event-summary">
-      <strong>${escapeHtml(totalCount ? formatPercent(presentCount, totalCount) : "尚無資料")}</strong>
+      <strong>${escapeHtml(formatOverviewAllEventRate(unit))}</strong>
       <span class="summary-subtext overview-completion-text ${escapeHtml(getOverviewCombinedCompletionState(unit, memberCount).tone)}">${escapeHtml(filledText)}</span>
       <span class="summary-subtext overview-breakdown-text">${escapeHtml(formatNonZeroParts([
         { label: "出席", value: presentCount },
@@ -4320,6 +4319,19 @@ function renderOverviewAllEventSummary(unit, memberCount = 0) {
       ], " 人"))}</span>
     </span>
   `;
+}
+
+function formatOverviewAllEventRate(unit) {
+  const rates = OVERVIEW_EVENT_TYPES.map((eventType) => {
+    const stats = unit.stats?.[eventType] || createEmptyEventStats();
+    const expectedCount = Number(stats.expected_count || 0);
+    return expectedCount ? Number(stats.present_count || 0) / expectedCount : null;
+  }).filter((rate) => rate !== null);
+  if (!rates.length) {
+    return "尚無資料";
+  }
+  const averageRate = rates.reduce((total, rate) => total + rate, 0) / OVERVIEW_EVENT_TYPES.length;
+  return `${Math.round(averageRate * 100)}%`;
 }
 
 function renderOverviewAllEventDetails(unit, memberCount, unitKey) {
