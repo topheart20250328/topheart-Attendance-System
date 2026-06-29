@@ -1641,21 +1641,21 @@ function canEditAttendance(viewer: MemberRow, target: MemberRow) {
   if (DISTRICT_PASTOR_ROLES.has(viewer.role) || DISTRICT_LEADER_ROLES.has(viewer.role)) {
     return (
       canManageDistrict(viewer, target.district_id) &&
-      canManageAttendanceTarget(viewer.role, target.role)
+      (canManageAttendanceTarget(viewer.role, target.role) || canEditSameUnitLeaderAttendance(viewer, target))
     );
   }
   if (BIG_FAMILY_LEADER_ROLES.has(viewer.role)) {
     return (
       Boolean(viewer.big_family_id) &&
       viewer.big_family_id === target.big_family_id &&
-      canManageAttendanceTarget(viewer.role, target.role)
+      (canManageAttendanceTarget(viewer.role, target.role) || canEditSameUnitLeaderAttendance(viewer, target))
     );
   }
   if (SMALL_GROUP_LEADER_ROLES.has(viewer.role)) {
     return (
       Boolean(viewer.small_group_id) &&
       viewer.small_group_id === target.small_group_id &&
-      canManageAttendanceTarget(viewer.role, target.role)
+      (canManageAttendanceTarget(viewer.role, target.role) || canEditSameUnitLeaderAttendance(viewer, target))
     );
   }
   return false;
@@ -1669,6 +1669,22 @@ function canManageAttendanceTarget(viewerRole: string, targetRole: string) {
   const viewerOrder = ROLE_PERMISSION_TIER[viewerRole] || 99;
   const targetOrder = ROLE_PERMISSION_TIER[targetRole] || 99;
   return targetOrder > viewerOrder && targetOrder < 99;
+}
+
+function canEditSameUnitLeaderAttendance(viewer: MemberRow, target: MemberRow) {
+  if (viewer.id === target.id) {
+    return false;
+  }
+  if (DISTRICT_LEADER_ROLES.has(viewer.role) && DISTRICT_LEADER_ROLES.has(target.role)) {
+    return Boolean(viewer.district_id) && viewer.district_id === target.district_id;
+  }
+  if (BIG_FAMILY_LEADER_ROLES.has(viewer.role) && BIG_FAMILY_LEADER_ROLES.has(target.role)) {
+    return Boolean(viewer.big_family_id) && viewer.big_family_id === target.big_family_id;
+  }
+  if (SMALL_GROUP_LEADER_ROLES.has(viewer.role) && SMALL_GROUP_LEADER_ROLES.has(target.role)) {
+    return Boolean(viewer.small_group_id) && viewer.small_group_id === target.small_group_id;
+  }
+  return false;
 }
 
 function getFirstRecordValue(
@@ -2274,9 +2290,10 @@ function getMonthOverviewLeader(level: string, row: any, members: MemberRow[]) {
     .filter((member) => leaderRoles.has(member.role) && isMonthOverviewUnitMember(member, level, row.id))
     .sort((left, right) => ROLE_ORDER[left.role] - ROLE_ORDER[right.role] || left.full_name.localeCompare(right.full_name, "zh-Hant"));
   if (leaders.length) {
+    const leader = leaders[0];
     return {
-      name: leaders.map((leader) => leader.full_name).join("、"),
-      gender: getSharedGender(leaders),
+      name: leader.full_name,
+      gender: leader.gender || "",
     };
   }
   if (level !== "small_group") {

@@ -1176,6 +1176,22 @@ body.layout-small .app-header h1 {
   gap: 6px;
 }
 
+.attendance-not-applicable-toggle {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.attendance-not-applicable-mark {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 42px;
+  border-radius: 10px;
+  background: #f4f7fd;
+  color: var(--muted);
+  font-weight: 800;
+  text-align: center;
+}
+
 .attendance-option {
   min-height: 42px;
   border-radius: 14px;
@@ -1523,6 +1539,12 @@ body.is-authenticated #invitesView {
 
 #attendanceView .attendance-toggle {
   gap: 3px;
+}
+
+#attendanceView .attendance-not-applicable-mark {
+  min-height: var(--attendance-option-height);
+  border-radius: 8px;
+  font-size: var(--attendance-option-font-size);
 }
 
 #attendanceView .attendance-option {

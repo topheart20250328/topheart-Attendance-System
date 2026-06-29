@@ -2543,11 +2543,9 @@ function renderAttendanceRows() {
       const noteCarryChecked = member.note_carry_forward === true ? "checked" : "";
       const notePriorityChecked = member.note_priority_high ? "checked" : "";
       const notePriorityDisabled = member.note.trim() && member.can_edit_note ? "" : "disabled";
-      const readonlyBadge = member.attendance_applicable === false
-        ? '<span class="status-chip neutral">不適用</span>'
-        : member.can_edit_attendance
-          ? ""
-          : '<span class="status-chip neutral">僅檢視</span>';
+      const readonlyBadge = member.attendance_applicable === false || member.can_edit_attendance
+        ? ""
+        : '<span class="status-chip neutral">僅檢視</span>';
       const shouldOpenNote = window.matchMedia("(min-width: 961px)").matches;
 
       const equipmentClass = escapeHtml(getEquipmentProgressClass(member.equipment_progress));
@@ -2758,7 +2756,7 @@ function getAttendanceStatus(member, eventType) {
 
 function updateMemberAttendance(memberId, eventType, status) {
   const member = state.roster.find((item) => item.id === memberId);
-  if (!member) {
+  if (!member || member.attendance_applicable === false) {
     return null;
   }
 
@@ -2857,8 +2855,8 @@ function renderAttendanceSelect(member, eventType) {
   const label = eventType === "sunday_service" ? "主日聚會" : "小家團契";
   if (member.attendance_applicable === false) {
     return `
-      <div class="attendance-toggle" role="group" aria-label="${escapeHtml(member.full_name)} ${label}">
-        <span class="status-chip neutral">-</span>
+      <div class="attendance-toggle attendance-not-applicable-toggle" role="group" aria-label="${escapeHtml(member.full_name)} ${label}">
+        <span class="attendance-not-applicable-mark">-</span>
       </div>
     `;
   }
@@ -5147,17 +5145,17 @@ function buildPeopleHierarchy(rows) {
     .sort(compareHierarchyGroups)
     .map((district) => ({
       ...district,
-      leaders: sortMembers(district.leaders),
+      leaders: getPrimaryLeaders(district.leaders),
       bigFamilies: Array.from(district.bigFamilies.values())
         .sort(compareHierarchyGroups)
         .map((bigFamily) => ({
           ...bigFamily,
-          leaders: sortMembers(bigFamily.leaders),
+          leaders: getPrimaryLeaders(bigFamily.leaders),
           smallGroups: Array.from(bigFamily.smallGroups.values())
             .sort(compareHierarchyGroups)
             .map((smallGroup) => ({
               ...smallGroup,
-              leaders: sortMembers(smallGroup.leaders),
+              leaders: getPrimaryLeaders(smallGroup.leaders),
               members: sortMembers(smallGroup.members),
             })),
         })),
@@ -5165,7 +5163,7 @@ function buildPeopleHierarchy(rows) {
         .sort(compareHierarchyGroups)
         .map((smallGroup) => ({
           ...smallGroup,
-          leaders: sortMembers(smallGroup.leaders),
+          leaders: getPrimaryLeaders(smallGroup.leaders),
           members: sortMembers(smallGroup.members),
         })),
     }));
@@ -5173,6 +5171,11 @@ function buildPeopleHierarchy(rows) {
     rootLeaders: sortMembers(rootLeaders),
     districts: districtList,
   };
+}
+
+function getPrimaryLeaders(members) {
+  const sorted = sortMembers(members || []);
+  return sorted.length ? [sorted[0]] : [];
 }
 
 function isPeopleLeaderRole(role) {
@@ -7581,10 +7584,11 @@ function renderOrganizationTreeLeaderStrip(label, members) {
   if (!members.length) {
     return "";
   }
+  const primaryLeader = getPrimaryLeaders(members);
   return `
     <div class="org-flow-leader-strip" aria-label="${escapeHtml(label)}">
       <div class="org-flow-leaders">
-        ${members.map(renderOrganizationTreeMember).join("")}
+        ${primaryLeader.map(renderOrganizationTreeMember).join("")}
       </div>
     </div>
   `;
