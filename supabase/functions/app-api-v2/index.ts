@@ -1267,6 +1267,10 @@ async function handleMoveOrganization(
     return json({ error: "Organization not found." }, 404);
   }
 
+  if (orgType === "small_group" && !target.big_family_id) {
+    return await moveDirectDistrictChild(db, target, direction);
+  }
+
   let query = db
     .from(tableName)
     .select("*")
@@ -1320,6 +1324,71 @@ async function handleMoveOrganization(
     .eq("id", next.id);
   if (nextError) {
     return json({ error: nextError.message }, 500);
+  }
+
+  return json({ status: "ok" });
+}
+
+async function moveDirectDistrictChild(
+  db: ReturnType<typeof createAdminClient>,
+  target: any,
+  direction: number,
+) {
+  const [{ data: bigFamilies, error: bigFamiliesError }, { data: smallGroups, error: smallGroupsError }] = await Promise.all([
+    db
+      .from("big_families")
+      .select("*")
+      .eq("district_id", target.district_id),
+    db
+      .from("small_groups")
+      .select("*")
+      .eq("district_id", target.district_id)
+      .is("big_family_id", null),
+  ]);
+  if (bigFamiliesError) {
+    return json({ error: bigFamiliesError.message }, 500);
+  }
+  if (smallGroupsError) {
+    return json({ error: smallGroupsError.message }, 500);
+  }
+
+  const rows = [
+    ...(bigFamilies || []).map((row) => ({ ...row, org_type: "big_family" })),
+    ...(smallGroups || []).map((row) => ({ ...row, org_type: "small_group" })),
+  ].sort(compareOrganizationRows);
+  const currentIndex = rows.findIndex((row) => row.org_type === "small_group" && row.id === target.id);
+  const nextIndex = currentIndex + direction;
+  if (currentIndex < 0 || nextIndex < 0 || nextIndex >= rows.length) {
+    return json({ status: "ok", message: "排序已在邊界。" });
+  }
+
+  const current = rows[currentIndex];
+  const next = rows[nextIndex];
+  let currentOrder = Number.isFinite(Number(current.display_order))
+    ? Number(current.display_order)
+    : currentIndex + 1;
+  let nextOrder = Number.isFinite(Number(next.display_order))
+    ? Number(next.display_order)
+    : nextIndex + 1;
+  if (currentOrder === nextOrder) {
+    currentOrder = currentIndex + 1;
+    nextOrder = nextIndex + 1;
+  }
+
+  const currentResult = await db
+    .from(getOrganizationTableName(current.org_type))
+    .update({ display_order: nextOrder })
+    .eq("id", current.id);
+  if (currentResult.error) {
+    return json({ error: currentResult.error.message }, 500);
+  }
+
+  const nextResult = await db
+    .from(getOrganizationTableName(next.org_type))
+    .update({ display_order: currentOrder })
+    .eq("id", next.id);
+  if (nextResult.error) {
+    return json({ error: nextResult.error.message }, 500);
   }
 
   return json({ status: "ok" });
@@ -2069,11 +2138,7 @@ function buildMonthOverviewUnits(
   weekStarts: string[],
   recordsByWeek: Map<string, Map<string, any>>,
 ) {
-  const sourceRows = level === "district"
-    ? organizationRows.districts
-    : level === "big_family"
-      ? organizationRows.bigFamilies
-      : organizationRows.smallGroups;
+  const sourceRows = getMonthOverviewSourceRows(level, organizationRows);
 
   return sourceRows
     .map((row) => {
@@ -2116,7 +2181,7 @@ function buildMonthOverviewUnit(
     id: row.id,
     name: row.name,
     parent_name: getMonthOverviewParentName(level, row, organizationRows),
-    leader_name: getMonthOverviewLeaderName(level, row.id, members),
+    leader_name: getMonthOverviewLeaderName(level, row, members),
     expected_count: members.filter(isAttendanceRateMember).length,
     monthly_average: {
       sunday_service: averageMonthOverviewStats(weekly.map((week) => week.sunday_service)),
@@ -2124,6 +2189,65 @@ function buildMonthOverviewUnit(
     },
     weekly,
   };
+}
+
+function getMonthOverviewSourceRows(
+  level: string,
+  organizationRows: Awaited<ReturnType<typeof loadOverviewOrganizationRows>>,
+) {
+  if (level === "district") {
+    return organizationRows.districts;
+  }
+  if (level === "big_family") {
+    return organizationRows.bigFamilies;
+  }
+  return [...organizationRows.smallGroups].sort((left, right) =>
+    compareMonthOverviewSmallGroups(left, right, organizationRows),
+  );
+}
+
+function compareMonthOverviewSmallGroups(
+  left: any,
+  right: any,
+  organizationRows: Awaited<ReturnType<typeof loadOverviewOrganizationRows>>,
+) {
+  const districtCompare = compareOrganizationRows(
+    organizationRows.districtsById.get(left.district_id) || { id: left.district_id, name: "", display_order: 0, is_active: true },
+    organizationRows.districtsById.get(right.district_id) || { id: right.district_id, name: "", display_order: 0, is_active: true },
+  );
+  if (districtCompare !== 0) {
+    return districtCompare;
+  }
+
+  const leftParentOrder = getSmallGroupPeerOrder(left, organizationRows);
+  const rightParentOrder = getSmallGroupPeerOrder(right, organizationRows);
+  if (leftParentOrder !== rightParentOrder) {
+    return leftParentOrder - rightParentOrder;
+  }
+
+  if (Boolean(left.big_family_id) !== Boolean(right.big_family_id)) {
+    return left.big_family_id ? -1 : 1;
+  }
+  if (left.big_family_id && right.big_family_id && left.big_family_id !== right.big_family_id) {
+    return compareOrganizationRows(
+      organizationRows.bigFamiliesById.get(left.big_family_id) || { id: left.big_family_id, name: "", display_order: 0, is_active: true },
+      organizationRows.bigFamiliesById.get(right.big_family_id) || { id: right.big_family_id, name: "", display_order: 0, is_active: true },
+    );
+  }
+  return compareOrganizationRows(left, right);
+}
+
+function getSmallGroupPeerOrder(
+  smallGroup: any,
+  organizationRows: Awaited<ReturnType<typeof loadOverviewOrganizationRows>>,
+) {
+  if (smallGroup.big_family_id) {
+    const bigFamily = organizationRows.bigFamiliesById.get(smallGroup.big_family_id);
+    if (bigFamily) {
+      return Number.isFinite(Number(bigFamily.display_order)) ? Number(bigFamily.display_order) : Number.MAX_SAFE_INTEGER;
+    }
+  }
+  return Number.isFinite(Number(smallGroup.display_order)) ? Number(smallGroup.display_order) : Number.MAX_SAFE_INTEGER;
 }
 
 function getMonthOverviewParentName(
@@ -2137,22 +2261,30 @@ function getMonthOverviewParentName(
   if (level === "big_family") {
     return organizationRows.districtsById.get(row.district_id)?.name || null;
   }
-  return [
-    organizationRows.bigFamiliesById.get(row.big_family_id)?.name,
-    organizationRows.districtsById.get(row.district_id)?.name,
-  ].filter(Boolean).join(" / ") || null;
+  if (row.big_family_id) {
+    return organizationRows.bigFamiliesById.get(row.big_family_id)?.name || null;
+  }
+  return organizationRows.districtsById.get(row.district_id)?.name || null;
 }
 
-function getMonthOverviewLeaderName(level: string, unitId: number, members: MemberRow[]) {
+function getMonthOverviewLeaderName(level: string, row: any, members: MemberRow[]) {
   const leaderRoles = level === "district"
     ? DISTRICT_LEADER_ROLES
     : level === "big_family"
       ? BIG_FAMILY_LEADER_ROLES
       : SMALL_GROUP_LEADER_ROLES;
   const leaders = members
-    .filter((member) => leaderRoles.has(member.role) && isMonthOverviewUnitMember(member, level, unitId))
+    .filter((member) => leaderRoles.has(member.role) && isMonthOverviewUnitMember(member, level, row.id))
     .sort((left, right) => ROLE_ORDER[left.role] - ROLE_ORDER[right.role] || left.full_name.localeCompare(right.full_name, "zh-Hant"));
-  return leaders.map((leader) => leader.full_name).join("、") || "";
+  if (leaders.length) {
+    return leaders.map((leader) => leader.full_name).join("、");
+  }
+  if (level !== "small_group") {
+    return "";
+  }
+  const fallbackLeaders = [...members]
+    .sort((left, right) => ROLE_ORDER[left.role] - ROLE_ORDER[right.role] || left.full_name.localeCompare(right.full_name, "zh-Hant"));
+  return fallbackLeaders.map((leader) => leader.full_name).slice(0, 1).join("、") || "";
 }
 
 function averageMonthOverviewStats(statsRows: any[]) {
@@ -2396,7 +2528,10 @@ function stats(members: MemberRow[], recordMap: Map<string, any>, eventType: str
       result.unknown_count += 1;
     }
   }
-  return result;
+  return {
+    ...result,
+    rate: result.expected_count ? result.present_count / result.expected_count : null,
+  };
 }
 
 function detail(

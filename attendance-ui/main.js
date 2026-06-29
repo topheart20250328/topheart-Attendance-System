@@ -137,7 +137,6 @@ const ORG_TREE_MAX_SCALE = 1.5;
 const OVERVIEW_MODES = ["individual", "monthly"];
 const OVERVIEW_MONTH_LEVELS = ["small_group", "big_family", "district"];
 const OVERVIEW_METRIC_MODES = ["count", "rate", "both"];
-const OVERVIEW_MOBILE_PRESENTATIONS = ["cards", "table"];
 const V2_API_ACTIONS = new Set([
   "attendance-overview",
   "attendance-month-overview",
@@ -247,10 +246,8 @@ const els = {
   overviewMonthInput: document.querySelector("#overviewMonthInput"),
   overviewMonthLevelSelect: document.querySelector("#overviewMonthLevelSelect"),
   overviewMetricModeSelect: document.querySelector("#overviewMetricModeSelect"),
-  overviewMobilePresentationInputs: document.querySelectorAll('input[name="overviewMobilePresentation"]'),
   overviewMonthSummary: document.querySelector("#overviewMonthSummary"),
   overviewMonthTable: document.querySelector("#overviewMonthTable"),
-  overviewMonthCards: document.querySelector("#overviewMonthCards"),
   profileView: document.querySelector("#profileView"),
   profileSearchInput: document.querySelector("#profileSearchInput"),
   profileTableBody: document.querySelector("#profileTableBody"),
@@ -423,7 +420,6 @@ const state = {
     overviewMonthLoading: false,
     overviewMonthlyLevel: "small_group",
     overviewMetricMode: "count",
-    overviewMobilePresentation: "cards",
     overviewUnitType: "",
     overviewSearch: "",
     overviewHistoryRange: "month",
@@ -575,9 +571,6 @@ function bindEvents() {
   els.overviewMonthInput?.addEventListener("change", handleOverviewMonthChange);
   els.overviewMonthLevelSelect?.addEventListener("change", handleOverviewMonthLevelChange);
   els.overviewMetricModeSelect?.addEventListener("change", handleOverviewMetricModeChange);
-  els.overviewMobilePresentationInputs?.forEach((input) => {
-    input.addEventListener("change", handleOverviewMobilePresentationChange);
-  });
 
   els.profileSearchInput?.addEventListener("input", handleProfileFilters);
   els.profileTableBody?.addEventListener("click", handleProfileTableClick);
@@ -716,7 +709,6 @@ function hydrateLocalState() {
   state.ui.overviewMode = uiPreferences.overviewMode;
   state.ui.overviewMonthlyLevel = uiPreferences.overviewMonthlyLevel;
   state.ui.overviewMetricMode = uiPreferences.overviewMetricMode;
-  state.ui.overviewMobilePresentation = uiPreferences.overviewMobilePresentation;
   state.ui.inviteSort = uiPreferences.inviteSort;
   state.ui.orgTreeMode = uiPreferences.orgTreeMode;
   state.ui.orgTreeScale = uiPreferences.orgTreeScale;
@@ -735,7 +727,6 @@ function hydrateLocalState() {
   if (els.overviewMetricModeSelect) {
     els.overviewMetricModeSelect.value = state.ui.overviewMetricMode;
   }
-  syncOverviewMobilePresentationInputs();
   if (els.inviteSortSelect) {
     els.inviteSortSelect.value = state.ui.inviteSort;
   }
@@ -776,9 +767,6 @@ function loadUiPreferences() {
       overviewMetricMode: OVERVIEW_METRIC_MODES.includes(value.overviewMetricMode)
         ? value.overviewMetricMode
         : "count",
-      overviewMobilePresentation: OVERVIEW_MOBILE_PRESENTATIONS.includes(value.overviewMobilePresentation)
-        ? value.overviewMobilePresentation
-        : "cards",
       inviteSort: INVITE_SORT_OPTIONS.includes(value.inviteSort)
         ? value.inviteSort
         : "created_desc",
@@ -797,7 +785,6 @@ function loadUiPreferences() {
       overviewMode: "individual",
       overviewMonthlyLevel: "small_group",
       overviewMetricMode: "count",
-      overviewMobilePresentation: "cards",
       inviteSort: "created_desc",
       orgTreeMode: "compact",
       orgTreeScale: 1,
@@ -814,7 +801,6 @@ function saveUiPreferences() {
       overviewMode: state.ui.overviewMode,
       overviewMonthlyLevel: state.ui.overviewMonthlyLevel,
       overviewMetricMode: state.ui.overviewMetricMode,
-      overviewMobilePresentation: state.ui.overviewMobilePresentation,
       inviteSort: state.ui.inviteSort,
       orgTreeMode: state.ui.orgTreeMode,
       orgTreeScale: state.ui.orgTreeScale,
@@ -1500,12 +1486,6 @@ function clampToAllowedAttendanceMonth(month, options = {}) {
   return normalized;
 }
 
-function syncOverviewMobilePresentationInputs() {
-  els.overviewMobilePresentationInputs?.forEach((input) => {
-    input.checked = input.value === state.ui.overviewMobilePresentation;
-  });
-}
-
 function formatMonthNumber(value) {
   const number = Number(value || 0);
   return Number.isInteger(number) ? String(number) : number.toFixed(1);
@@ -1515,7 +1495,10 @@ function formatMonthRate(stats) {
   if (!stats?.expectedCount) {
     return "0%";
   }
-  return `${Math.round(Number(stats.rate || 0) * 100)}%`;
+  const rate = typeof stats.rate === "number"
+    ? stats.rate
+    : Number(stats.presentCount || 0) / Number(stats.expectedCount || 1);
+  return `${Math.round(rate * 100)}%`;
 }
 
 function syncWeekControls() {
@@ -1679,6 +1662,8 @@ function shouldIgnoreTabSwipe(target) {
         "summary",
         ".tab-row",
         ".overview-week-scroller",
+        ".overview-month-table-wrap",
+        ".overview-month-table",
         ".overview-history-grid",
         ".profile-table-wrap",
         ".org-tree-board",
@@ -2443,6 +2428,9 @@ function renderNonZeroSummaryItem(label, parts) {
 
 function formatAnalyticsRate(stats) {
   if (!stats?.confirmed_count) {
+    if (stats?.expected_count || stats?.unknown_count) {
+      return "待確認";
+    }
     return "尚無資料";
   }
 
@@ -3767,17 +3755,6 @@ function handleOverviewMetricModeChange(event) {
   renderMonthOverview();
 }
 
-function handleOverviewMobilePresentationChange(event) {
-  if (!event.target.checked || !OVERVIEW_MOBILE_PRESENTATIONS.includes(event.target.value)) {
-    return;
-  }
-
-  state.ui.overviewMobilePresentation = event.target.value;
-  saveUiPreferences();
-  syncOverviewMobilePresentationInputs();
-  renderMonthOverview();
-}
-
 function handleOverviewFilters() {
   state.ui.overviewSearch = els.overviewSearchInput?.value.trim() || "";
   renderOverviewWeeks();
@@ -3963,7 +3940,6 @@ function renderAttendanceOverview() {
   if (els.overviewMetricModeSelect) {
     els.overviewMetricModeSelect.value = state.ui.overviewMetricMode;
   }
-  syncOverviewMobilePresentationInputs();
 
   if (state.ui.overviewMode === "monthly") {
     renderMonthOverview();
@@ -3998,11 +3974,6 @@ function renderMonthOverview() {
     return;
   }
 
-  els.overviewMonthlyPanel.classList.toggle(
-    "show-table-on-mobile",
-    state.ui.overviewMobilePresentation === "table",
-  );
-
   if (!state.overviewMonthData) {
     const message = canUseOverview()
       ? "正在載入整體總覽..."
@@ -4016,27 +3987,20 @@ function renderMonthOverview() {
     if (els.overviewMonthTable) {
       els.overviewMonthTable.innerHTML = "";
     }
-    if (els.overviewMonthCards) {
-      els.overviewMonthCards.innerHTML = "";
-    }
     return;
   }
 
   const data = state.overviewMonthData;
-  const levelLabel = getOverviewLevelLabel(data.level);
-  const summary = state.ui.overviewMonthLoading
-    ? `正在更新 ${data.selectedMonth} ${levelLabel}整體總覽`
-    : `${data.selectedMonth} ${levelLabel}整體總覽：${data.units.length} 個單位，${data.weeks.length} 個主日`;
+  const summary = `目前月份 ${data.selectedMonth}`;
 
   if (els.overviewScopeSummary) {
-    els.overviewScopeSummary.textContent = `${data.scopeLabel} / ${summary}`;
+    els.overviewScopeSummary.textContent = summary;
   }
   if (els.overviewMonthSummary) {
-    els.overviewMonthSummary.textContent = summary;
+    els.overviewMonthSummary.textContent = "";
   }
 
   renderMonthOverviewTable(data);
-  renderMonthOverviewCards(data);
 }
 
 function renderMonthOverviewTable(data) {
@@ -4057,10 +4021,8 @@ function renderMonthOverviewTable(data) {
     <table class="overview-month-table">
       <thead>
         <tr>
-          <th rowspan="2" class="overview-month-sticky-col">單位</th>
-          <th rowspan="2">上層</th>
+          <th rowspan="2" class="overview-month-sticky-col">${escapeHtml(data.selectedMonth)}</th>
           <th rowspan="2">領袖</th>
-          <th rowspan="2">應到</th>
           <th colspan="2">月平均</th>
           ${data.weeks.map((week) => `<th colspan="2">${escapeHtml(buildShortWeekLabel(week.weekStartDate))}</th>`).join("")}
         </tr>
@@ -4082,10 +4044,9 @@ function renderMonthOverviewTableRow(unit) {
     <tr>
       <th class="overview-month-sticky-col" scope="row">
         <span class="overview-month-unit-name">${escapeHtml(unit.name)}</span>
+        ${unit.parentName ? `<span class="overview-month-parent-name">${escapeHtml(unit.parentName)}</span>` : ""}
       </th>
-      <td>${escapeHtml(unit.parentName || "-")}</td>
       <td>${escapeHtml(unit.leaderName || "-")}</td>
-      <td>${escapeHtml(formatMonthNumber(unit.expectedCount))}</td>
       <td>${renderMonthOverviewCell(unit.monthlyAverage.sundayService)}</td>
       <td>${renderMonthOverviewCell(unit.monthlyAverage.smallGroupFellowship)}</td>
       ${unit.weekly.map((week) => `
@@ -4094,43 +4055,6 @@ function renderMonthOverviewTableRow(unit) {
       `).join("")}
     </tr>
   `;
-}
-
-function renderMonthOverviewCards(data) {
-  if (!els.overviewMonthCards) {
-    return;
-  }
-
-  if (!data.weeks.length || !data.units.length) {
-    els.overviewMonthCards.innerHTML = "";
-    return;
-  }
-
-  els.overviewMonthCards.innerHTML = data.units.map((unit) => `
-    <article class="overview-month-card">
-      <div class="overview-month-card-head">
-        <div>
-          <h3>${escapeHtml(unit.name)}</h3>
-          ${unit.parentName ? `<p>${escapeHtml(unit.parentName)}</p>` : ""}
-        </div>
-        <span>${escapeHtml(formatMonthNumber(unit.expectedCount))} 應到</span>
-      </div>
-      <dl class="overview-month-meta">
-        <div><dt>領袖</dt><dd>${escapeHtml(unit.leaderName || "-")}</dd></div>
-        <div><dt>主日月平均</dt><dd>${renderMonthOverviewCell(unit.monthlyAverage.sundayService)}</dd></div>
-        <div><dt>小家月平均</dt><dd>${renderMonthOverviewCell(unit.monthlyAverage.smallGroupFellowship)}</dd></div>
-      </dl>
-      <div class="overview-month-week-list">
-        ${unit.weekly.map((week) => `
-          <div class="overview-month-week-row">
-            <strong>${escapeHtml(buildShortWeekLabel(week.weekStartDate))}</strong>
-            <span>主日 ${renderMonthOverviewCell(week.sundayService)}</span>
-            <span>小家 ${renderMonthOverviewCell(week.smallGroupFellowship)}</span>
-          </div>
-        `).join("")}
-      </div>
-    </article>
-  `).join("");
 }
 
 function renderMonthOverviewCell(stats) {
@@ -4673,6 +4597,7 @@ function formatDetailedAnalyticsBreakdown(stats) {
   return formatNonZeroParts([
     { label: "出席", value: stats.present_count || 0 },
     { label: "缺席", value: stats.absent_count || 0 },
+    { label: "待確認", value: stats.unknown_count || 0 },
   ]) || "尚無資料";
 }
 
@@ -7258,12 +7183,9 @@ function renderOrganizationTreeDistrict(district) {
   const districtLeaders = sortMembers(
     state.adminData.members.filter((member) => isOrganizationTreeDistrictLeader(member, district.id)),
   );
-  const bigFamilies = state.adminData.bigFamilies
-    .filter((bigFamily) => bigFamily.district_id === district.id)
-    .sort(compareOrganizations);
-  const directSmallGroups = state.adminData.smallGroups
-    .filter((smallGroup) => smallGroup.district_id === district.id && !smallGroup.big_family_id)
-    .sort(compareOrganizations);
+  const districtChildren = getOrganizationDistrictChildRows(district.id);
+  const bigFamilies = districtChildren.filter((child) => child.orgType === "big_family");
+  const directSmallGroups = districtChildren.filter((child) => child.orgType === "small_group");
   const directMembers = sortMembers(
     state.adminData.members.filter(
       (member) =>
@@ -7297,13 +7219,19 @@ function renderOrganizationTreeDistrict(district) {
         ${renderOrganizationTreeLeaderStrip("區領袖", districtLeaders)}
       </div>
       <div class="org-flow-branches org-flow-children ${childClass}">
-        ${bigFamilies.map((bigFamily) => renderOrganizationTreeBigFamily(bigFamily)).join("")}
-        ${directSmallGroups.map((smallGroup) => renderOrganizationTreeSmallGroup(smallGroup)).join("")}
+        ${districtChildren.map(renderOrganizationTreeDistrictChild).join("")}
         ${directMembers.length ? renderOrganizationTreeMemberBucket("待分類", directMembers, `district:${district.id}:pending`) : ""}
         ${bigFamilies.length || directSmallGroups.length || directMembers.length ? "" : '<div class="org-flow-empty">尚未建立大家或小家</div>'}
       </div>
     </article>
   `;
+}
+
+function renderOrganizationTreeDistrictChild(child) {
+  if (child.orgType === "big_family") {
+    return renderOrganizationTreeBigFamily(child);
+  }
+  return renderOrganizationTreeSmallGroup(child);
 }
 
 function renderOrganizationTreeBigFamily(bigFamily) {
@@ -8249,14 +8177,9 @@ function renderOrganizationDirectory() {
 }
 
 function renderOrganizationDistrictGroup(district) {
-  const bigFamilies = state.adminData.bigFamilies
-    .filter((bigFamily) => bigFamily.district_id === district.id)
-    .sort(compareOrganizations);
-  const directSmallGroups = state.adminData.smallGroups
-    .filter((smallGroup) => smallGroup.district_id === district.id && !smallGroup.big_family_id)
-    .sort(compareOrganizations);
+  const districtChildren = getOrganizationDistrictChildRows(district.id);
   const memberCount = state.adminData.members.filter((member) => member.district_id === district.id).length;
-  const childCount = bigFamilies.length + directSmallGroups.length;
+  const childCount = districtChildren.length;
 
   return `
     <details class="org-scope-group org-edit-group org-level-district">
@@ -8269,13 +8192,29 @@ function renderOrganizationDistrictGroup(district) {
         ${renderOrganizationCard("district", district)}
         ${childCount
           ? `<div class="org-scope-children">
-              ${bigFamilies.map(renderOrganizationBigFamilyGroup).join("")}
-              ${directSmallGroups.map((smallGroup) => renderOrganizationSmallGroupItem(smallGroup)).join("")}
+              ${districtChildren.map(renderOrganizationDistrictChild).join("")}
             </div>`
           : '<div class="empty-state-card">此區目前沒有大家或小家。</div>'}
       </div>
     </details>
   `;
+}
+
+function getOrganizationDistrictChildRows(districtId) {
+  const bigFamilies = state.adminData.bigFamilies
+    .filter((bigFamily) => bigFamily.district_id === districtId)
+    .map((bigFamily) => ({ ...bigFamily, orgType: "big_family" }));
+  const directSmallGroups = state.adminData.smallGroups
+    .filter((smallGroup) => smallGroup.district_id === districtId && !smallGroup.big_family_id)
+    .map((smallGroup) => ({ ...smallGroup, orgType: "small_group" }));
+  return [...bigFamilies, ...directSmallGroups].sort(compareOrganizations);
+}
+
+function renderOrganizationDistrictChild(child) {
+  if (child.orgType === "big_family") {
+    return renderOrganizationBigFamilyGroup(child);
+  }
+  return renderOrganizationSmallGroupItem(child);
 }
 
 function renderOrganizationBigFamilyGroup(bigFamily) {
