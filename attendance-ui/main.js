@@ -4325,14 +4325,17 @@ function renderOverviewAllEventSummary(unit, memberCount = 0) {
   const presentCount = combinedDetail.present.length;
   const absentCount = combinedDetail.absent.length;
   const unknownCount = combinedDetail.unknown.length;
-  const filledText = OVERVIEW_EVENT_TYPES.map((eventType) => {
-    const stats = unit.stats?.[eventType] || createEmptyEventStats();
-    return `${getOverviewEventShortLabel(eventType)}填寫率 ${formatCompletionRate(stats)}`;
-  }).join(" / ");
+  const completionState = getOverviewCombinedCompletionState(unit, memberCount);
+  const filledText = completionState.label === "填寫完成"
+    ? completionState.label
+    : OVERVIEW_EVENT_TYPES.map((eventType) => {
+      const stats = unit.stats?.[eventType] || createEmptyEventStats();
+      return `${getOverviewEventShortLabel(eventType)} ${formatCompletionRate(stats)}`;
+    }).join(" / ") + " 填寫率";
   return `
     <span class="overview-all-event-summary">
       <strong>${escapeHtml(formatOverviewAllEventRate(unit))}</strong>
-      <span class="summary-subtext overview-completion-text ${escapeHtml(getOverviewCombinedCompletionState(unit, memberCount).tone)}">${escapeHtml(filledText)}</span>
+      <span class="summary-subtext overview-completion-text ${escapeHtml(completionState.tone)}">${escapeHtml(filledText)}</span>
       <span class="summary-subtext overview-breakdown-text">${escapeHtml(formatNonZeroParts([
         { label: "出席", value: presentCount },
         { label: "未出席", value: absentCount },
