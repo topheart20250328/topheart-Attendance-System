@@ -2992,17 +2992,17 @@ tbody tr:last-child td {
 
 .overview-month-field input,
 .overview-month-field select {
-  min-height: 31px;
+  min-height: 30px;
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: #fff;
-  color: var(--text);
+  color: #1d2b44;
   font-family: inherit;
   font-size: 16px;
-  line-height: 1.15;
-  font-weight: 700;
-  padding: 0.16rem 0.34rem;
+  line-height: 1.08;
+  font-weight: 600;
+  padding: 0.08rem 0.3rem;
 }
 
 .overview-month-summary {
@@ -6582,8 +6582,9 @@ body.is-authenticated .toast {
   .overview-month-field input,
   .overview-month-field select {
     min-height: 30px;
-    padding: 0.12rem 0.26rem;
+    padding: 0.06rem 0.22rem;
     font-size: 16px;
+    font-weight: 600;
   }
 
   .overview-month-table {

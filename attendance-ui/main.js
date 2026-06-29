@@ -4304,15 +4304,17 @@ function renderOverviewAllEventSummary(unit, memberCount = 0) {
   const presentCount = combinedDetail.present.length;
   const absentCount = combinedDetail.absent.length;
   const unknownCount = combinedDetail.unknown.length;
+  const totalCount = presentCount + absentCount + unknownCount;
   const filledText = OVERVIEW_EVENT_TYPES.map((eventType) => {
     const stats = unit.stats?.[eventType] || createEmptyEventStats();
     return `${getOverviewEventShortLabel(eventType)} ${formatCompletionRate(stats)}`;
   }).join(" / ");
   return `
     <span class="overview-all-event-summary">
-      <strong>${escapeHtml(presentCount ? `合計出席 ${presentCount}` : "尚未出席")}</strong>
+      <strong>${escapeHtml(totalCount ? formatPercent(presentCount, totalCount) : "尚無資料")}</strong>
       <span class="summary-subtext overview-completion-text ${escapeHtml(getOverviewCombinedCompletionState(unit, memberCount).tone)}">${escapeHtml(filledText)}</span>
       <span class="summary-subtext overview-breakdown-text">${escapeHtml(formatNonZeroParts([
+        { label: "出席", value: presentCount },
         { label: "未出席", value: absentCount },
         { label: "待確認", value: unknownCount },
       ], " 人"))}</span>
@@ -4323,9 +4325,9 @@ function renderOverviewAllEventSummary(unit, memberCount = 0) {
 function renderOverviewAllEventDetails(unit, memberCount, unitKey) {
   const detail = getOverviewCombinedDetail(unit);
   return `
-    ${renderOverviewStatusGroup("合計出席", detail.present || [], unitKey, "present")}
-    ${renderOverviewStatusGroup("合計未出席", detail.absent || [], unitKey, "absent")}
-    ${renderOverviewStatusGroup("合計待確認", detail.unknown || [], unitKey, "unknown")}
+    ${renderOverviewStatusGroup("出席", detail.present || [], unitKey, "present")}
+    ${renderOverviewStatusGroup("未出席", detail.absent || [], unitKey, "absent")}
+    ${renderOverviewStatusGroup("待確認", detail.unknown || [], unitKey, "unknown")}
   `;
 }
 
