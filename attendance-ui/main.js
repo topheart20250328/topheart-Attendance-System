@@ -4704,11 +4704,17 @@ function renderOverviewAlertPanel(alerts) {
 
   return `
     <div class="overview-alert-panel">
-      ${alerts.map((alert) => `
-        <span class="overview-alert-reason ${escapeHtml(alert.tone)}">${escapeHtml(alert.detail)}</span>
-      `).join("")}
+      ${alerts.map(renderOverviewAlertReason).join("")}
     </div>
   `;
+}
+
+function renderOverviewAlertReason(alert) {
+  return String(alert.detail || "")
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => `<span class="overview-alert-reason ${escapeHtml(alert.tone)}">${escapeHtml(line)}</span>`)
+    .join("");
 }
 
 function renderOverviewBirthdayDetail(reminder) {
