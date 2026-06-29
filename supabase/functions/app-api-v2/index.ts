@@ -2001,7 +2001,6 @@ async function loadMemberHistory(
   historyMembers: Array<MemberRow | number>,
   anchorWeekStart: string,
 ) {
-  const members = historyMembers.filter((item) => typeof item !== "number") as MemberRow[];
   const memberIds = historyMembers.map((item) => typeof item === "number" ? item : item.id);
   const historyMap = new Map<number, Record<string, any>>();
   for (const memberId of memberIds) {
@@ -2009,40 +2008,6 @@ async function loadMemberHistory(
   }
   if (!memberIds.length) {
     return historyMap;
-  }
-
-  const historyMemberIds = new Set(memberIds);
-  const canonicalIdByAliasId = new Map<number, number>();
-  if (members.length) {
-    const membersByName = new Map<string, MemberRow[]>();
-    for (const member of members) {
-      const name = String(member.full_name || "").trim();
-      if (!name) {
-        continue;
-      }
-      const list = membersByName.get(name) || [];
-      list.push(member);
-      membersByName.set(name, list);
-    }
-    const uniqueNames = Array.from(membersByName.entries())
-      .filter(([, rows]) => rows.length === 1)
-      .map(([name]) => name);
-    if (uniqueNames.length) {
-      const { data: aliases, error: aliasError } = await db
-        .from("members")
-        .select("id, full_name")
-        .in("full_name", uniqueNames);
-      if (aliasError) {
-        throw new Error(aliasError.message);
-      }
-      for (const alias of aliases || []) {
-        const canonicalMember = membersByName.get(String(alias.full_name || "").trim())?.[0];
-        if (canonicalMember) {
-          historyMemberIds.add(Number(alias.id));
-          canonicalIdByAliasId.set(Number(alias.id), canonicalMember.id);
-        }
-      }
-    }
   }
 
   const earliestStart = getDateWeeksBefore(anchorWeekStart, 52);
@@ -2068,13 +2033,13 @@ async function loadMemberHistory(
     .from("attendance_records")
     .select("member_id, attendance_week_id, event_type, status")
     .in("attendance_week_id", weekIds)
-    .in("member_id", Array.from(historyMemberIds));
+    .in("member_id", memberIds);
   if (recordError) {
     throw new Error(recordError.message);
   }
 
   for (const record of records || []) {
-    const memberHistory = historyMap.get(canonicalIdByAliasId.get(Number(record.member_id)) || record.member_id);
+    const memberHistory = historyMap.get(record.member_id);
     const weekStart = weekStartById.get(record.attendance_week_id);
     if (!memberHistory || !weekStart) {
       continue;
@@ -2142,7 +2107,7 @@ function buildUnits(
     }
   }
 
-  for (const small of organizationRows.smallGroups) {
+  for (const small of getMonthOverviewSourceRows("small_group", organizationRows)) {
     const parents = [
       organizationRows.bigFamiliesById.get(small.big_family_id)?.name,
       organizationRows.districtsById.get(small.district_id)?.name,

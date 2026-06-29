@@ -3050,6 +3050,7 @@ tbody tr:last-child td {
   position: sticky;
   left: 0;
   z-index: 3;
+  width: 104px;
   min-width: 104px;
   max-width: 124px;
   text-align: left;
@@ -6425,6 +6426,7 @@ body.is-authenticated .toast {
   }
 
   .overview-month-table .overview-month-sticky-col {
+    width: 92px;
     min-width: 92px;
     max-width: 108px;
   }
