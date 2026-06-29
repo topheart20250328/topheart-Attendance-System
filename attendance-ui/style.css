@@ -2958,12 +2958,15 @@ tbody tr:last-child td {
 }
 
 .overview-mode-tabs {
-  width: min(100%, 440px);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(100%, 460px);
   margin-bottom: 10px;
 }
 
 .overview-mode-tabs .tab-btn {
   min-width: 0;
+  min-height: 38px;
   padding-inline: 1rem;
 }
 
@@ -3377,8 +3380,8 @@ tbody tr:last-child td {
 
 .overview-all-event-summary {
   display: grid;
-  gap: 3px;
-  min-width: 120px;
+  gap: 2px;
+  min-width: 108px;
 }
 
 .overview-event-summary-line {
@@ -7324,6 +7327,14 @@ body.is-authenticated .toast {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  #overviewView .overview-mode-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex: none;
+    width: 100%;
+    max-width: 460px;
+  }
+
   #overviewView .compact-tabs .tab-btn {
     flex: 1 1 0;
     min-width: 0;
@@ -7333,7 +7344,9 @@ body.is-authenticated .toast {
   }
 
   #overviewView .overview-mode-tabs .tab-btn {
+    min-height: 34px;
     padding-inline: 0.72rem;
+    font-size: 0.8rem;
   }
 
   #overviewView .overview-control-row .compact-tabs .tab-btn {

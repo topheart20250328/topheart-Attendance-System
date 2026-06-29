@@ -2126,6 +2126,26 @@ function buildOverviewReminders() {
   const memberByKey = new Map();
   const units = getReminderOverviewUnits();
   for (const unit of units) {
+    if (eventType === "all") {
+      const detail = getOverviewCombinedDetail(unit);
+      for (const status of ["present", "absent", "unknown"]) {
+        for (const member of detail[status] || []) {
+          const key = getOverviewMemberKey(member);
+          if (!memberByKey.has(key)) {
+            const level = unit.level || unit.type;
+            memberByKey.set(key, {
+              ...member,
+              reminderUnitName: unit.name,
+              reminderUnitLevel: level,
+              reminderParentName: unit.parent_name || "",
+              reminderUnitKey: getOverviewUnitKey(unit),
+              reminderStatus: status,
+            });
+          }
+        }
+      }
+      continue;
+    }
     for (const currentEventType of getOverviewActiveEventTypes(eventType)) {
       const detail = unit.detail?.[currentEventType] || {};
       for (const status of ["present", "absent", "unknown"]) {
@@ -4280,37 +4300,55 @@ function getOverviewEventBreakdown(stats, memberCount = 0) {
 }
 
 function renderOverviewAllEventSummary(unit, memberCount = 0) {
+  const combinedDetail = getOverviewCombinedDetail(unit);
+  const presentCount = combinedDetail.present.length;
+  const absentCount = combinedDetail.absent.length;
+  const unknownCount = combinedDetail.unknown.length;
+  const filledText = OVERVIEW_EVENT_TYPES.map((eventType) => {
+    const stats = unit.stats?.[eventType] || createEmptyEventStats();
+    return `${getOverviewEventShortLabel(eventType)} ${formatCompletionRate(stats)}`;
+  }).join(" / ");
   return `
     <span class="overview-all-event-summary">
-      ${OVERVIEW_EVENT_TYPES.map((eventType) => {
-        const stats = unit.stats?.[eventType] || createEmptyEventStats();
-        const completionState = getOverviewCompletionState(stats, memberCount);
-        return `
-          <span class="overview-event-summary-line ${escapeHtml(completionState.tone)}">
-            <span>${escapeHtml(getOverviewEventLabel(eventType))}</span>
-            <strong>${escapeHtml(formatOverviewHeadline(stats, memberCount))}</strong>
-            <em>${escapeHtml(completionState.label)}</em>
-          </span>
-        `;
-      }).join("")}
+      <strong>${escapeHtml(presentCount ? `合計出席 ${presentCount}` : "尚未出席")}</strong>
+      <span class="summary-subtext overview-completion-text ${escapeHtml(getOverviewCombinedCompletionState(unit, memberCount).tone)}">${escapeHtml(filledText)}</span>
+      <span class="summary-subtext overview-breakdown-text">${escapeHtml(formatNonZeroParts([
+        { label: "未出席", value: absentCount },
+        { label: "待確認", value: unknownCount },
+      ], " 人"))}</span>
     </span>
   `;
 }
 
 function renderOverviewAllEventDetails(unit, memberCount, unitKey) {
-  return OVERVIEW_EVENT_TYPES.map((eventType) => {
-    const stats = unit.stats?.[eventType] || createEmptyEventStats();
-    const detail = unit.detail?.[eventType] || createEmptyOverviewDetail();
-    return `
-      <section class="overview-event-detail-section">
-        <div class="overview-event-detail-title">${escapeHtml(getOverviewEventLabel(eventType))}</div>
-        ${renderOverviewUnitHistory(unit.history, stats, memberCount, eventType)}
-        ${renderOverviewStatusGroup("出席", detail.present || [], unitKey, `${eventType}:present`)}
-        ${renderOverviewStatusGroup("未出席", detail.absent || [], unitKey, `${eventType}:absent`)}
-        ${renderOverviewStatusGroup("待確認", detail.unknown || [], unitKey, `${eventType}:unknown`)}
-      </section>
-    `;
-  }).join("");
+  const detail = getOverviewCombinedDetail(unit);
+  return `
+    ${renderOverviewStatusGroup("合計出席", detail.present || [], unitKey, "present")}
+    ${renderOverviewStatusGroup("合計未出席", detail.absent || [], unitKey, "absent")}
+    ${renderOverviewStatusGroup("合計待確認", detail.unknown || [], unitKey, "unknown")}
+  `;
+}
+
+function getOverviewCombinedDetail(unit) {
+  const statusPriority = { present: 1, absent: 2, unknown: 3 };
+  const memberByKey = new Map();
+  for (const eventType of OVERVIEW_EVENT_TYPES) {
+    const detail = unit.detail?.[eventType] || {};
+    for (const status of ["present", "absent", "unknown"]) {
+      for (const member of detail[status] || []) {
+        const key = getOverviewMemberKey(member);
+        const current = memberByKey.get(key);
+        if (!current || statusPriority[status] < statusPriority[current.status]) {
+          memberByKey.set(key, { member, status });
+        }
+      }
+    }
+  }
+  const result = { present: [], absent: [], unknown: [] };
+  for (const item of memberByKey.values()) {
+    result[item.status].push(item.member);
+  }
+  return result;
 }
 
 function getOverviewCombinedCompletionState(unit, memberCount = 0) {
@@ -4500,11 +4538,18 @@ function getOverviewAttendanceReminder(member) {
     return null;
   }
   if (state.ui.overviewEvent === "all") {
-    const eventTypes = member.reminderEventType ? [member.reminderEventType] : OVERVIEW_EVENT_TYPES;
-    const reminders = eventTypes
+    const reminders = OVERVIEW_EVENT_TYPES
       .map((eventType) => getAttendanceReminderForEvent(member, eventType))
       .filter(Boolean);
-    return reminders.sort(compareAttendanceReminderSeverity)[0] || null;
+    if (!reminders.length) {
+      return null;
+    }
+    const highest = reminders.sort(compareAttendanceReminderSeverity)[0];
+    return {
+      ...highest,
+      detail: reminders.map((reminder) => reminder.detail).join("；"),
+      panelDetail: reminders.map((reminder) => reminder.panelDetail || reminder.detail).join("；"),
+    };
   }
   return getAttendanceReminderForEvent(member, state.ui.overviewEvent);
 }
@@ -4515,6 +4560,10 @@ function getOverviewActiveEventTypes(eventType = state.ui.overviewEvent) {
 
 function getOverviewEventLabel(eventType) {
   return eventType === "small_group_fellowship" ? "小家團契" : "主日聚會";
+}
+
+function getOverviewEventShortLabel(eventType) {
+  return eventType === "small_group_fellowship" ? "小家" : "主日";
 }
 
 function getDashboardAttendanceReminder(member) {
