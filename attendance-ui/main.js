@@ -135,6 +135,8 @@ const ORG_TREE_MODES = ["compact", "vertical"];
 const ORG_TREE_MIN_SCALE = 0.05;
 const ORG_TREE_MAX_SCALE = 1.5;
 const OVERVIEW_MODES = ["individual", "monthly"];
+const OVERVIEW_EVENT_TYPES = ["sunday_service", "small_group_fellowship"];
+const OVERVIEW_EVENT_FILTERS = ["all", ...OVERVIEW_EVENT_TYPES];
 const OVERVIEW_MONTH_LEVELS = ["small_group", "big_family", "district"];
 const OVERVIEW_METRIC_MODES = ["count", "rate", "both"];
 const V2_API_ACTIONS = new Set([
@@ -412,7 +414,7 @@ const state = {
     attendanceSearch: "",
     attendanceRole: "",
     attendanceStatus: "",
-    overviewEvent: "sunday_service",
+    overviewEvent: "all",
     overviewWeekStart: "",
     overviewLoading: false,
     overviewMode: "individual",
@@ -2124,28 +2126,50 @@ function buildOverviewReminders() {
   const memberByKey = new Map();
   const units = getReminderOverviewUnits();
   for (const unit of units) {
-    const detail = unit.detail?.[eventType] || {};
-    for (const status of ["present", "absent", "unknown"]) {
-      for (const member of detail[status] || []) {
-        const key = getOverviewMemberKey(member);
-        if (!memberByKey.has(key)) {
-          const level = unit.level || unit.type;
-          memberByKey.set(key, {
-            ...member,
-            reminderUnitName: unit.name,
-            reminderUnitLevel: level,
-            reminderParentName: unit.parent_name || "",
-            reminderUnitKey: getOverviewUnitKey(unit),
-            reminderStatus: status,
-          });
+    for (const currentEventType of getOverviewActiveEventTypes(eventType)) {
+      const detail = unit.detail?.[currentEventType] || {};
+      for (const status of ["present", "absent", "unknown"]) {
+        for (const member of detail[status] || []) {
+          const key = eventType === "all"
+            ? `${currentEventType}:${getOverviewMemberKey(member)}`
+            : getOverviewMemberKey(member);
+          if (!memberByKey.has(key)) {
+            const level = unit.level || unit.type;
+            memberByKey.set(key, {
+              ...member,
+              reminderEventType: currentEventType,
+              reminderUnitName: unit.name,
+              reminderUnitLevel: level,
+              reminderParentName: unit.parent_name || "",
+              reminderUnitKey: getOverviewUnitKey(unit),
+              reminderStatus: eventType === "all" ? `${currentEventType}:${status}` : status,
+            });
+          }
         }
       }
     }
   }
 
-  return Array.from(memberByKey.values())
+  return dedupeReminderItems(Array.from(memberByKey.values())
     .flatMap((member) => buildMemberReminders(member, "overview"))
-    .sort(sortReminderItems);
+    .sort(sortReminderItems));
+}
+
+function dedupeReminderItems(reminders) {
+  const seen = new Set();
+  return reminders.filter((reminder) => {
+    const key = [
+      reminder.type,
+      reminder.memberKey,
+      reminder.unitKey,
+      reminder.panelDetail || reminder.detail || "",
+    ].join(":");
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }
 
 function buildMemberReminders(member, context = "overview") {
@@ -3693,7 +3717,7 @@ function buildOverviewWeekOptions(serverWeeks, selectedWeekStart) {
 }
 
 function switchOverviewEvent(eventType) {
-  if (!eventType || state.ui.overviewEvent === eventType) {
+  if (!OVERVIEW_EVENT_FILTERS.includes(eventType) || state.ui.overviewEvent === eventType) {
     return;
   }
 
@@ -3890,13 +3914,15 @@ function refreshRenderedOverviewHistoryPanels() {
 
 function findOverviewMemberByKey(memberKey) {
   for (const unit of state.overviewData?.units || []) {
-    const details = unit.detail?.[state.ui.overviewEvent] || {};
-    for (const group of ["present", "absent", "unknown"]) {
-      const member = (details[group] || []).find(
-        (item) => getOverviewMemberKey(item) === memberKey,
-      );
-      if (member) {
-        return member;
+    for (const eventType of getOverviewActiveEventTypes()) {
+      const details = unit.detail?.[eventType] || {};
+      for (const group of ["present", "absent", "unknown"]) {
+        const member = (details[group] || []).find(
+          (item) => getOverviewMemberKey(item) === memberKey,
+        );
+        if (member) {
+          return member;
+        }
       }
     }
   }
@@ -4192,20 +4218,14 @@ function renderOverviewUnits() {
 
 function renderOverviewUnitCard(unit) {
   const eventType = state.ui.overviewEvent;
-  const stats = unit.stats?.[eventType] || createEmptyEventStats();
-  const detail = unit.detail?.[eventType] || createEmptyOverviewDetail();
+  const isAllEvents = eventType === "all";
+  const stats = isAllEvents ? null : unit.stats?.[eventType] || createEmptyEventStats();
+  const detail = isAllEvents ? null : unit.detail?.[eventType] || createEmptyOverviewDetail();
   const memberCount = Number(unit.member_count || 0);
-  const presentCount = Number(stats.present_count || 0);
-  const absentCount = Number(stats.absent_count || 0);
-  const confirmedCount = Number(stats.confirmed_count || presentCount + absentCount);
-  const expectedCount = Number(stats.expected_count ?? memberCount);
-  const unknownCount = Math.max(0, Number(stats.unknown_count ?? (expectedCount - confirmedCount)));
-  const completionState = getOverviewCompletionState(stats, memberCount);
-  const breakdown = formatNonZeroParts([
-    { label: "出席", value: presentCount },
-    { label: "未出席", value: absentCount },
-    { label: "待確認", value: unknownCount },
-  ], " 人");
+  const completionState = isAllEvents
+    ? getOverviewCombinedCompletionState(unit, memberCount)
+    : getOverviewCompletionState(stats, memberCount);
+  const breakdown = isAllEvents ? "" : getOverviewEventBreakdown(stats, memberCount);
   const parentLabel = unit.parent_name || "";
   const unitKey = getOverviewUnitKey(unit);
   const level = unit.level || unit.type;
@@ -4225,21 +4245,88 @@ function renderOverviewUnitCard(unit) {
           ${parentLabel ? `<span class="muted small-text">${escapeHtml(parentLabel)}</span>` : ""}
         </span>
         <span class="overview-unit-stat">
-          <strong>${escapeHtml(formatOverviewHeadline(stats, memberCount))}</strong>
-          <span class="summary-subtext overview-completion-text ${escapeHtml(completionState.tone)}">
-            ${escapeHtml(completionState.label)}
-          </span>
+          ${isAllEvents ? renderOverviewAllEventSummary(unit, memberCount) : `
+            <strong>${escapeHtml(formatOverviewHeadline(stats, memberCount))}</strong>
+            <span class="summary-subtext overview-completion-text ${escapeHtml(completionState.tone)}">
+              ${escapeHtml(completionState.label)}
+            </span>
+          `}
           ${breakdown ? `<span class="summary-subtext overview-breakdown-text">${escapeHtml(breakdown)}</span>` : ""}
         </span>
       </summary>
       <div class="overview-detail-grid">
-        ${renderOverviewUnitHistory(unit.history, stats, memberCount)}
-        ${renderOverviewStatusGroup("出席", detail.present || [], unitKey, "present")}
-        ${renderOverviewStatusGroup("未出席", detail.absent || [], unitKey, "absent")}
-        ${renderOverviewStatusGroup("待確認", detail.unknown || [], unitKey, "unknown")}
+        ${isAllEvents ? renderOverviewAllEventDetails(unit, memberCount, unitKey) : `
+          ${renderOverviewUnitHistory(unit.history, stats, memberCount, eventType)}
+          ${renderOverviewStatusGroup("出席", detail.present || [], unitKey, "present")}
+          ${renderOverviewStatusGroup("未出席", detail.absent || [], unitKey, "absent")}
+          ${renderOverviewStatusGroup("待確認", detail.unknown || [], unitKey, "unknown")}
+        `}
       </div>
     </details>
   `;
+}
+
+function getOverviewEventBreakdown(stats, memberCount = 0) {
+  const presentCount = Number(stats?.present_count || 0);
+  const absentCount = Number(stats?.absent_count || 0);
+  const confirmedCount = Number(stats?.confirmed_count || presentCount + absentCount);
+  const expectedCount = Number(stats?.expected_count ?? memberCount);
+  const unknownCount = Math.max(0, Number(stats?.unknown_count ?? (expectedCount - confirmedCount)));
+  return formatNonZeroParts([
+    { label: "出席", value: presentCount },
+    { label: "未出席", value: absentCount },
+    { label: "待確認", value: unknownCount },
+  ], " 人");
+}
+
+function renderOverviewAllEventSummary(unit, memberCount = 0) {
+  return `
+    <span class="overview-all-event-summary">
+      ${OVERVIEW_EVENT_TYPES.map((eventType) => {
+        const stats = unit.stats?.[eventType] || createEmptyEventStats();
+        const completionState = getOverviewCompletionState(stats, memberCount);
+        return `
+          <span class="overview-event-summary-line ${escapeHtml(completionState.tone)}">
+            <span>${escapeHtml(getOverviewEventLabel(eventType))}</span>
+            <strong>${escapeHtml(formatOverviewHeadline(stats, memberCount))}</strong>
+            <em>${escapeHtml(completionState.label)}</em>
+          </span>
+        `;
+      }).join("")}
+    </span>
+  `;
+}
+
+function renderOverviewAllEventDetails(unit, memberCount, unitKey) {
+  return OVERVIEW_EVENT_TYPES.map((eventType) => {
+    const stats = unit.stats?.[eventType] || createEmptyEventStats();
+    const detail = unit.detail?.[eventType] || createEmptyOverviewDetail();
+    return `
+      <section class="overview-event-detail-section">
+        <div class="overview-event-detail-title">${escapeHtml(getOverviewEventLabel(eventType))}</div>
+        ${renderOverviewUnitHistory(unit.history, stats, memberCount, eventType)}
+        ${renderOverviewStatusGroup("出席", detail.present || [], unitKey, `${eventType}:present`)}
+        ${renderOverviewStatusGroup("未出席", detail.absent || [], unitKey, `${eventType}:absent`)}
+        ${renderOverviewStatusGroup("待確認", detail.unknown || [], unitKey, `${eventType}:unknown`)}
+      </section>
+    `;
+  }).join("");
+}
+
+function getOverviewCombinedCompletionState(unit, memberCount = 0) {
+  const states = OVERVIEW_EVENT_TYPES.map((eventType) =>
+    getOverviewCompletionState(unit.stats?.[eventType] || createEmptyEventStats(), memberCount),
+  );
+  if (states.some((item) => item.isZero)) {
+    return { label: "含未填聚會", tone: "danger", chipClass: "danger", isZero: true };
+  }
+  if (states.some((item) => item.tone === "warning")) {
+    return { label: "部分未完成", tone: "warning", chipClass: "warning", isZero: false };
+  }
+  if (states.every((item) => item.tone === "neutral")) {
+    return { label: "不計出席率", tone: "neutral", chipClass: "neutral", isZero: false };
+  }
+  return { label: "填寫完成", tone: "success", chipClass: "success", isZero: false };
 }
 
 function getFilteredOverviewUnits(allUnits) {
@@ -4259,10 +4346,13 @@ function getFilteredOverviewUnits(allUnits) {
 }
 
 function getOverviewSearchText(unit, eventType) {
-  const detail = unit.detail?.[eventType] || {};
-  const memberNames = ["present", "absent", "unknown"]
-    .flatMap((key) => detail[key] || [])
-    .map((member) => `${member.full_name || ""} ${getRoleLabel(member.role)}`);
+  const memberNames = getOverviewActiveEventTypes(eventType)
+    .flatMap((currentEventType) => {
+      const detail = unit.detail?.[currentEventType] || {};
+      return ["present", "absent", "unknown"]
+        .flatMap((key) => detail[key] || [])
+        .map((member) => `${member.full_name || ""} ${getRoleLabel(member.role)}`);
+    });
   return [
     unit.name,
     unit.parent_name,
@@ -4338,7 +4428,7 @@ function renderOverviewStatusGroup(label, members, unitKey = "", statusKey = "")
   `;
 }
 
-function renderOverviewUnitHistory(history, currentStats, memberCount) {
+function renderOverviewUnitHistory(history, currentStats, memberCount, eventType = state.ui.overviewEvent) {
   const ranges = getOverviewHistoryRangeDefinitions();
   const currentRate = formatOverviewRate(currentStats, memberCount);
   const completionState = getOverviewCompletionState(currentStats, memberCount);
@@ -4351,14 +4441,13 @@ function renderOverviewUnitHistory(history, currentStats, memberCount) {
         <span class="summary-subtext overview-rate-completion ${escapeHtml(completionState.tone)}">${escapeHtml(completionState.label)}</span>
       </summary>
       <div class="overview-unit-history-grid">
-        ${ranges.map((range) => renderOverviewUnitHistoryCard(range, history?.[range.key])).join("")}
+        ${ranges.map((range) => renderOverviewUnitHistoryCard(range, history?.[range.key], eventType)).join("")}
       </div>
     </details>
   `;
 }
 
-function renderOverviewUnitHistoryCard(range, data) {
-  const eventType = state.ui.overviewEvent;
+function renderOverviewUnitHistoryCard(range, data, eventType = state.ui.overviewEvent) {
   const stats = data?.[eventType] || createEmptyEventStats();
   const missingCount = getMissingCount(stats);
   const completionText = `填寫率 ${formatCompletionRate(stats)}${missingCount ? ` (未填${missingCount}筆)` : ""}`;
@@ -4410,7 +4499,22 @@ function getOverviewAttendanceReminder(member) {
   if (!isAttendanceRateMember(member)) {
     return null;
   }
+  if (state.ui.overviewEvent === "all") {
+    const eventTypes = member.reminderEventType ? [member.reminderEventType] : OVERVIEW_EVENT_TYPES;
+    const reminders = eventTypes
+      .map((eventType) => getAttendanceReminderForEvent(member, eventType))
+      .filter(Boolean);
+    return reminders.sort(compareAttendanceReminderSeverity)[0] || null;
+  }
   return getAttendanceReminderForEvent(member, state.ui.overviewEvent);
+}
+
+function getOverviewActiveEventTypes(eventType = state.ui.overviewEvent) {
+  return eventType === "all" ? OVERVIEW_EVENT_TYPES : [eventType];
+}
+
+function getOverviewEventLabel(eventType) {
+  return eventType === "small_group_fellowship" ? "小家團契" : "主日聚會";
 }
 
 function getDashboardAttendanceReminder(member) {

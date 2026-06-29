@@ -2725,7 +2725,7 @@ tbody tr:last-child td {
 
 .overview-control-row .compact-tabs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   flex: 1 1 auto;
   margin-bottom: 0;
   overflow: visible;
@@ -2958,8 +2958,13 @@ tbody tr:last-child td {
 }
 
 .overview-mode-tabs {
-  width: min(100%, 360px);
+  width: min(100%, 440px);
   margin-bottom: 10px;
+}
+
+.overview-mode-tabs .tab-btn {
+  min-width: 0;
+  padding-inline: 1rem;
 }
 
 .overview-subview {
@@ -3368,6 +3373,62 @@ tbody tr:last-child td {
   min-width: max-content;
   text-align: right;
   white-space: nowrap;
+}
+
+.overview-all-event-summary {
+  display: grid;
+  gap: 3px;
+  min-width: 120px;
+}
+
+.overview-event-summary-line {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  gap: 2px 6px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.overview-event-summary-line strong {
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.overview-event-summary-line em {
+  grid-column: 1 / -1;
+  color: inherit;
+  font-style: normal;
+  font-size: 0.68rem;
+}
+
+.overview-event-summary-line.success em {
+  color: #15803d;
+}
+
+.overview-event-summary-line.warning em {
+  color: #b45309;
+}
+
+.overview-event-summary-line.danger em {
+  color: #b91c1c;
+}
+
+.overview-event-detail-section {
+  display: grid;
+  gap: 7px;
+}
+
+.overview-event-detail-section + .overview-event-detail-section {
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+
+.overview-event-detail-title {
+  color: var(--primary-strong);
+  font-size: 0.78rem;
+  font-weight: 900;
 }
 
 .overview-unit-stat .summary-subtext {
@@ -7258,8 +7319,9 @@ body.is-authenticated .toast {
     margin-bottom: 6px;
   }
 
-  #overviewView .compact-tabs {
+  #overviewView .overview-control-row .compact-tabs {
     flex: 1 1 auto;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   #overviewView .compact-tabs .tab-btn {
@@ -7268,6 +7330,15 @@ body.is-authenticated .toast {
     min-height: 30px;
     padding: 0.3rem 0.42rem;
     font-size: 0.76rem;
+  }
+
+  #overviewView .overview-mode-tabs .tab-btn {
+    padding-inline: 0.72rem;
+  }
+
+  #overviewView .overview-control-row .compact-tabs .tab-btn {
+    padding-inline: 0.3rem;
+    font-size: 0.72rem;
   }
 
   #overviewView .overview-unit-filter {
