@@ -422,7 +422,7 @@ const state = {
     overviewMetricMode: "count",
     overviewUnitType: "",
     overviewSearch: "",
-    overviewHistoryRange: "three_months",
+    overviewHistoryRange: "month",
     settingsOpen: false,
     manageAll: false,
     layoutSize: "medium",

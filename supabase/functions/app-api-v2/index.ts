@@ -1699,7 +1699,7 @@ async function handleAttendanceOverview(
   const records = await loadRecords(db, week.id, memberIds);
   const recordMap = new Map(records.map((record) => [`${record.member_id}:${record.event_type}`, record]));
   const historyMap = overviewOptions.includeHistory
-    ? await loadMemberHistory(db, memberIds, selectedWeekStart)
+    ? await loadMemberHistory(db, members, selectedWeekStart)
     : createEmptyHistoryMap(memberIds, selectedWeekStart);
   const organizationRows = await loadOverviewOrganizationRows(db, members);
   const units = filterOverviewUnits(
@@ -1998,15 +1998,51 @@ async function loadRecords(
 
 async function loadMemberHistory(
   db: ReturnType<typeof createAdminClient>,
-  memberIds: number[],
+  historyMembers: Array<MemberRow | number>,
   anchorWeekStart: string,
 ) {
+  const members = historyMembers.filter((item) => typeof item !== "number") as MemberRow[];
+  const memberIds = historyMembers.map((item) => typeof item === "number" ? item : item.id);
   const historyMap = new Map<number, Record<string, any>>();
   for (const memberId of memberIds) {
     historyMap.set(memberId, createEmptyHistorySummary(anchorWeekStart));
   }
   if (!memberIds.length) {
     return historyMap;
+  }
+
+  const historyMemberIds = new Set(memberIds);
+  const canonicalIdByAliasId = new Map<number, number>();
+  if (members.length) {
+    const membersByName = new Map<string, MemberRow[]>();
+    for (const member of members) {
+      const name = String(member.full_name || "").trim();
+      if (!name) {
+        continue;
+      }
+      const list = membersByName.get(name) || [];
+      list.push(member);
+      membersByName.set(name, list);
+    }
+    const uniqueNames = Array.from(membersByName.entries())
+      .filter(([, rows]) => rows.length === 1)
+      .map(([name]) => name);
+    if (uniqueNames.length) {
+      const { data: aliases, error: aliasError } = await db
+        .from("members")
+        .select("id, full_name")
+        .in("full_name", uniqueNames);
+      if (aliasError) {
+        throw new Error(aliasError.message);
+      }
+      for (const alias of aliases || []) {
+        const canonicalMember = membersByName.get(String(alias.full_name || "").trim())?.[0];
+        if (canonicalMember) {
+          historyMemberIds.add(Number(alias.id));
+          canonicalIdByAliasId.set(Number(alias.id), canonicalMember.id);
+        }
+      }
+    }
   }
 
   const earliestStart = getDateWeeksBefore(anchorWeekStart, 52);
@@ -2032,13 +2068,13 @@ async function loadMemberHistory(
     .from("attendance_records")
     .select("member_id, attendance_week_id, event_type, status")
     .in("attendance_week_id", weekIds)
-    .in("member_id", memberIds);
+    .in("member_id", Array.from(historyMemberIds));
   if (recordError) {
     throw new Error(recordError.message);
   }
 
   for (const record of records || []) {
-    const memberHistory = historyMap.get(record.member_id);
+    const memberHistory = historyMap.get(canonicalIdByAliasId.get(Number(record.member_id)) || record.member_id);
     const weekStart = weekStartById.get(record.attendance_week_id);
     if (!memberHistory || !weekStart) {
       continue;
@@ -2635,7 +2671,7 @@ function finalizeHistoryUnknownCounts(historyMap: Map<number, Record<string, any
 }
 
 function normalizeStatus(value: unknown) {
-  const status = String(value || "unknown");
+  const status = String(value || "unknown").trim();
   return VALID_STATUS.has(status) ? status : "unknown";
 }
 
