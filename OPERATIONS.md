@@ -37,7 +37,7 @@
 - 每次大量匯入、年度整理或調整索引前，先備份資料庫，再記錄主要資料表筆數：`members`、`attendance_weeks`、`attendance_records`、`districts`、`big_families`、`small_groups`。
 - 建議定期查看 Supabase Advisors，優先處理缺少索引、RLS 與安全性警告；效能警告若牽涉大量資料掃描，再搭配查詢實際用途判斷是否加索引。
 - 第一階段已補強常用查詢索引：啟用人員角色/姓名、啟用組織排序，以及 `attendance_records (attendance_week_id, status)`。若後續新增查詢條件，應先用實際慢查詢或 advisors 確認再加索引，避免過多索引拖慢寫入。
-- `出席總覽` 目前只在前端請求當週資料，後端歷史統計限制在可見人員與近 52 週。若資料量成長後仍明顯變慢，再進入第二階段建立月彙總或 `attendance_summary`。
+- `出席導覽` 目前只在前端請求當週資料，後端歷史統計限制在可見人員與近 52 週。若資料量成長後仍明顯變慢，再進入第二階段建立月彙總或 `attendance_summary`。
 - `app-api` 的登入清理任務已改為定時或登入相關 action 觸發；若未來部署多個 Edge Function instance，仍可接受，因為清理邏輯是冪等的，只影響觸發頻率。
 
 常用盤點 SQL：

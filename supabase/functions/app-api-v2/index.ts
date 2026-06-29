@@ -113,6 +113,7 @@ const PHONE_MAX_LENGTH = 80;
 const ADDRESS_MAX_LENGTH = 500;
 const MIN_ATTENDANCE_DATE = "2026-04-26";
 const MIN_ATTENDANCE_WEEK_START = "2026-04-26";
+const ATTENDANCE_RECORD_PAGE_SIZE = 1000;
 const HISTORY_RANGES = [
   { key: "month", label: "本月", weeksBack: 0 },
   { key: "three_months", label: "近三個月", weeksBack: 13 },
@@ -1815,16 +1816,9 @@ async function loadMonthOverviewRecords(
     return recordsByWeek;
   }
 
-  const { data: records, error: recordError } = await db
-    .from("attendance_records")
-    .select("member_id, attendance_week_id, event_type, status")
-    .in("attendance_week_id", weekIds)
-    .in("member_id", memberIds);
-  if (recordError) {
-    throw new Error(recordError.message);
-  }
+  const records = await loadAttendanceRecordsForWeeks(db, weekIds, memberIds, "member_id, attendance_week_id, event_type, status");
 
-  for (const record of records || []) {
+  for (const record of records) {
     const weekStart = weekStartById.get(record.attendance_week_id);
     const weekRecords = weekStart ? recordsByWeek.get(weekStart) : null;
     if (weekRecords) {
@@ -1832,6 +1826,40 @@ async function loadMonthOverviewRecords(
     }
   }
   return recordsByWeek;
+}
+
+async function loadAttendanceRecordsForWeeks(
+  db: ReturnType<typeof createAdminClient>,
+  weekIds: number[],
+  memberIds: number[],
+  columns: string,
+) {
+  const records: any[] = [];
+  if (!weekIds.length || !memberIds.length) {
+    return records;
+  }
+
+  for (let from = 0; ; from += ATTENDANCE_RECORD_PAGE_SIZE) {
+    const { data, error } = await db
+      .from("attendance_records")
+      .select(columns)
+      .in("attendance_week_id", weekIds)
+      .in("member_id", memberIds)
+      .order("attendance_week_id", { ascending: true })
+      .order("member_id", { ascending: true })
+      .order("event_type", { ascending: true })
+      .range(from, from + ATTENDANCE_RECORD_PAGE_SIZE - 1);
+    if (error) {
+      throw new Error(error.message);
+    }
+    const page = data || [];
+    records.push(...page);
+    if (page.length < ATTENDANCE_RECORD_PAGE_SIZE) {
+      break;
+    }
+  }
+
+  return records;
 }
 
 function getOverviewRequestOptions(url: URL): OverviewRequestOptions {
@@ -2029,16 +2057,9 @@ async function loadMemberHistory(
   }
 
   const weekStartById = new Map(weekRows.map((item) => [item.id, String(item.week_start_date)]));
-  const { data: records, error: recordError } = await db
-    .from("attendance_records")
-    .select("member_id, attendance_week_id, event_type, status")
-    .in("attendance_week_id", weekIds)
-    .in("member_id", memberIds);
-  if (recordError) {
-    throw new Error(recordError.message);
-  }
+  const records = await loadAttendanceRecordsForWeeks(db, weekIds, memberIds, "member_id, attendance_week_id, event_type, status");
 
-  for (const record of records || []) {
+  for (const record of records) {
     const memberHistory = historyMap.get(record.member_id);
     const weekStart = weekStartById.get(record.attendance_week_id);
     if (!memberHistory || !weekStart) {

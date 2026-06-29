@@ -3052,9 +3052,17 @@ tbody tr:last-child td {
   z-index: 3;
   width: 104px;
   min-width: 104px;
-  max-width: 124px;
+  max-width: 104px;
   text-align: left;
   box-shadow: 1px 0 0 var(--border);
+}
+
+.overview-month-table .overview-month-leader-col {
+  width: 84px;
+  min-width: 84px;
+  max-width: 84px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .overview-month-table thead .overview-month-sticky-col {
@@ -6428,7 +6436,13 @@ body.is-authenticated .toast {
   .overview-month-table .overview-month-sticky-col {
     width: 92px;
     min-width: 92px;
-    max-width: 108px;
+    max-width: 92px;
+  }
+
+  .overview-month-table .overview-month-leader-col {
+    width: 76px;
+    min-width: 76px;
+    max-width: 76px;
   }
 
   .user-bar {

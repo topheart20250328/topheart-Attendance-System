@@ -150,7 +150,7 @@ left join lateral (
 ) dp on true;
 
 -- =========================================================
--- 0D. 既有資料庫升級：出席總覽與大量人員查詢索引
+-- 0D. 既有資料庫升級：出席導覽與大量人員查詢索引
 -- 已經跑過新版 setup_supabase.sql 的全新資料庫不需要再跑。
 -- =========================================================
 create index if not exists idx_members_active_district_lookup

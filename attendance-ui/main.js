@@ -2228,7 +2228,7 @@ function renderReminderSheet(context, reminders) {
     return;
   }
 
-  els.reminderSheetTitle.textContent = context === "overview" ? "出席總覽提醒" : "本週提醒";
+  els.reminderSheetTitle.textContent = context === "overview" ? "出席導覽提醒" : "本週提醒";
   if (!reminders.length) {
     els.reminderSheetBody.innerHTML = `
       <div class="reminder-empty-state">
@@ -3508,7 +3508,7 @@ async function loadAttendanceOverview(weekStart = "") {
     state.ui.overviewWeekStart = state.overviewData.selectedWeekStart;
   } catch (error) {
     console.error(error);
-    showToast(error.message || "載入出席總覽失敗。");
+    showToast(error.message || "載入出席導覽失敗。");
   } finally {
     state.ui.overviewLoading = false;
     renderAttendanceOverview();
@@ -3947,8 +3947,8 @@ function renderAttendanceOverview() {
   if (!state.overviewData) {
     if (els.overviewScopeSummary) {
       els.overviewScopeSummary.textContent = canUseOverview()
-        ? "正在載入出席總覽..."
-        : "此職分無法使用出席總覽。";
+        ? "正在載入出席導覽..."
+        : "此職分無法使用出席導覽。";
     }
     if (els.overviewUnitList) {
       els.overviewUnitList.innerHTML = "";
@@ -3975,7 +3975,7 @@ function renderMonthOverview() {
   if (!state.overviewMonthData) {
     const message = canUseOverview()
       ? "正在載入整體總覽..."
-      : "此職分無法使用出席總覽。";
+      : "此職分無法使用出席導覽。";
     if (els.overviewScopeSummary) {
       els.overviewScopeSummary.textContent = message;
     }
@@ -4020,7 +4020,7 @@ function renderMonthOverviewTable(data) {
       <thead>
         <tr>
           <th rowspan="2" class="overview-month-sticky-col">${escapeHtml(data.selectedMonth)}</th>
-          <th rowspan="2">領袖</th>
+          <th rowspan="2" class="overview-month-leader-col">領袖</th>
           <th colspan="2">月平均</th>
           ${data.weeks.map((week) => `<th colspan="2">${escapeHtml(buildShortWeekLabel(week.weekStartDate))}</th>`).join("")}
         </tr>
@@ -4044,7 +4044,7 @@ function renderMonthOverviewTableRow(unit) {
         <span class="overview-month-unit-name">${escapeHtml(unit.name)}</span>
         ${unit.parentName ? `<span class="overview-month-parent-name">${escapeHtml(unit.parentName)}</span>` : ""}
       </th>
-      <td>${escapeHtml(unit.leaderName || "-")}</td>
+      <td class="overview-month-leader-col">${escapeHtml(unit.leaderName || "-")}</td>
       <td>${renderMonthOverviewCell(unit.monthlyAverage.sundayService)}</td>
       <td>${renderMonthOverviewCell(unit.monthlyAverage.smallGroupFellowship)}</td>
       ${unit.weekly.map((week) => `
