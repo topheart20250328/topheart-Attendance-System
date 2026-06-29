@@ -2174,6 +2174,7 @@ function buildMonthOverviewUnit(
   weekStarts: string[],
   recordsByWeek: Map<string, Map<string, any>>,
 ) {
+  const leader = getMonthOverviewLeader(level, row, members);
   const weekly = weekStarts.map((weekStart) => {
     const recordMap = recordsByWeek.get(weekStart) || new Map();
     return {
@@ -2189,7 +2190,8 @@ function buildMonthOverviewUnit(
     id: row.id,
     name: row.name,
     parent_name: getMonthOverviewParentName(level, row, organizationRows),
-    leader_name: getMonthOverviewLeaderName(level, row, members),
+    leader_name: leader.name,
+    leader_gender: leader.gender,
     expected_count: members.filter(isAttendanceRateMember).length,
     monthly_average: {
       sunday_service: averageMonthOverviewStats(weekly.map((week) => week.sunday_service)),
@@ -2275,7 +2277,7 @@ function getMonthOverviewParentName(
   return organizationRows.districtsById.get(row.district_id)?.name || null;
 }
 
-function getMonthOverviewLeaderName(level: string, row: any, members: MemberRow[]) {
+function getMonthOverviewLeader(level: string, row: any, members: MemberRow[]) {
   const leaderRoles = level === "district"
     ? DISTRICT_LEADER_ROLES
     : level === "big_family"
@@ -2285,14 +2287,26 @@ function getMonthOverviewLeaderName(level: string, row: any, members: MemberRow[
     .filter((member) => leaderRoles.has(member.role) && isMonthOverviewUnitMember(member, level, row.id))
     .sort((left, right) => ROLE_ORDER[left.role] - ROLE_ORDER[right.role] || left.full_name.localeCompare(right.full_name, "zh-Hant"));
   if (leaders.length) {
-    return leaders.map((leader) => leader.full_name).join("、");
+    return {
+      name: leaders.map((leader) => leader.full_name).join("、"),
+      gender: getSharedGender(leaders),
+    };
   }
   if (level !== "small_group") {
-    return "";
+    return { name: "", gender: "" };
   }
   const fallbackLeaders = [...members]
     .sort((left, right) => ROLE_ORDER[left.role] - ROLE_ORDER[right.role] || left.full_name.localeCompare(right.full_name, "zh-Hant"));
-  return fallbackLeaders.map((leader) => leader.full_name).slice(0, 1).join("、") || "";
+  const fallbackLeader = fallbackLeaders[0];
+  return {
+    name: fallbackLeader?.full_name || "",
+    gender: fallbackLeader?.gender || "",
+  };
+}
+
+function getSharedGender(members: MemberRow[]) {
+  const genders = Array.from(new Set(members.map((member) => member.gender).filter(Boolean)));
+  return genders.length === 1 ? genders[0] : "";
 }
 
 function averageMonthOverviewStats(statsRows: any[]) {

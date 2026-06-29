@@ -3036,6 +3036,15 @@ tbody tr:last-child td {
   font-weight: 900;
 }
 
+.overview-month-table thead tr:first-child th {
+  background: #e7f0ff;
+}
+
+.overview-month-table .overview-month-average-head,
+.overview-month-table .overview-month-average-col {
+  background-color: #f7faff;
+}
+
 .overview-month-table tbody th,
 .overview-month-table tbody td {
   background: #fff;
@@ -3057,6 +3066,10 @@ tbody tr:last-child td {
   box-shadow: 1px 0 0 var(--border);
 }
 
+.overview-month-table .overview-month-unit-col {
+  padding-left: 0.26rem;
+}
+
 .overview-month-table .overview-month-leader-col {
   width: 84px;
   min-width: 84px;
@@ -3065,14 +3078,86 @@ tbody tr:last-child td {
   text-overflow: ellipsis;
 }
 
+.overview-month-table .overview-month-group-start {
+  border-left: 2px solid #c8d8ef;
+}
+
+.overview-month-table .overview-month-group-end {
+  border-right-color: #e3eaf5;
+}
+
 .overview-month-table thead .overview-month-sticky-col {
   z-index: 4;
 }
 
+.overview-month-unit-line {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
 .overview-month-unit-name {
-  display: block;
+  display: inline-block;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.overview-month-level-chip,
+.overview-month-leader-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-month-level-chip {
+  flex: 0 0 auto;
+  padding: 0.04rem 0.2rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.overview-month-level-district {
+  background: var(--org-district-bg-strong);
+  color: var(--org-district-text);
+}
+
+.overview-month-level-big_family {
+  background: var(--org-big-family-bg-strong);
+  color: var(--org-big-family-text);
+}
+
+.overview-month-level-small_group {
+  background: var(--org-small-group-bg-strong);
+  color: var(--org-small-group-text);
+}
+
+.overview-month-leader-chip {
+  width: 100%;
+  padding: 0.08rem 0.22rem;
+  border-radius: 999px;
+  background: #f4f7fb;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.overview-month-leader-chip.gender-brother {
+  background: var(--gender-brother-bg);
+  color: var(--gender-brother-text);
+}
+
+.overview-month-leader-chip.gender-sister {
+  background: var(--gender-sister-bg);
+  color: var(--gender-sister-text);
 }
 
 .overview-month-parent-name {
@@ -3089,7 +3174,7 @@ tbody tr:last-child td {
 .overview-month-count,
 .overview-month-rate {
   display: block;
-  line-height: 1.25;
+  line-height: 1.22;
 }
 
 .overview-month-count {
@@ -3098,9 +3183,22 @@ tbody tr:last-child td {
 }
 
 .overview-month-rate {
-  color: var(--muted);
+  margin-top: 1px;
+  color: #4f6685;
   font-size: 0.68rem;
   font-weight: 800;
+}
+
+.overview-month-rate.is-strong {
+  color: #16754a;
+}
+
+.overview-month-rate.is-medium {
+  color: #7a5a12;
+}
+
+.overview-month-rate.is-low {
+  color: #b53b3b;
 }
 
 .overview-level-section {

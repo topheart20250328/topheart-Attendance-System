@@ -3589,6 +3589,7 @@ function normalizeMonthOverviewData(data) {
       name: unit.name || "未命名",
       parentName: unit.parent_name || "",
       leaderName: unit.leader_name || "",
+      leaderGender: unit.leader_gender || "",
       expectedCount: Number(unit.expected_count || 0),
       monthlyAverage: normalizeMonthEventStatsMap(unit.monthly_average || {}),
       weekly: (unit.weekly || []).map((week) => ({
@@ -4021,13 +4022,13 @@ function renderMonthOverviewTable(data) {
         <tr>
           <th rowspan="2" class="overview-month-sticky-col">${escapeHtml(data.selectedMonth)}</th>
           <th rowspan="2" class="overview-month-leader-col">領袖</th>
-          <th colspan="2">月平均</th>
-          ${data.weeks.map((week) => `<th colspan="2">${escapeHtml(buildShortWeekLabel(week.weekStartDate))}</th>`).join("")}
+          <th colspan="2" class="overview-month-average-head">月平均</th>
+          ${data.weeks.map((week) => `<th colspan="2" class="overview-month-week-head">${escapeHtml(buildShortWeekLabel(week.weekStartDate))}</th>`).join("")}
         </tr>
         <tr>
-          <th>主日</th>
-          <th>小家</th>
-          ${data.weeks.map(() => "<th>主日</th><th>小家</th>").join("")}
+          <th class="overview-month-group-start overview-month-average-col">主日</th>
+          <th class="overview-month-group-end overview-month-average-col">小家</th>
+          ${data.weeks.map(() => '<th class="overview-month-group-start">主日</th><th class="overview-month-group-end">小家</th>').join("")}
         </tr>
       </thead>
       <tbody>
@@ -4038,33 +4039,78 @@ function renderMonthOverviewTable(data) {
 }
 
 function renderMonthOverviewTableRow(unit) {
+  const unitDisplay = getMonthOverviewUnitDisplay(unit);
+  const levelClass = `overview-month-row-${unit.level || "unknown"}`;
+  const leaderGenderClass = getOrganizationTreeGenderClass(unit.leaderGender);
+  const leaderText = unit.leaderName || "-";
   return `
-    <tr>
-      <th class="overview-month-sticky-col" scope="row">
-        <span class="overview-month-unit-name">${escapeHtml(unit.name)}</span>
+    <tr class="${escapeHtml(levelClass)}">
+      <th class="overview-month-sticky-col overview-month-unit-col overview-month-unit-${escapeHtml(unit.level || "unknown")}" scope="row">
+        <span class="overview-month-unit-line">
+          <span class="overview-month-unit-name">${escapeHtml(unitDisplay.name)}</span>
+          <span class="overview-month-level-chip overview-month-level-${escapeHtml(unit.level || "unknown")}">${escapeHtml(unitDisplay.levelLabel)}</span>
+        </span>
         ${unit.parentName ? `<span class="overview-month-parent-name">${escapeHtml(unit.parentName)}</span>` : ""}
       </th>
-      <td class="overview-month-leader-col">${escapeHtml(unit.leaderName || "-")}</td>
-      <td>${renderMonthOverviewCell(unit.monthlyAverage.sundayService)}</td>
-      <td>${renderMonthOverviewCell(unit.monthlyAverage.smallGroupFellowship)}</td>
+      <td class="overview-month-leader-col"><span class="overview-month-leader-chip ${escapeHtml(leaderGenderClass)}">${escapeHtml(leaderText)}</span></td>
+      <td class="overview-month-group-start overview-month-average-col">${renderMonthOverviewCell(unit.monthlyAverage.sundayService)}</td>
+      <td class="overview-month-group-end overview-month-average-col">${renderMonthOverviewCell(unit.monthlyAverage.smallGroupFellowship)}</td>
       ${unit.weekly.map((week) => `
-        <td>${renderMonthOverviewCell(week.sundayService)}</td>
-        <td>${renderMonthOverviewCell(week.smallGroupFellowship)}</td>
+        <td class="overview-month-group-start">${renderMonthOverviewCell(week.sundayService)}</td>
+        <td class="overview-month-group-end">${renderMonthOverviewCell(week.smallGroupFellowship)}</td>
       `).join("")}
     </tr>
   `;
 }
 
+function getMonthOverviewUnitDisplay(unit) {
+  const levelLabel = getMonthOverviewLevelLabel(unit.level);
+  const name = String(unit.name || "未命名").trim();
+  return {
+    levelLabel,
+    name: levelLabel && name.endsWith(levelLabel) && name.length > levelLabel.length
+      ? name.slice(0, -levelLabel.length).trim()
+      : name,
+  };
+}
+
+function getMonthOverviewLevelLabel(level) {
+  if (level === "district") {
+    return "區";
+  }
+  if (level === "big_family") {
+    return "大家";
+  }
+  if (level === "small_group") {
+    return "小家";
+  }
+  return "單位";
+}
+
 function renderMonthOverviewCell(stats) {
   const countText = `${formatMonthNumber(stats.presentCount)} / ${formatMonthNumber(stats.expectedCount)}`;
   const rateText = formatMonthRate(stats);
+  const rateClass = getMonthOverviewRateClass(stats);
   if (state.ui.overviewMetricMode === "rate") {
-    return `<span class="overview-month-rate">${escapeHtml(rateText)}</span>`;
+    return `<span class="overview-month-rate ${rateClass}">${escapeHtml(rateText)}</span>`;
   }
   if (state.ui.overviewMetricMode === "both") {
-    return `<span class="overview-month-count">${escapeHtml(countText)}</span><span class="overview-month-rate">${escapeHtml(rateText)}</span>`;
+    return `<span class="overview-month-count">${escapeHtml(countText)}</span><span class="overview-month-rate ${rateClass}">${escapeHtml(rateText)}</span>`;
   }
   return `<span class="overview-month-count">${escapeHtml(countText)}</span>`;
+}
+
+function getMonthOverviewRateClass(stats) {
+  if (!stats || stats.rate === null || stats.rate === undefined || !Number(stats.expectedCount)) {
+    return "is-empty";
+  }
+  if (stats.rate >= 0.8) {
+    return "is-strong";
+  }
+  if (stats.rate >= 0.5) {
+    return "is-medium";
+  }
+  return "is-low";
 }
 
 function renderOverviewWeeks() {
