@@ -2576,40 +2576,46 @@ function renderAttendanceRows() {
             ${renderAttendanceEventCard(member, "small_group_fellowship", "小家")}
           </div>
 
-          <details class="attendance-note-details${member.note.trim() ? " is-filled" : ""}"${shouldOpenNote ? " open" : ""}>
-            <summary>${buildNoteSummary(member)}</summary>
-            <div class="attendance-note-panel">
-              <textarea
-                class="note-input"
-                data-member-id="${member.id}"
-                maxlength="${NOTE_MAX_LENGTH}"
-                placeholder="記錄近況、代禱與需要跟進的事項"
-                ${member.can_edit_note ? "" : "disabled"}
-              >${noteValue}</textarea>
-              <div class="attendance-note-actions">
-                <label class="note-carry-row">
-                  <input
-                    class="note-carry-input"
-                    type="checkbox"
-                    data-member-id="${member.id}"
-                    ${noteCarryChecked}
-                    ${member.can_edit_note ? "" : "disabled"}
-                  />
-                  <span>持續提醒</span>
-                </label>
-                <label class="note-carry-row note-priority-row">
-                  <input
-                    class="note-priority-input"
-                    type="checkbox"
-                    data-member-id="${member.id}"
-                    ${notePriorityChecked}
-                    ${notePriorityDisabled}
-                  />
-                  <span>高優先度</span>
-                </label>
-              </div>
+          ${member.attendance_applicable === false ? `
+            <div class="attendance-note-not-applicable" aria-label="備註不適用">
+              <span class="attendance-not-applicable-mark">-</span>
             </div>
-          </details>
+          ` : `
+            <details class="attendance-note-details${member.note.trim() ? " is-filled" : ""}"${shouldOpenNote ? " open" : ""}>
+              <summary>${buildNoteSummary(member)}</summary>
+              <div class="attendance-note-panel">
+                <textarea
+                  class="note-input"
+                  data-member-id="${member.id}"
+                  maxlength="${NOTE_MAX_LENGTH}"
+                  placeholder="記錄近況、代禱與需要跟進的事項"
+                  ${member.can_edit_note ? "" : "disabled"}
+                >${noteValue}</textarea>
+                <div class="attendance-note-actions">
+                  <label class="note-carry-row">
+                    <input
+                      class="note-carry-input"
+                      type="checkbox"
+                      data-member-id="${member.id}"
+                      ${noteCarryChecked}
+                      ${member.can_edit_note ? "" : "disabled"}
+                    />
+                    <span>持續提醒</span>
+                  </label>
+                  <label class="note-carry-row note-priority-row">
+                    <input
+                      class="note-priority-input"
+                      type="checkbox"
+                      data-member-id="${member.id}"
+                      ${notePriorityChecked}
+                      ${notePriorityDisabled}
+                    />
+                    <span>高優先度</span>
+                  </label>
+                </div>
+              </div>
+            </details>
+          `}
         </article>
       `;
     })
@@ -4321,7 +4327,7 @@ function renderOverviewAllEventSummary(unit, memberCount = 0) {
   const unknownCount = combinedDetail.unknown.length;
   const filledText = OVERVIEW_EVENT_TYPES.map((eventType) => {
     const stats = unit.stats?.[eventType] || createEmptyEventStats();
-    return `${getOverviewEventShortLabel(eventType)} ${formatCompletionRate(stats)}`;
+    return `${getOverviewEventShortLabel(eventType)}填寫率 ${formatCompletionRate(stats)}`;
   }).join(" / ");
   return `
     <span class="overview-all-event-summary">

@@ -1192,6 +1192,10 @@ body.layout-small .app-header h1 {
   text-align: center;
 }
 
+.attendance-note-not-applicable {
+  display: grid;
+}
+
 .attendance-option {
   min-height: 42px;
   border-radius: 14px;
