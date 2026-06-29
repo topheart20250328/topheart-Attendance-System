@@ -2970,7 +2970,7 @@ tbody tr:last-child td {
 .overview-month-toolbar {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(132px, 1.15fr) minmax(82px, 0.72fr) minmax(108px, 1fr);
   align-items: end;
 }
 
@@ -2984,7 +2984,7 @@ tbody tr:last-child td {
 
 .overview-month-field input,
 .overview-month-field select {
-  min-height: 34px;
+  min-height: 31px;
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -2993,8 +2993,8 @@ tbody tr:last-child td {
   font-family: inherit;
   font-size: 16px;
   line-height: 1.15;
-  font-weight: 800;
-  padding: 0.34rem 0.48rem;
+  font-weight: 700;
+  padding: 0.16rem 0.34rem;
 }
 
 .overview-month-summary {
@@ -6507,7 +6507,7 @@ body.is-authenticated .toast {
   }
 
   .overview-month-toolbar {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(126px, 1.15fr) minmax(74px, 0.68fr) minmax(98px, 0.98fr);
     gap: 6px;
   }
 
@@ -6517,8 +6517,8 @@ body.is-authenticated .toast {
 
   .overview-month-field input,
   .overview-month-field select {
-    min-height: 32px;
-    padding: 0.28rem 0.34rem;
+    min-height: 30px;
+    padding: 0.12rem 0.26rem;
     font-size: 16px;
   }
 
