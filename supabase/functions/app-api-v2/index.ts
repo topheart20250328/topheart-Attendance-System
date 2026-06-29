@@ -1363,32 +1363,18 @@ async function moveDirectDistrictChild(
   }
 
   const current = rows[currentIndex];
-  const next = rows[nextIndex];
-  let currentOrder = Number.isFinite(Number(current.display_order))
-    ? Number(current.display_order)
-    : currentIndex + 1;
-  let nextOrder = Number.isFinite(Number(next.display_order))
-    ? Number(next.display_order)
-    : nextIndex + 1;
-  if (currentOrder === nextOrder) {
-    currentOrder = currentIndex + 1;
-    nextOrder = nextIndex + 1;
-  }
+  const reorderedRows = [...rows];
+  reorderedRows.splice(currentIndex, 1);
+  reorderedRows.splice(nextIndex, 0, current);
 
-  const currentResult = await db
-    .from(getOrganizationTableName(current.org_type))
-    .update({ display_order: nextOrder })
-    .eq("id", current.id);
-  if (currentResult.error) {
-    return json({ error: currentResult.error.message }, 500);
-  }
-
-  const nextResult = await db
-    .from(getOrganizationTableName(next.org_type))
-    .update({ display_order: currentOrder })
-    .eq("id", next.id);
-  if (nextResult.error) {
-    return json({ error: nextResult.error.message }, 500);
+  for (const [index, row] of reorderedRows.entries()) {
+    const result = await db
+      .from(getOrganizationTableName(row.org_type))
+      .update({ display_order: index + 1 })
+      .eq("id", row.id);
+    if (result.error) {
+      return json({ error: result.error.message }, 500);
+    }
   }
 
   return json({ status: "ok" });

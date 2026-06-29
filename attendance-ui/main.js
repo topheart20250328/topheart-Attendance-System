@@ -422,7 +422,7 @@ const state = {
     overviewMetricMode: "count",
     overviewUnitType: "",
     overviewSearch: "",
-    overviewHistoryRange: "month",
+    overviewHistoryRange: "three_months",
     settingsOpen: false,
     manageAll: false,
     layoutSize: "medium",
@@ -2427,14 +2427,12 @@ function renderNonZeroSummaryItem(label, parts) {
 }
 
 function formatAnalyticsRate(stats) {
-  if (!stats?.confirmed_count) {
-    if (stats?.expected_count || stats?.unknown_count) {
-      return "待確認";
-    }
+  const expectedCount = Number(stats?.expected_count || 0);
+  if (!expectedCount) {
     return "尚無資料";
   }
 
-  return formatPercent(stats.present_count || 0, stats.confirmed_count);
+  return formatPercent(stats?.present_count || 0, expectedCount);
 }
 
 function formatCompletionRate(stats, expectedFallback = 0) {
@@ -4972,6 +4970,7 @@ function compareHierarchyGroups(left, right) {
 function renderPeopleDistrictGroup(district, shouldOpen = false) {
   const groupKey = district.key;
   const isOpen = shouldOpen || state.ui.peopleOpenGroups.has(groupKey);
+  const districtChildren = getPeopleDistrictChildGroups(district);
   return `
     <details class="people-scope-group people-level-district" data-people-group-key="${escapeHtml(groupKey)}" ${isOpen ? "open" : ""}>
       <summary>
@@ -4980,11 +4979,24 @@ function renderPeopleDistrictGroup(district, shouldOpen = false) {
       </summary>
       <div class="people-scope-children">
         ${renderPeopleLeaderGroup("領袖", district.leaders, `${groupKey}:leaders`, shouldOpen)}
-        ${district.bigFamilies.map((bigFamily) => renderPeopleBigFamilyGroup(bigFamily, shouldOpen)).join("")}
-        ${district.smallGroups.map((smallGroup) => renderPeopleSmallGroup(smallGroup, shouldOpen)).join("")}
+        ${districtChildren.map((child) => renderPeopleDistrictChildGroup(child, shouldOpen)).join("")}
       </div>
     </details>
   `;
+}
+
+function getPeopleDistrictChildGroups(district) {
+  return [
+    ...district.bigFamilies.map((group) => ({ ...group, groupType: "big_family" })),
+    ...district.smallGroups.map((group) => ({ ...group, groupType: "small_group" })),
+  ].sort(compareHierarchyGroups);
+}
+
+function renderPeopleDistrictChildGroup(child, shouldOpen = false) {
+  if (child.groupType === "big_family") {
+    return renderPeopleBigFamilyGroup(child, shouldOpen);
+  }
+  return renderPeopleSmallGroup(child, shouldOpen);
 }
 
 function renderPeopleBigFamilyGroup(bigFamily, shouldOpen = false) {
