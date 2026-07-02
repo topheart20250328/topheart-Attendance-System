@@ -859,7 +859,7 @@ body.layout-small .app-header h1 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 #userScopeText {
@@ -880,6 +880,8 @@ body.layout-small .app-header h1 {
   align-self: center;
   justify-self: end;
   min-width: max-content;
+  padding-left: 10px;
+  border-left: 1px solid rgba(217, 226, 240, 0.9);
 }
 
 .tab-row::-webkit-scrollbar {
@@ -2818,7 +2820,15 @@ tbody tr:last-child td {
 
 .compact-buttons .district-scope-control > summary:hover,
 .nav-district-scope .district-scope-control > summary:hover {
-  background: #dbeafe;
+  background: #dbe6fb;
+}
+
+.nav-district-scope .district-scope-control > summary {
+  min-height: var(--control-min-height);
+  padding: 0.8rem 1.15rem;
+  font-size: inherit;
+  font-weight: 600;
+  line-height: inherit;
 }
 
 .district-scope-menu {
@@ -7046,14 +7056,6 @@ body.is-authenticated .toast {
     flex-basis: 100%;
   }
 
-  .nav-card-inner {
-    grid-template-columns: 1fr;
-  }
-
-  .nav-district-scope {
-    justify-self: end;
-  }
-
   .pending-profile {
     grid-template-columns: 1fr;
   }
@@ -7195,16 +7197,14 @@ body.is-authenticated .toast {
   }
 
   .nav-card-inner {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 5px;
   }
 
   .nav-district-scope {
-    display: flex;
-    width: 100%;
     justify-content: flex-end;
-    padding-top: 4px;
-    border-top: 1px solid rgba(217, 226, 240, 0.72);
+    padding-left: 5px;
+    border-left: 1px solid rgba(217, 226, 240, 0.9);
   }
 
   .tab-row {
@@ -7214,6 +7214,12 @@ body.is-authenticated .toast {
   }
 
   .tab-btn {
+    min-height: 32px;
+    padding: 0.38rem 0.62rem;
+    font-size: 0.82rem;
+  }
+
+  .nav-district-scope .district-scope-control > summary {
     min-height: 32px;
     padding: 0.38rem 0.62rem;
     font-size: 0.82rem;
