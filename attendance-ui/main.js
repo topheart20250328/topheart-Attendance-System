@@ -729,13 +729,8 @@ function hydrateLocalState() {
   state.ui.orgTreeScale = uiPreferences.orgTreeScale;
   els.projectUrlInput.value = state.config.projectUrl || "";
   syncOrgTreeDefaultModeInputs();
-  if (els.overviewUnitTypeSelect) {
-    els.overviewUnitTypeSelect.value = state.ui.overviewUnitType;
-  }
+  syncOverviewLevelControls();
   syncOverviewPeriodControls();
-  if (els.overviewMonthLevelSelect) {
-    els.overviewMonthLevelSelect.value = state.ui.overviewMonthlyLevel;
-  }
   if (els.overviewMetricModeSelect) {
     els.overviewMetricModeSelect.value = state.ui.overviewMetricMode;
   }
@@ -3554,12 +3549,14 @@ function compareProfileMembers(left, right) {
     return left.is_active === false ? 1 : -1;
   }
 
+  const organizationOrderMaps = getOrganizationOrderMaps();
+
   const districtCompare = compareMemberScopeOrder(
     left.district_id,
     right.district_id,
     left.district_name,
     right.district_name,
-    new Map(state.adminData.districts.map((item) => [item.id, Number(item.display_order)])),
+    organizationOrderMaps.districts,
   );
   if (districtCompare) {
     return districtCompare;
@@ -3570,7 +3567,7 @@ function compareProfileMembers(left, right) {
     right.big_family_id,
     left.big_family_name,
     right.big_family_name,
-    new Map(state.adminData.bigFamilies.map((item) => [item.id, Number(item.display_order)])),
+    organizationOrderMaps.bigFamilies,
   );
   if (bigFamilyCompare) {
     return bigFamilyCompare;
@@ -3581,7 +3578,7 @@ function compareProfileMembers(left, right) {
     right.small_group_id,
     left.small_group_name,
     right.small_group_name,
-    new Map(state.adminData.smallGroups.map((item) => [item.id, Number(item.display_order)])),
+    organizationOrderMaps.smallGroups,
   );
   if (smallGroupCompare) {
     return smallGroupCompare;
@@ -3594,6 +3591,22 @@ function compareProfileMembers(left, right) {
   }
 
   return String(left.full_name || "").localeCompare(String(right.full_name || ""), "zh-Hant");
+}
+
+function getOrganizationOrderMaps() {
+  return {
+    districts: buildOrganizationOrderMap(state.adminData.districts),
+    bigFamilies: buildOrganizationOrderMap(state.adminData.bigFamilies),
+    smallGroups: buildOrganizationOrderMap(state.adminData.smallGroups),
+  };
+}
+
+function buildOrganizationOrderMap(items = []) {
+  return new Map(
+    items
+      .map((item) => [Number(item.id), Number(item.display_order)])
+      .filter(([id, order]) => Number.isFinite(id) && Number.isFinite(order)),
+  );
 }
 
 function handleProfileFilters() {
@@ -3864,10 +3877,13 @@ function isOverviewUnitInVisibleDistrictScope(unit) {
 }
 
 function getFilteredMonthOverviewUnits(units) {
-  if (!isDistrictScopeActive()) {
-    return units;
-  }
-  return units.filter((unit) => getOverviewUnitDistrictIds(unit).some((districtId) => state.ui.visibleDistrictIds.has(districtId)));
+  const allowedLevels = new Set(getAllowedOverviewLevels());
+  return units.filter((unit) => {
+    if (allowedLevels.size && !allowedLevels.has(unit.level || unit.type)) {
+      return false;
+    }
+    return !isDistrictScopeActive() || getOverviewUnitDistrictIds(unit).some((districtId) => state.ui.visibleDistrictIds.has(districtId));
+  });
 }
 
 function handleProfileTableClick(event) {
@@ -4091,6 +4107,7 @@ async function loadAttendanceMonthOverview(month = "") {
   renderAttendanceOverview();
 
   try {
+    syncOverviewLevelControls();
     const periodType = normalizeOverviewPeriodType(state.ui.overviewPeriodType);
     const periodValue = normalizeOverviewPeriodValue(
       periodType,
@@ -4297,11 +4314,12 @@ function switchOverviewEvent(eventType) {
 }
 
 function switchOverviewUnitType(unitType) {
-  if (state.ui.overviewUnitType === unitType) {
+  const nextUnitType = normalizeOverviewUnitType(unitType);
+  if (state.ui.overviewUnitType === nextUnitType) {
     return;
   }
 
-  state.ui.overviewUnitType = unitType;
+  state.ui.overviewUnitType = nextUnitType;
   saveUiPreferences();
   renderAttendanceOverview();
 }
@@ -4344,8 +4362,9 @@ function handleOverviewPeriodValueChange(event) {
 }
 
 function handleOverviewMonthLevelChange(event) {
-  const level = event.target.value;
-  if (!OVERVIEW_MONTH_LEVELS.includes(level) || state.ui.overviewMonthlyLevel === level) {
+  const level = normalizeOverviewMonthLevel(event.target.value);
+  if (state.ui.overviewMonthlyLevel === level) {
+    event.target.value = level;
     return;
   }
 
@@ -4544,10 +4563,8 @@ function renderAttendanceOverview() {
   if (els.overviewSearchInput && els.overviewSearchInput.value !== state.ui.overviewSearch) {
     els.overviewSearchInput.value = state.ui.overviewSearch;
   }
+  syncOverviewLevelControls();
   syncOverviewPeriodControls();
-  if (els.overviewMonthLevelSelect) {
-    els.overviewMonthLevelSelect.value = state.ui.overviewMonthlyLevel;
-  }
   if (els.overviewMetricModeSelect) {
     els.overviewMetricModeSelect.value = state.ui.overviewMetricMode;
   }
@@ -4957,7 +4974,11 @@ function getOverviewCombinedCompletionState(unit, memberCount = 0) {
 function getFilteredOverviewUnits(allUnits) {
   const eventType = state.ui.overviewEvent;
   const searchTerm = state.ui.overviewSearch.trim().toLowerCase();
+  const allowedLevels = new Set(getAllowedOverviewLevels());
   const filteredUnits = allUnits.filter((unit) => {
+    if (allowedLevels.size && !allowedLevels.has(unit.level || unit.type)) {
+      return false;
+    }
     if (!isOverviewUnitInVisibleDistrictScope(unit)) {
       return false;
     }
@@ -5031,6 +5052,84 @@ function formatOverviewHeadline(stats, memberCount = 0) {
 
 function getOverviewLevelLabel(level) {
   return ORG_SUFFIXES[level] || "單位";
+}
+
+function getAllowedOverviewLevels() {
+  const viewer = getPermissionCurrentMember();
+  if (!viewer || !canUseOverview()) {
+    return [];
+  }
+  if (
+    viewer.is_admin ||
+    PREACHER_ROLES.includes(viewer.role) ||
+    DISTRICT_PASTOR_ROLES.includes(viewer.role) ||
+    DISTRICT_LEADER_ROLES.includes(viewer.role)
+  ) {
+    return ["district", "big_family", "small_group"];
+  }
+  if (BIG_FAMILY_LEADER_ROLES.includes(viewer.role)) {
+    return ["big_family", "small_group"];
+  }
+  if (SMALL_GROUP_LEADER_ROLES.includes(viewer.role)) {
+    return ["small_group"];
+  }
+  return [];
+}
+
+function normalizeOverviewUnitType(unitType) {
+  const allowedLevels = getAllowedOverviewLevels();
+  if (!allowedLevels.length) {
+    return "";
+  }
+  if (allowedLevels.length > 1 && !unitType) {
+    return "";
+  }
+  return allowedLevels.includes(unitType) ? unitType : allowedLevels[allowedLevels.length - 1];
+}
+
+function normalizeOverviewMonthLevel(level) {
+  const allowedLevels = getAllowedOverviewLevels();
+  if (!allowedLevels.length) {
+    return "small_group";
+  }
+  return allowedLevels.includes(level) ? level : allowedLevels[allowedLevels.length - 1];
+}
+
+function syncOverviewLevelControls() {
+  const allowedLevels = getAllowedOverviewLevels();
+  const nextUnitType = normalizeOverviewUnitType(state.ui.overviewUnitType);
+  const nextMonthLevel = normalizeOverviewMonthLevel(state.ui.overviewMonthlyLevel);
+  state.ui.overviewUnitType = nextUnitType;
+  state.ui.overviewMonthlyLevel = nextMonthLevel;
+
+  syncOverviewUnitTypeSelect(allowedLevels);
+  syncOverviewMonthLevelSelect(allowedLevels);
+}
+
+function syncOverviewUnitTypeSelect(allowedLevels) {
+  if (!els.overviewUnitTypeSelect) {
+    return;
+  }
+  const options = allowedLevels.length > 1
+    ? [{ value: "", label: "全部" }, ...allowedLevels.map((level) => ({ value: level, label: getOverviewLevelLabel(level) }))]
+    : allowedLevels.map((level) => ({ value: level, label: getOverviewLevelLabel(level) }));
+  els.overviewUnitTypeSelect.innerHTML = options
+    .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
+    .join("");
+  els.overviewUnitTypeSelect.value = state.ui.overviewUnitType;
+  setHidden(els.overviewUnitTypeSelect.closest(".overview-unit-filter"), options.length <= 1);
+}
+
+function syncOverviewMonthLevelSelect(allowedLevels) {
+  if (!els.overviewMonthLevelSelect) {
+    return;
+  }
+  const options = allowedLevels.map((level) => ({ value: level, label: getOverviewLevelLabel(level) }));
+  els.overviewMonthLevelSelect.innerHTML = options
+    .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
+    .join("");
+  els.overviewMonthLevelSelect.value = state.ui.overviewMonthlyLevel;
+  setHidden(els.overviewMonthLevelSelect.closest(".overview-month-field"), options.length <= 1);
 }
 
 function getOverviewUnitKey(unit) {
@@ -10829,8 +10928,8 @@ function compareAttendanceGroupOrder(left, right, districtOrder, bigFamilyOrder,
 }
 
 function compareMemberScopeOrder(leftId, rightId, leftName, rightName, orderMap) {
-  const leftOrder = Number(orderMap.get(leftId));
-  const rightOrder = Number(orderMap.get(rightId));
+  const leftOrder = Number(orderMap.get(leftId) ?? orderMap.get(Number(leftId)));
+  const rightOrder = Number(orderMap.get(rightId) ?? orderMap.get(Number(rightId)));
   const hasLeftOrder = Number.isFinite(leftOrder);
   const hasRightOrder = Number.isFinite(rightOrder);
   if (hasLeftOrder || hasRightOrder) {

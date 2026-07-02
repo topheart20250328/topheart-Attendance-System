@@ -6767,25 +6767,26 @@ body.is-authenticated .toast {
   }
 
   .overview-month-toolbar {
-    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+    grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.16fr) minmax(0, 0.7fr) minmax(0, 0.9fr);
     gap: 5px;
   }
 
   .overview-month-field {
-    font-size: 0.66rem;
+    min-width: 0;
+    font-size: 0.62rem;
   }
 
   .overview-month-field input,
   .overview-month-field select {
-    min-height: 30px;
-    padding: 0.06rem 0.28rem;
+    min-height: 28px;
+    padding: 0.04rem 0.2rem;
     font-size: 16px;
     font-weight: 600;
   }
 
   .overview-month-field select {
-    padding-right: 1.08rem;
-    background-position: calc(100% - 0.62rem) 50%, calc(100% - 0.4rem) 50%;
+    padding-right: 0.86rem;
+    background-position: calc(100% - 0.5rem) 50%, calc(100% - 0.3rem) 50%;
   }
 
   .overview-month-table {
