@@ -879,6 +879,7 @@ body.layout-small .app-header h1 {
 .nav-district-scope {
   align-self: center;
   justify-self: end;
+  min-width: max-content;
 }
 
 .tab-row::-webkit-scrollbar {
@@ -2808,16 +2809,16 @@ tbody tr:last-child td {
   padding: 0.5rem 0.85rem;
   border: none;
   border-radius: 999px;
-  background: #e8eefb;
-  color: var(--text);
+  background: #eef4ff;
+  color: #36528b;
   font-size: var(--compact-button-font-size);
-  font-weight: 600;
+  font-weight: 800;
   line-height: 1.1;
 }
 
 .compact-buttons .district-scope-control > summary:hover,
 .nav-district-scope .district-scope-control > summary:hover {
-  background: #dbe6fb;
+  background: #dbeafe;
 }
 
 .district-scope-menu {
@@ -7194,8 +7195,16 @@ body.is-authenticated .toast {
   }
 
   .nav-card-inner {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 4px;
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+  .nav-district-scope {
+    display: flex;
+    width: 100%;
+    justify-content: flex-end;
+    padding-top: 4px;
+    border-top: 1px solid rgba(217, 226, 240, 0.72);
   }
 
   .tab-row {
