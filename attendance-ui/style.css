@@ -855,6 +855,13 @@ body.layout-small .app-header h1 {
   backdrop-filter: blur(14px);
 }
 
+.nav-card-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
 #userScopeText {
   overflow-wrap: anywhere;
 }
@@ -867,6 +874,11 @@ body.layout-small .app-header h1 {
   padding-bottom: 4px;
   margin-bottom: -4px;
   scrollbar-width: none;
+}
+
+.nav-district-scope {
+  align-self: center;
+  justify-self: end;
 }
 
 .tab-row::-webkit-scrollbar {
@@ -2788,7 +2800,8 @@ tbody tr:last-child td {
   white-space: nowrap;
 }
 
-.compact-buttons .district-scope-control > summary {
+.compact-buttons .district-scope-control > summary,
+.nav-district-scope .district-scope-control > summary {
   display: inline-flex;
   justify-content: center;
   min-height: var(--compact-button-height);
@@ -2802,7 +2815,8 @@ tbody tr:last-child td {
   line-height: 1.1;
 }
 
-.compact-buttons .district-scope-control > summary:hover {
+.compact-buttons .district-scope-control > summary:hover,
+.nav-district-scope .district-scope-control > summary:hover {
   background: #dbe6fb;
 }
 
@@ -7031,6 +7045,14 @@ body.is-authenticated .toast {
     flex-basis: 100%;
   }
 
+  .nav-card-inner {
+    grid-template-columns: 1fr;
+  }
+
+  .nav-district-scope {
+    justify-self: end;
+  }
+
   .pending-profile {
     grid-template-columns: 1fr;
   }
@@ -7169,6 +7191,11 @@ body.is-authenticated .toast {
 
   #navCard.card {
     padding: 4px;
+  }
+
+  .nav-card-inner {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px;
   }
 
   .tab-row {
@@ -7451,9 +7478,10 @@ body.is-authenticated .toast {
   }
 
   .district-scope-menu {
-    right: auto;
-    left: 0;
-    width: min(300px, calc(100vw - 24px));
+    right: 0;
+    left: auto;
+    width: min(280px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
   }
 
   #attendanceView .attendance-save-bar {

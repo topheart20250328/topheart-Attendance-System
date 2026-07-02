@@ -566,6 +566,7 @@ function bindEvents() {
   els.attendanceStatusFilter?.addEventListener("change", handleAttendanceFilters);
   els.globalDistrictScopeFilter?.addEventListener("click", handleDistrictScopeFilterClick);
   els.globalDistrictScopeFilter?.addEventListener("change", handleDistrictScopeFilterChange);
+  document.addEventListener("click", handleDistrictScopeOutsideClick);
   els.overviewEventButtons?.forEach((button) => {
     button.addEventListener("click", () => switchOverviewEvent(button.dataset.overviewEvent));
   });
@@ -3627,6 +3628,16 @@ function handleDistrictScopeFilterChange(event) {
   }
   state.ui.visibleDistrictIds = selected;
   refreshDistrictScopeConsumers();
+}
+
+function handleDistrictScopeOutsideClick(event) {
+  if (!els.globalDistrictScopeFilter || els.globalDistrictScopeFilter.contains(event.target)) {
+    return;
+  }
+
+  els.globalDistrictScopeFilter
+    .querySelectorAll(".district-scope-control[open]")
+    .forEach((control) => control.removeAttribute("open"));
 }
 
 function refreshDistrictScopeConsumers() {

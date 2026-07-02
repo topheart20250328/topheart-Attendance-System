@@ -29,7 +29,7 @@
       content="牧區點名・出席｜LINE 登入"
     />
     <title>topheart 牧區點名系統</title>
-    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260522-profile-search-slim-v146" />
+    <link rel="stylesheet" href="./attendance-ui/style.css?v=20260522-profile-search-slim-v147" />
   </head>
   <body class="is-booting">
     <div class="page-shell">
@@ -48,7 +48,6 @@
             <button id="manageAllWrap" type="button" class="admin-mode-toggle hidden" aria-pressed="false">
               管理員
             </button>
-            <div id="globalDistrictScopeFilter" class="district-scope-filter hidden"></div>
             <button id="toggleSettingsBtn" type="button" class="secondary hidden">
               設定
             </button>
@@ -251,7 +250,8 @@
       </section>
 
       <section id="navCard" class="card hidden">
-        <div class="tab-row">
+        <div class="nav-card-inner">
+          <div class="tab-row">
           <button id="tabAttendanceBtn" type="button" class="tab-btn is-active">
             點名
           </button>
@@ -270,6 +270,8 @@
           <button id="tabInvitesBtn" type="button" class="tab-btn hidden">
             邀請碼
           </button>
+          </div>
+          <div id="globalDistrictScopeFilter" class="district-scope-filter nav-district-scope hidden"></div>
         </div>
       </section>
 
@@ -1037,6 +1039,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js" defer></script>
-    <script type="module" src="./attendance-ui/main.js?v=20260522-profile-search-slim-v146"></script>
+    <script type="module" src="./attendance-ui/main.js?v=20260522-profile-search-slim-v147"></script>
   </body>
 </html>
