@@ -43,6 +43,13 @@ type OverviewRequestOptions = {
   sort: string;
 };
 
+type MonthOverviewBucket = {
+  key: string;
+  label: string;
+  weekStarts: string[];
+  week_start_date?: string;
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, content-type, x-app-token, x-client-info, apikey",
@@ -1765,27 +1772,56 @@ async function handleAttendanceMonthOverview(
   const adminMode = getAdminModeFromUrl(viewer, url);
   const effectiveViewer = getEffectiveViewer(viewer, adminMode);
   if (!(effectiveViewer.is_admin || PREACHER_ROLES.has(effectiveViewer.role) || DISTRICT_PASTOR_ROLES.has(effectiveViewer.role) || DISTRICT_LEADER_ROLES.has(effectiveViewer.role) || BIG_FAMILY_LEADER_ROLES.has(effectiveViewer.role) || SMALL_GROUP_LEADER_ROLES.has(effectiveViewer.role))) {
-    return { scope_label: "無權限", selected_month: "", level: "small_group", weeks: [], units: [] };
+    return { scope_label: "無權限", selected_month: "", period_type: "month", period_value: "", period_label: "", bucket_type: "week", level: "small_group", weeks: [], buckets: [], units: [] };
   }
 
-  const selectedMonth = clampToAllowedAttendanceMonth(url.searchParams.get("month") || formatMonth(new Date()));
+  const periodType = normalizeMonthOverviewPeriodType(url.searchParams.get("period_type"));
+  const periodValue = normalizeMonthOverviewPeriodValue(
+    periodType,
+    url.searchParams.get("period_value") || url.searchParams.get("month") || "",
+  );
+  const selectedMonth = periodType === "month" ? periodValue : clampToAllowedAttendanceMonth(url.searchParams.get("month") || formatMonth(new Date()));
   const level = normalizeMonthOverviewLevel(url.searchParams.get("level"));
-  const weekStarts = getMonthWeekStarts(selectedMonth);
+  const buckets = getMonthOverviewBuckets(periodType, periodValue);
+  const weekStarts = uniqueStrings(buckets.flatMap((bucket) => bucket.weekStarts));
   const members = await loadOverviewMembers(db, effectiveViewer);
   const organizationRows = await loadOverviewOrganizationRows(db, members);
   const recordsByWeek = await loadMonthOverviewRecords(db, weekStarts, members.map((member) => member.id));
-  const units = buildMonthOverviewUnits(level, members, organizationRows, weekStarts, recordsByWeek);
+  const units = buildMonthOverviewUnits(level, members, organizationRows, buckets, recordsByWeek);
 
   return {
     scope_label: getScopeLabel(effectiveViewer),
     selected_month: selectedMonth,
+    period_type: periodType,
+    period_value: periodValue,
+    period_label: getMonthOverviewPeriodLabel(periodType, periodValue),
+    bucket_type: getMonthOverviewBucketType(periodType),
     level,
-    weeks: weekStarts.map((weekStart) => ({
-      week_start_date: weekStart,
-      label: weekStart,
+    weeks: periodType === "month" ? buckets.map((bucket) => ({
+      week_start_date: bucket.week_start_date,
+      label: bucket.label,
+    })) : [],
+    buckets: buckets.map((bucket) => ({
+      key: bucket.key,
+      label: bucket.label,
+      week_start_date: bucket.week_start_date || null,
     })),
     units,
   };
+}
+
+function normalizeMonthOverviewPeriodType(value: string | null) {
+  return ["month", "quarter", "year"].includes(String(value)) ? String(value) : "month";
+}
+
+function normalizeMonthOverviewPeriodValue(periodType: string, value: string | null) {
+  if (periodType === "quarter") {
+    return clampToAllowedAttendanceQuarter(value || getCurrentQuarterValue());
+  }
+  if (periodType === "year") {
+    return clampToAllowedAttendanceYear(value || String(new Date().getFullYear()));
+  }
+  return clampToAllowedAttendanceMonth(value || formatMonth(new Date()));
 }
 
 function normalizeMonthOverviewLevel(value: string | null) {
@@ -1805,6 +1841,126 @@ function clampToAllowedAttendanceMonth(value: string) {
     return currentMonth;
   }
   return text;
+}
+
+function clampToAllowedAttendanceQuarter(value: string) {
+  const currentQuarter = getCurrentQuarterValue();
+  const minimumQuarter = getMonthQuarterValue(MIN_ATTENDANCE_WEEK_START.slice(0, 7));
+  const text = /^\d{4}-Q[1-4]$/.test(String(value || "")) ? String(value) : currentQuarter;
+  if (compareQuarterValues(text, minimumQuarter) < 0) {
+    return minimumQuarter;
+  }
+  if (compareQuarterValues(text, currentQuarter) > 0) {
+    return currentQuarter;
+  }
+  return text;
+}
+
+function clampToAllowedAttendanceYear(value: string) {
+  const minimumYear = Number(MIN_ATTENDANCE_WEEK_START.slice(0, 4));
+  const currentYear = new Date().getFullYear();
+  const year = /^\d{4}$/.test(String(value || "")) ? Number(value) : currentYear;
+  if (year < minimumYear) {
+    return String(minimumYear);
+  }
+  if (year > currentYear) {
+    return String(currentYear);
+  }
+  return String(year);
+}
+
+function getMonthOverviewBuckets(periodType: string, periodValue: string): MonthOverviewBucket[] {
+  if (periodType === "quarter") {
+    return getQuarterMonthBuckets(periodValue);
+  }
+  if (periodType === "year") {
+    return getYearQuarterBuckets(periodValue);
+  }
+  return getMonthWeekStarts(periodValue).map((weekStart) => ({
+    key: weekStart,
+    label: getShortWeekLabel(weekStart),
+    week_start_date: weekStart,
+    weekStarts: [weekStart],
+  }));
+}
+
+function getQuarterMonthBuckets(periodValue: string): MonthOverviewBucket[] {
+  const match = String(periodValue || "").match(/^(\d{4})-Q([1-4])$/);
+  if (!match) {
+    return [];
+  }
+  const year = Number(match[1]);
+  const quarter = Number(match[2]);
+  const startMonth = (quarter - 1) * 3 + 1;
+  return [0, 1, 2].map((offset) => {
+    const monthNumber = startMonth + offset;
+    const month = `${year}-${String(monthNumber).padStart(2, "0")}`;
+    return {
+      key: month,
+      label: `${monthNumber}月`,
+      weekStarts: getMonthWeekStarts(month),
+    };
+  });
+}
+
+function getYearQuarterBuckets(periodValue: string): MonthOverviewBucket[] {
+  const year = Number(periodValue || new Date().getFullYear());
+  return [1, 2, 3, 4].map((quarter) => {
+    const startMonth = (quarter - 1) * 3 + 1;
+    const weekStarts = [0, 1, 2]
+      .map((offset) => `${year}-${String(startMonth + offset).padStart(2, "0")}`)
+      .flatMap((month) => getMonthWeekStarts(month));
+    return {
+      key: `${year}-Q${quarter}`,
+      label: `${startMonth}~${startMonth + 2}月`,
+      weekStarts,
+    };
+  });
+}
+
+function getMonthOverviewPeriodLabel(periodType: string, periodValue: string) {
+  if (periodType === "quarter") {
+    const match = String(periodValue || "").match(/^(\d{4})-Q([1-4])$/);
+    return match ? `${match[1]}年第${match[2]}季` : periodValue;
+  }
+  if (periodType === "year") {
+    return `${periodValue}年`;
+  }
+  const [year, month] = String(periodValue || "").split("-");
+  return year && month ? `${year}年${month}月` : periodValue;
+}
+
+function getMonthOverviewBucketType(periodType: string) {
+  if (periodType === "quarter") {
+    return "month";
+  }
+  if (periodType === "year") {
+    return "quarter";
+  }
+  return "week";
+}
+
+function getCurrentQuarterValue() {
+  return getMonthQuarterValue(formatMonth(new Date()));
+}
+
+function getMonthQuarterValue(month: string) {
+  const [year, monthNumber] = String(month).split("-").map(Number);
+  return `${year}-Q${Math.floor((monthNumber - 1) / 3) + 1}`;
+}
+
+function compareQuarterValues(left: string, right: string) {
+  return getQuarterIndex(left) - getQuarterIndex(right);
+}
+
+function getQuarterIndex(value: string) {
+  const match = String(value || "").match(/^(\d{4})-Q([1-4])$/);
+  return match ? Number(match[1]) * 4 + Number(match[2]) : 0;
+}
+
+function getShortWeekLabel(weekStart: string) {
+  const date = parseIsoDate(weekStart);
+  return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
 function getMonthWeekStarts(month: string) {
@@ -2139,7 +2295,7 @@ function buildMonthOverviewUnits(
   level: string,
   members: MemberRow[],
   organizationRows: Awaited<ReturnType<typeof loadOverviewOrganizationRows>>,
-  weekStarts: string[],
+  buckets: MonthOverviewBucket[],
   recordsByWeek: Map<string, Map<string, any>>,
 ) {
   const sourceRows = getMonthOverviewSourceRows(level, organizationRows);
@@ -2147,7 +2303,7 @@ function buildMonthOverviewUnits(
   return sourceRows
     .map((row) => {
       const unitMembers = members.filter((member) => isMonthOverviewUnitMember(member, level, row.id));
-      return buildMonthOverviewUnit(level, row, unitMembers, organizationRows, weekStarts, recordsByWeek);
+      return buildMonthOverviewUnit(level, row, unitMembers, organizationRows, buckets, recordsByWeek);
     })
     .filter((item) => item.expected_count > 0);
 }
@@ -2167,25 +2323,38 @@ function buildMonthOverviewUnit(
   row: any,
   members: MemberRow[],
   organizationRows: Awaited<ReturnType<typeof loadOverviewOrganizationRows>>,
-  weekStarts: string[],
+  buckets: MonthOverviewBucket[],
   recordsByWeek: Map<string, Map<string, any>>,
 ) {
   const leader = getMonthOverviewLeader(level, row, members);
-  const weekly = weekStarts.map((weekStart) => {
-    const recordMap = recordsByWeek.get(weekStart) || new Map();
+  const bucketStats = buckets.map((bucket) => {
+    const sundayStats = bucket.weekStarts.map((weekStart) => {
+      const recordMap = recordsByWeek.get(weekStart) || new Map();
+      return stats(members, recordMap, "sunday_service", weekStart);
+    });
+    const smallGroupStats = bucket.weekStarts.map((weekStart) => {
+      const recordMap = recordsByWeek.get(weekStart) || new Map();
+      return stats(members, recordMap, "small_group_fellowship", weekStart);
+    });
     return {
-      week_start_date: weekStart,
-      sunday_service: stats(members, recordMap, "sunday_service", weekStart),
-      small_group_fellowship: stats(members, recordMap, "small_group_fellowship", weekStart),
+      key: bucket.key,
+      label: bucket.label,
+      week_start_date: bucket.week_start_date || null,
+      sunday_service: averageMonthOverviewStats(sundayStats),
+      small_group_fellowship: averageMonthOverviewStats(smallGroupStats),
     };
   });
   const expectedCount = Math.max(
     0,
-    ...weekly.flatMap((week) => [
-      Number(week.sunday_service.expected_count || 0),
-      Number(week.small_group_fellowship.expected_count || 0),
+    ...bucketStats.flatMap((bucket) => [
+      Number(bucket.sunday_service.expected_count || 0),
+      Number(bucket.small_group_fellowship.expected_count || 0),
     ]),
   );
+  const periodAverage = {
+    sunday_service: averageMonthOverviewStats(bucketStats.map((bucket) => bucket.sunday_service)),
+    small_group_fellowship: averageMonthOverviewStats(bucketStats.map((bucket) => bucket.small_group_fellowship)),
+  };
 
   return {
     type: level,
@@ -2196,11 +2365,10 @@ function buildMonthOverviewUnit(
     leader_name: leader.name,
     leader_gender: leader.gender,
     expected_count: expectedCount,
-    monthly_average: {
-      sunday_service: averageMonthOverviewStats(weekly.map((week) => week.sunday_service)),
-      small_group_fellowship: averageMonthOverviewStats(weekly.map((week) => week.small_group_fellowship)),
-    },
-    weekly,
+    period_average: periodAverage,
+    monthly_average: periodAverage,
+    buckets: bucketStats,
+    weekly: bucketStats,
   };
 }
 
@@ -2314,14 +2482,15 @@ function getSharedGender(members: MemberRow[]) {
 }
 
 function averageMonthOverviewStats(statsRows: any[]) {
-  if (!statsRows.length) {
+  const rows = statsRows.filter((row) => Number(row?.expected_count || 0) > 0);
+  if (!rows.length) {
     return { present_count: 0, expected_count: 0, rate: null };
   }
-  const presentTotal = statsRows.reduce((total, row) => total + Number(row.present_count || 0), 0);
-  const expectedTotal = statsRows.reduce((total, row) => total + Number(row.expected_count || 0), 0);
+  const presentTotal = rows.reduce((total, row) => total + Number(row.present_count || 0), 0);
+  const expectedTotal = rows.reduce((total, row) => total + Number(row.expected_count || 0), 0);
   return {
-    present_count: roundToOneDecimal(presentTotal / statsRows.length),
-    expected_count: roundToOneDecimal(expectedTotal / statsRows.length),
+    present_count: roundToOneDecimal(presentTotal / rows.length),
+    expected_count: roundToOneDecimal(expectedTotal / rows.length),
     rate: expectedTotal ? presentTotal / expectedTotal : null,
   };
 }
@@ -2709,6 +2878,10 @@ function statusOf(value: unknown) {
 
 function uniqueIds(values: Array<number | null>) {
   return Array.from(new Set(values.filter(Boolean) as number[]));
+}
+
+function uniqueStrings(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean)));
 }
 
 function normalizeNote(value: unknown) {

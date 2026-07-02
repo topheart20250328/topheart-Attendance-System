@@ -139,6 +139,7 @@ const OVERVIEW_EVENT_TYPES = ["sunday_service", "small_group_fellowship"];
 const OVERVIEW_EVENT_FILTERS = ["all", ...OVERVIEW_EVENT_TYPES];
 const OVERVIEW_MONTH_LEVELS = ["small_group", "big_family", "district"];
 const OVERVIEW_METRIC_MODES = ["count", "rate", "both"];
+const OVERVIEW_PERIOD_TYPES = ["month", "quarter", "year"];
 const V2_API_ACTIONS = new Set([
   "attendance-overview",
   "attendance-month-overview",
@@ -245,7 +246,8 @@ const els = {
   overviewWeekScroller: document.querySelector("#overviewWeekScroller"),
   overviewScopeSummary: document.querySelector("#overviewScopeSummary"),
   overviewUnitList: document.querySelector("#overviewUnitList"),
-  overviewMonthInput: document.querySelector("#overviewMonthInput"),
+  overviewPeriodTypeSelect: document.querySelector("#overviewPeriodTypeSelect"),
+  overviewPeriodValueSelect: document.querySelector("#overviewPeriodValueSelect"),
   overviewMonthLevelSelect: document.querySelector("#overviewMonthLevelSelect"),
   overviewMetricModeSelect: document.querySelector("#overviewMetricModeSelect"),
   overviewMonthSummary: document.querySelector("#overviewMonthSummary"),
@@ -421,6 +423,8 @@ const state = {
     overviewLoading: false,
     overviewMode: "individual",
     overviewMonth: "",
+    overviewPeriodType: "month",
+    overviewPeriodValue: "",
     overviewMonthLoading: false,
     overviewMonthlyLevel: "small_group",
     overviewMetricMode: "count",
@@ -572,7 +576,8 @@ function bindEvents() {
   els.overviewWeekScroller?.addEventListener("change", handleOverviewDateChange);
   els.overviewUnitList?.addEventListener("click", handleOverviewHistoryRangeClick);
   els.overviewUnitList?.addEventListener("toggle", handleOverviewUnitToggle, true);
-  els.overviewMonthInput?.addEventListener("change", handleOverviewMonthChange);
+  els.overviewPeriodTypeSelect?.addEventListener("change", handleOverviewPeriodTypeChange);
+  els.overviewPeriodValueSelect?.addEventListener("change", handleOverviewPeriodValueChange);
   els.overviewMonthLevelSelect?.addEventListener("change", handleOverviewMonthLevelChange);
   els.overviewMetricModeSelect?.addEventListener("change", handleOverviewMetricModeChange);
 
@@ -721,10 +726,7 @@ function hydrateLocalState() {
   if (els.overviewUnitTypeSelect) {
     els.overviewUnitTypeSelect.value = state.ui.overviewUnitType;
   }
-  if (els.overviewMonthInput) {
-    els.overviewMonthInput.value = state.ui.overviewMonth || getCurrentMonthValue();
-    els.overviewMonthInput.max = getCurrentMonthValue();
-  }
+  syncOverviewPeriodControls();
   if (els.overviewMonthLevelSelect) {
     els.overviewMonthLevelSelect.value = state.ui.overviewMonthlyLevel;
   }
@@ -1488,6 +1490,206 @@ function clampToAllowedAttendanceMonth(month, options = {}) {
     return currentMonth;
   }
   return normalized;
+}
+
+function normalizeOverviewPeriodType(value) {
+  return OVERVIEW_PERIOD_TYPES.includes(String(value)) ? String(value) : "month";
+}
+
+function normalizeOverviewPeriodValue(periodType, value, options = {}) {
+  const type = normalizeOverviewPeriodType(periodType);
+  if (type === "quarter") {
+    return clampToAllowedAttendanceQuarter(value, options);
+  }
+  if (type === "year") {
+    return clampToAllowedAttendanceYear(value, options);
+  }
+  return clampToAllowedAttendanceMonth(value, options);
+}
+
+function clampToAllowedAttendanceQuarter(value, options = {}) {
+  const normalized = /^\d{4}-Q[1-4]$/.test(String(value || ""))
+    ? String(value)
+    : getCurrentQuarterValue();
+  const minQuarter = getMonthQuarterValue(MIN_ATTENDANCE_MONTH);
+  const currentQuarter = getCurrentQuarterValue();
+  if (compareQuarterValues(normalized, minQuarter) < 0) {
+    if (options.showToast) {
+      showToast(`不能選擇早於 ${MIN_ATTENDANCE_MONTH} 的季度。`);
+    }
+    return minQuarter;
+  }
+  if (compareQuarterValues(normalized, currentQuarter) > 0) {
+    if (options.showToast) {
+      showToast("整體總覽不能檢視未來季度。");
+    }
+    return currentQuarter;
+  }
+  return normalized;
+}
+
+function clampToAllowedAttendanceYear(value, options = {}) {
+  const minYear = Number(MIN_ATTENDANCE_MONTH.slice(0, 4));
+  const currentYear = new Date().getFullYear();
+  const normalized = /^\d{4}$/.test(String(value || "")) ? Number(value) : currentYear;
+  if (normalized < minYear) {
+    if (options.showToast) {
+      showToast(`不能選擇早於 ${minYear} 年。`);
+    }
+    return String(minYear);
+  }
+  if (normalized > currentYear) {
+    if (options.showToast) {
+      showToast("整體總覽不能檢視未來年度。");
+    }
+    return String(currentYear);
+  }
+  return String(normalized);
+}
+
+function getDefaultOverviewPeriodValue(periodType) {
+  const type = normalizeOverviewPeriodType(periodType);
+  if (type === "quarter") {
+    return getCurrentQuarterValue();
+  }
+  if (type === "year") {
+    return String(new Date().getFullYear());
+  }
+  return getCurrentMonthValue();
+}
+
+function syncOverviewPeriodControls() {
+  const periodType = normalizeOverviewPeriodType(state.ui.overviewPeriodType);
+  const periodValue = normalizeOverviewPeriodValue(
+    periodType,
+    state.ui.overviewPeriodValue || state.ui.overviewMonth || getDefaultOverviewPeriodValue(periodType),
+  );
+  state.ui.overviewPeriodType = periodType;
+  state.ui.overviewPeriodValue = periodValue;
+  if (periodType === "month") {
+    state.ui.overviewMonth = periodValue;
+  }
+
+  if (els.overviewPeriodTypeSelect) {
+    els.overviewPeriodTypeSelect.value = periodType;
+  }
+  if (els.overviewPeriodValueSelect) {
+    const options = buildOverviewPeriodOptions(periodType);
+    els.overviewPeriodValueSelect.innerHTML = options
+      .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
+      .join("");
+    els.overviewPeriodValueSelect.value = periodValue;
+  }
+}
+
+function buildOverviewPeriodOptions(periodType) {
+  const type = normalizeOverviewPeriodType(periodType);
+  if (type === "quarter") {
+    return buildOverviewQuarterOptions();
+  }
+  if (type === "year") {
+    return buildOverviewYearOptions();
+  }
+  return buildOverviewMonthOptions();
+}
+
+function buildOverviewMonthOptions() {
+  const options = [];
+  const currentMonth = getCurrentMonthValue();
+  const date = parseMonthValue(MIN_ATTENDANCE_MONTH);
+  while (formatMonthValue(date) <= currentMonth) {
+    const value = formatMonthValue(date);
+    options.push({ value, label: getOverviewPeriodLabel("month", value) });
+    date.setMonth(date.getMonth() + 1);
+  }
+  return options.reverse();
+}
+
+function buildOverviewQuarterOptions() {
+  const options = [];
+  const currentQuarter = getCurrentQuarterValue();
+  let value = getMonthQuarterValue(MIN_ATTENDANCE_MONTH);
+  while (compareQuarterValues(value, currentQuarter) <= 0) {
+    options.push({ value, label: getOverviewPeriodLabel("quarter", value) });
+    value = addQuarterValue(value, 1);
+  }
+  return options.reverse();
+}
+
+function buildOverviewYearOptions() {
+  const minYear = Number(MIN_ATTENDANCE_MONTH.slice(0, 4));
+  const currentYear = new Date().getFullYear();
+  const options = [];
+  for (let year = currentYear; year >= minYear; year -= 1) {
+    options.push({ value: String(year), label: getOverviewPeriodLabel("year", String(year)) });
+  }
+  return options;
+}
+
+function getOverviewPeriodLabel(periodType, value) {
+  const type = normalizeOverviewPeriodType(periodType);
+  if (type === "quarter") {
+    const match = String(value || "").match(/^(\d{4})-Q([1-4])$/);
+    return match ? `${match[1]}年第${match[2]}季` : String(value || "");
+  }
+  if (type === "year") {
+    return `${String(value || "")}年`;
+  }
+  const [year, month] = String(value || "").split("-");
+  return year && month ? `${year}年${month}月` : String(value || "");
+}
+
+function getOverviewPeriodAverageLabel(periodType) {
+  if (periodType === "quarter") {
+    return "季平均";
+  }
+  if (periodType === "year") {
+    return "年平均";
+  }
+  return "月平均";
+}
+
+function parseMonthValue(month) {
+  const [year, monthNumber] = String(month).split("-").map(Number);
+  return new Date(year, monthNumber - 1, 1);
+}
+
+function formatMonthValue(date) {
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  return `${date.getFullYear()}-${month}`;
+}
+
+function getCurrentQuarterValue() {
+  return getMonthQuarterValue(getCurrentMonthValue());
+}
+
+function getMonthQuarterValue(month) {
+  const [year, monthNumber] = String(month).split("-").map(Number);
+  const quarter = Math.floor((monthNumber - 1) / 3) + 1;
+  return `${year}-Q${quarter}`;
+}
+
+function compareQuarterValues(left, right) {
+  return getQuarterIndex(left) - getQuarterIndex(right);
+}
+
+function getQuarterIndex(value) {
+  const match = String(value || "").match(/^(\d{4})-Q([1-4])$/);
+  if (!match) {
+    return 0;
+  }
+  return Number(match[1]) * 4 + Number(match[2]);
+}
+
+function addQuarterValue(value, amount) {
+  const match = String(value || "").match(/^(\d{4})-Q([1-4])$/);
+  if (!match) {
+    return getCurrentQuarterValue();
+  }
+  const zeroBased = Number(match[1]) * 4 + Number(match[2]) - 1 + amount;
+  const year = Math.floor(zeroBased / 4);
+  const quarter = (zeroBased % 4) + 1;
+  return `${year}-Q${quarter}`;
 }
 
 function formatMonthNumber(value) {
@@ -3598,15 +3800,21 @@ async function loadAttendanceMonthOverview(month = "") {
   renderAttendanceOverview();
 
   try {
-    const targetMonth = clampToAllowedAttendanceMonth(
-      month || state.ui.overviewMonth || els.overviewMonthInput?.value || getCurrentMonthValue(),
+    const periodType = normalizeOverviewPeriodType(state.ui.overviewPeriodType);
+    const periodValue = normalizeOverviewPeriodValue(
+      periodType,
+      month || state.ui.overviewPeriodValue || state.ui.overviewMonth || getDefaultOverviewPeriodValue(periodType),
       { showToast: Boolean(month) },
     );
     const params = new URLSearchParams({
-      month: targetMonth,
+      period_type: periodType,
+      period_value: periodValue,
       level: state.ui.overviewMonthlyLevel,
       admin_mode: getAdminModeQueryParam(),
     });
+    if (periodType === "month") {
+      params.set("month", periodValue);
+    }
     const data = await apiRequest(
       `attendance-month-overview&${params.toString()}`,
       {
@@ -3616,6 +3824,8 @@ async function loadAttendanceMonthOverview(month = "") {
     );
     state.overviewMonthData = normalizeMonthOverviewData(data);
     state.ui.overviewMonth = state.overviewMonthData.selectedMonth;
+    state.ui.overviewPeriodType = state.overviewMonthData.periodType;
+    state.ui.overviewPeriodValue = state.overviewMonthData.periodValue;
   } catch (error) {
     console.error(error);
     showToast(error.message || "載入整體總覽失敗。");
@@ -3637,14 +3847,27 @@ function normalizeOverviewData(data) {
 
 function normalizeMonthOverviewData(data) {
   const selectedMonth = clampToAllowedAttendanceMonth(data?.selected_month || getCurrentMonthValue());
+  const periodType = normalizeOverviewPeriodType(data?.period_type || "month");
+  const periodValue = normalizeOverviewPeriodValue(
+    periodType,
+    data?.period_value || selectedMonth,
+  );
+  const buckets = (data?.buckets || data?.weeks || []).map((bucket) => ({
+    key: bucket.key || bucket.week_start_date || bucket.value || "",
+    label: bucket.label || (bucket.week_start_date ? buildShortWeekLabel(bucket.week_start_date) : ""),
+    weekStartDate: bucket.week_start_date || "",
+  }));
   return {
     scopeLabel: data?.scope_label || "可檢視範圍",
     selectedMonth,
+    periodType,
+    periodValue,
+    periodLabel: data?.period_label || getOverviewPeriodLabel(periodType, periodValue),
+    bucketType: data?.bucket_type || "week",
+    averageLabel: getOverviewPeriodAverageLabel(periodType),
     level: OVERVIEW_MONTH_LEVELS.includes(data?.level) ? data.level : state.ui.overviewMonthlyLevel,
-    weeks: (data?.weeks || []).map((week) => ({
-      weekStartDate: week.week_start_date,
-      label: week.label || buildShortWeekLabel(week.week_start_date),
-    })),
+    weeks: buckets,
+    buckets,
     units: (data?.units || []).map((unit) => ({
       id: unit.id,
       level: unit.level || unit.type,
@@ -3653,11 +3876,13 @@ function normalizeMonthOverviewData(data) {
       leaderName: unit.leader_name || "",
       leaderGender: unit.leader_gender || "",
       expectedCount: Number(unit.expected_count || 0),
-      monthlyAverage: normalizeMonthEventStatsMap(unit.monthly_average || {}),
-      weekly: (unit.weekly || []).map((week) => ({
-        weekStartDate: week.week_start_date,
-        sundayService: normalizeEventStats(week.sunday_service),
-        smallGroupFellowship: normalizeEventStats(week.small_group_fellowship),
+      monthlyAverage: normalizeMonthEventStatsMap(unit.period_average || unit.monthly_average || {}),
+      weekly: (unit.buckets || unit.weekly || []).map((bucket) => ({
+        key: bucket.key || bucket.week_start_date || "",
+        label: bucket.label || (bucket.week_start_date ? buildShortWeekLabel(bucket.week_start_date) : ""),
+        weekStartDate: bucket.week_start_date || "",
+        sundayService: normalizeEventStats(bucket.sunday_service),
+        smallGroupFellowship: normalizeEventStats(bucket.small_group_fellowship),
       })),
     })),
   };
@@ -3786,11 +4011,28 @@ function switchOverviewMode(mode) {
   }
 }
 
-function handleOverviewMonthChange(event) {
-  const month = clampToAllowedAttendanceMonth(event.target.value, { showToast: true });
-  event.target.value = month;
-  state.ui.overviewMonth = month;
-  loadAttendanceMonthOverview(month);
+function handleOverviewPeriodTypeChange(event) {
+  const periodType = normalizeOverviewPeriodType(event.target.value);
+  if (state.ui.overviewPeriodType === periodType) {
+    return;
+  }
+
+  state.ui.overviewPeriodType = periodType;
+  state.ui.overviewPeriodValue = getDefaultOverviewPeriodValue(periodType);
+  state.overviewMonthData = null;
+  syncOverviewPeriodControls();
+  loadAttendanceMonthOverview(state.ui.overviewPeriodValue);
+}
+
+function handleOverviewPeriodValueChange(event) {
+  const periodType = normalizeOverviewPeriodType(state.ui.overviewPeriodType);
+  const periodValue = normalizeOverviewPeriodValue(periodType, event.target.value, { showToast: true });
+  event.target.value = periodValue;
+  state.ui.overviewPeriodValue = periodValue;
+  if (periodType === "month") {
+    state.ui.overviewMonth = periodValue;
+  }
+  loadAttendanceMonthOverview(periodValue);
 }
 
 function handleOverviewMonthLevelChange(event) {
@@ -3802,7 +4044,7 @@ function handleOverviewMonthLevelChange(event) {
   state.ui.overviewMonthlyLevel = level;
   state.overviewMonthData = null;
   saveUiPreferences();
-  loadAttendanceMonthOverview(state.ui.overviewMonth);
+  loadAttendanceMonthOverview(state.ui.overviewPeriodValue || state.ui.overviewMonth);
 }
 
 function handleOverviewMetricModeChange(event) {
@@ -3992,11 +4234,7 @@ function renderAttendanceOverview() {
   if (els.overviewSearchInput && els.overviewSearchInput.value !== state.ui.overviewSearch) {
     els.overviewSearchInput.value = state.ui.overviewSearch;
   }
-  if (els.overviewMonthInput) {
-    els.overviewMonthInput.min = MIN_ATTENDANCE_MONTH;
-    els.overviewMonthInput.max = getCurrentMonthValue();
-    els.overviewMonthInput.value = state.ui.overviewMonth || getCurrentMonthValue();
-  }
+  syncOverviewPeriodControls();
   if (els.overviewMonthLevelSelect) {
     els.overviewMonthLevelSelect.value = state.ui.overviewMonthlyLevel;
   }
@@ -4054,7 +4292,7 @@ function renderMonthOverview() {
   }
 
   const data = state.overviewMonthData;
-  const summary = `目前月份 ${data.selectedMonth}`;
+  const summary = `目前期間 ${data.periodLabel}`;
 
   if (els.overviewScopeSummary) {
     els.overviewScopeSummary.textContent = summary;
@@ -4071,8 +4309,8 @@ function renderMonthOverviewTable(data) {
     return;
   }
 
-  if (!data.weeks.length) {
-    els.overviewMonthTable.innerHTML = '<div class="empty-state-card">這個月份沒有可檢視的主日週次。</div>';
+  if (!data.buckets.length) {
+    els.overviewMonthTable.innerHTML = '<div class="empty-state-card">這個期間沒有可檢視的出席週次。</div>';
     return;
   }
   if (!data.units.length) {
@@ -4084,15 +4322,15 @@ function renderMonthOverviewTable(data) {
     <table class="overview-month-table">
       <thead>
         <tr>
-          <th rowspan="2" class="overview-month-sticky-col">${escapeHtml(data.selectedMonth)}</th>
+          <th rowspan="2" class="overview-month-sticky-col">${escapeHtml(data.periodLabel)}</th>
           <th rowspan="2" class="overview-month-leader-col">領袖</th>
-          <th colspan="2" class="overview-month-average-head">月平均</th>
-          ${data.weeks.map((week) => `<th colspan="2" class="overview-month-week-head">${escapeHtml(buildShortWeekLabel(week.weekStartDate))}</th>`).join("")}
+          <th colspan="2" class="overview-month-average-head">${escapeHtml(data.averageLabel)}</th>
+          ${data.buckets.map((bucket) => `<th colspan="2" class="overview-month-week-head">${escapeHtml(bucket.label)}</th>`).join("")}
         </tr>
         <tr>
           <th class="overview-month-group-start overview-month-average-col">主日</th>
           <th class="overview-month-group-end overview-month-average-col">小家</th>
-          ${data.weeks.map(() => '<th class="overview-month-group-start">主日</th><th class="overview-month-group-end">小家</th>').join("")}
+          ${data.buckets.map(() => '<th class="overview-month-group-start">主日</th><th class="overview-month-group-end">小家</th>').join("")}
         </tr>
       </thead>
       <tbody>

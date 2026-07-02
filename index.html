@@ -415,8 +415,16 @@
         <div id="overviewMonthlyPanel" class="overview-subview hidden">
           <div class="overview-month-toolbar">
             <label class="overview-month-field">
-              <span>月份</span>
-              <input id="overviewMonthInput" type="month" min="2026-04" />
+              <span>期間</span>
+              <select id="overviewPeriodTypeSelect">
+                <option value="month">月份</option>
+                <option value="quarter">季度</option>
+                <option value="year">年度</option>
+              </select>
+            </label>
+            <label class="overview-month-field">
+              <span>選擇</span>
+              <select id="overviewPeriodValueSelect"></select>
             </label>
             <label class="overview-month-field">
               <span>層級</span>

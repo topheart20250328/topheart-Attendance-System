@@ -3004,7 +3004,7 @@ tbody tr:last-child td {
 .overview-month-toolbar {
   display: grid;
   gap: 7px;
-  grid-template-columns: minmax(118px, 1.08fr) minmax(72px, 0.62fr) minmax(96px, 0.9fr);
+  grid-template-columns: minmax(76px, 0.7fr) minmax(126px, 1.15fr) minmax(72px, 0.62fr) minmax(96px, 0.9fr);
   align-items: end;
 }
 
@@ -3043,10 +3043,6 @@ tbody tr:last-child td {
   background-position: calc(100% - 0.72rem) 50%, calc(100% - 0.48rem) 50%;
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
-}
-
-.overview-month-field input[type="month"] {
-  padding-right: 0.2rem;
 }
 
 .overview-month-summary {
@@ -6619,7 +6615,7 @@ body.is-authenticated .toast {
   }
 
   .overview-month-toolbar {
-    grid-template-columns: minmax(112px, 1.08fr) minmax(66px, 0.62fr) minmax(88px, 0.88fr);
+    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
     gap: 5px;
   }
 
@@ -6638,10 +6634,6 @@ body.is-authenticated .toast {
   .overview-month-field select {
     padding-right: 1.08rem;
     background-position: calc(100% - 0.62rem) 50%, calc(100% - 0.4rem) 50%;
-  }
-
-  .overview-month-field input[type="month"] {
-    padding-right: 0.12rem;
   }
 
   .overview-month-table {
