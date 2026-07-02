@@ -2723,7 +2723,7 @@ tbody tr:last-child td {
 
 #attendanceView .attendance-filter-row {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(104px, 0.45fr) minmax(104px, 0.45fr) minmax(132px, 0.5fr);
+  grid-template-columns: minmax(150px, 1fr) repeat(2, minmax(104px, 0.45fr));
   gap: 8px;
   padding: 6px 0;
 }
@@ -2789,9 +2789,21 @@ tbody tr:last-child td {
 }
 
 .compact-buttons .district-scope-control > summary {
+  display: inline-flex;
+  justify-content: center;
   min-height: var(--compact-button-height);
-  padding: 0.42rem 0.7rem;
+  padding: 0.5rem 0.85rem;
+  border: none;
   border-radius: 999px;
+  background: #e8eefb;
+  color: var(--text);
+  font-size: var(--compact-button-font-size);
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.compact-buttons .district-scope-control > summary:hover {
+  background: #dbe6fb;
 }
 
 .district-scope-menu {
@@ -7406,7 +7418,7 @@ body.is-authenticated .toast {
   }
 
   #attendanceView .attendance-filter-row {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 0.82fr);
+    grid-template-columns: minmax(0, 1fr) repeat(2, minmax(0, 0.82fr));
     gap: 5px;
   }
 

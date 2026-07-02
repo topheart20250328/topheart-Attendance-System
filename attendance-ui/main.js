@@ -3637,6 +3637,7 @@ function refreshDistrictScopeConsumers() {
   renderAttendanceReminderEntry();
   renderAttendanceOverview();
   renderProfileDirectory();
+  renderManagement();
 }
 
 function renderDistrictScopeFilters() {
@@ -3657,7 +3658,11 @@ function getDistrictScopeContainers() {
 }
 
 function canUseDistrictScopeFilter() {
-  return Boolean(state.currentMember && canUseOverview());
+  const viewer = getPermissionCurrentMember();
+  return Boolean(
+    viewer &&
+      (viewer.is_admin || PREACHER_ROLES.includes(viewer.role) || DISTRICT_PASTOR_ROLES.includes(viewer.role)),
+  );
 }
 
 function renderDistrictScopeFilter(container, options) {
@@ -3671,12 +3676,11 @@ function renderDistrictScopeFilter(container, options) {
 
   const selected = state.ui.visibleDistrictIds;
   const selectedCount = options.filter((option) => selected.has(option.id)).length;
-  const summary = selectedCount ? `區 ${selectedCount}` : "全部區";
+  const wasOpen = Boolean(container.querySelector(".district-scope-control")?.open);
   container.innerHTML = `
-    <details class="district-scope-control">
+    <details class="district-scope-control" ${wasOpen ? "open" : ""}>
       <summary>
-        <span>顯示範圍</span>
-        <strong>${escapeHtml(summary)}</strong>
+        <span>選區</span>
       </summary>
       <div class="district-scope-menu">
         <div class="district-scope-menu-head">
@@ -3780,6 +3784,44 @@ function isMemberInVisibleDistrictScope(member) {
     return true;
   }
   return getMemberDistrictIds(member).some((districtId) => state.ui.visibleDistrictIds.has(districtId));
+}
+
+function getVisibleDistrictScopedMembers(members) {
+  if (!isDistrictScopeActive()) {
+    return members;
+  }
+  return members.filter(isMemberInVisibleDistrictScope);
+}
+
+function isDistrictInVisibleDistrictScope(districtId) {
+  if (!isDistrictScopeActive()) {
+    return true;
+  }
+  return state.ui.visibleDistrictIds.has(Number(districtId || 0));
+}
+
+function isOrganizationInVisibleDistrictScope(organization) {
+  const orgType = organization?.orgType || organization?.type || "";
+  if (orgType === "district") {
+    return isDistrictInVisibleDistrictScope(organization.id);
+  }
+  return isDistrictInVisibleDistrictScope(organization?.district_id);
+}
+
+function getVisibleOrganizationDistricts() {
+  return state.adminData.districts.filter((district) => isDistrictInVisibleDistrictScope(district.id));
+}
+
+function getVisibleOrganizationBigFamilies() {
+  return state.adminData.bigFamilies.filter(isOrganizationInVisibleDistrictScope);
+}
+
+function getVisibleOrganizationSmallGroups() {
+  return state.adminData.smallGroups.filter(isOrganizationInVisibleDistrictScope);
+}
+
+function getVisibleOrganizationMembers() {
+  return getVisibleDistrictScopedMembers(state.adminData.members);
 }
 
 function getOverviewUnitDistrictIds(unit) {
@@ -5395,7 +5437,7 @@ function renderManagement() {
       closeMemberEditor();
     }
   }
-  const editableMembers = getEditableManagementMembers();
+  const editableMembers = getVisibleDistrictScopedMembers(getEditableManagementMembers());
   renderPeopleFilters(editableMembers);
   renderPeopleTable(editableMembers);
   renderOrganizationTools();
@@ -5469,7 +5511,7 @@ function getFilteredManagementMembers() {
   const search = state.ui.peopleSearch.trim().toLowerCase();
   const roleFilter = state.ui.peopleRole;
 
-  return getEditableManagementMembers().filter((member) => {
+  return getVisibleDistrictScopedMembers(getEditableManagementMembers()).filter((member) => {
     if (roleFilter && member.role !== roleFilter) {
       return false;
     }
@@ -7825,10 +7867,10 @@ function renderOrganizationTree() {
   els.orgTreeBody.classList.toggle("is-compact-tree", state.ui.orgTreeMode !== "vertical");
   els.orgTreeBody.classList.toggle("is-vertical-tree", state.ui.orgTreeMode === "vertical");
 
-  const districts = [...state.adminData.districts].sort(compareOrganizations);
+  const districts = getVisibleOrganizationDistricts().sort(compareOrganizations);
   const districtGroups = buildOrganizationTreeDistrictGroups(districts);
   const unassignedMembers = sortMembers(
-    state.adminData.members.filter(isOrganizationTreeUnassignedMember),
+    getVisibleOrganizationMembers().filter(isOrganizationTreeUnassignedMember),
   );
   const rootItems = [
     unassignedMembers.length ? renderOrganizationTreeUnassignedMembers(unassignedMembers) : "",
@@ -7875,7 +7917,7 @@ function buildOrganizationTreeDistrictGroups(districts) {
   const groups = [];
 
   const districtPastors = sortMembers(
-    state.adminData.members.filter(isOrganizationTreeDistrictPastor),
+    getVisibleOrganizationMembers().filter(isOrganizationTreeDistrictPastor),
   );
   for (const pastor of districtPastors) {
     const managedDistrictIds = getDistrictPastorDistrictIds(pastor);
@@ -7950,13 +7992,13 @@ function renderOrganizationTreeDistrictGroup(group) {
 
 function renderOrganizationTreeDistrict(district) {
   const districtLeaders = sortMembers(
-    state.adminData.members.filter((member) => isOrganizationTreeDistrictLeader(member, district.id)),
+    getVisibleOrganizationMembers().filter((member) => isOrganizationTreeDistrictLeader(member, district.id)),
   );
   const districtChildren = getOrganizationDistrictChildRows(district.id);
   const bigFamilies = districtChildren.filter((child) => child.orgType === "big_family");
   const directSmallGroups = districtChildren.filter((child) => child.orgType === "small_group");
   const directMembers = sortMembers(
-    state.adminData.members.filter(
+    getVisibleOrganizationMembers().filter(
       (member) =>
         member.is_active !== false &&
         !isOrganizationTreeDistrictPastor(member) &&
@@ -8005,13 +8047,13 @@ function renderOrganizationTreeDistrictChild(child) {
 
 function renderOrganizationTreeBigFamily(bigFamily) {
   const bigFamilyLeaders = sortMembers(
-    state.adminData.members.filter((member) => isOrganizationTreeBigFamilyLeader(member, bigFamily.id)),
+    getVisibleOrganizationMembers().filter((member) => isOrganizationTreeBigFamilyLeader(member, bigFamily.id)),
   );
-  const smallGroups = state.adminData.smallGroups
+  const smallGroups = getVisibleOrganizationSmallGroups()
     .filter((smallGroup) => smallGroup.big_family_id === bigFamily.id)
     .sort(compareOrganizations);
   const directMembers = sortMembers(
-    state.adminData.members.filter(
+    getVisibleOrganizationMembers().filter(
       (member) =>
         member.is_active !== false &&
         !isOrganizationTreeDistrictPastor(member) &&
@@ -8061,7 +8103,7 @@ function renderOrganizationTreeMemberBucket(label, members, keyHint = label) {
 
 function renderOrganizationTreeSmallGroup(smallGroup) {
   const members = sortMembers(
-    state.adminData.members.filter(
+    getVisibleOrganizationMembers().filter(
       (member) =>
         member.is_active !== false &&
         !isOrganizationTreeDistrictPastor(member) &&
@@ -8211,7 +8253,7 @@ function buildOrganizationNodeSummary({
 
 function countOrganizationTreeMembersByScope({ districtId = 0, bigFamilyId = 0, smallGroupId = 0 } = {}) {
   return countOrganizationTreePeople(
-    state.adminData.members.filter((member) => {
+    getVisibleOrganizationMembers().filter((member) => {
       if (member.is_active === false) {
         return false;
       }
@@ -8230,7 +8272,7 @@ function countOrganizationTreeMembersByScope({ districtId = 0, bigFamilyId = 0, 
 }
 
 function countOrganizationTreeSmallGroupsByDistrict(districtId) {
-  return state.adminData.smallGroups.filter(
+  return getVisibleOrganizationSmallGroups().filter(
     (smallGroup) => Number(smallGroup.district_id || 0) === Number(districtId),
   ).length;
 }
@@ -8924,22 +8966,25 @@ function waitForNextFrame() {
 }
 
 function renderOrganizationDirectory() {
+  const districts = getVisibleOrganizationDistricts();
+  const bigFamilies = getVisibleOrganizationBigFamilies();
+  const smallGroups = getVisibleOrganizationSmallGroups();
   renderOrganizationSummary(els.districtSummary, "組織", [
-    ...state.adminData.districts,
-    ...state.adminData.bigFamilies,
-    ...state.adminData.smallGroups,
+    ...districts,
+    ...bigFamilies,
+    ...smallGroups,
   ]);
-  renderOrganizationSummary(els.bigFamilySummary, "大家", state.adminData.bigFamilies);
-  renderOrganizationSummary(els.smallGroupSummary, "小家", state.adminData.smallGroups);
+  renderOrganizationSummary(els.bigFamilySummary, "大家", bigFamilies);
+  renderOrganizationSummary(els.smallGroupSummary, "小家", smallGroups);
   setHidden(els.bigFamilySection, true);
   setHidden(els.smallGroupSection, true);
 
-  if (!state.adminData.districts.length) {
+  if (!districts.length) {
     els.districtTableBody.innerHTML = '<div class="empty-state-card">尚未載入組織資料。</div>';
     return;
   }
 
-  const activeFirstDistricts = [...state.adminData.districts].sort(compareOrganizations);
+  const activeFirstDistricts = districts.sort(compareOrganizations);
 
   els.districtTableBody.innerHTML = activeFirstDistricts
     .map(renderOrganizationDistrictGroup)
@@ -8948,7 +8993,7 @@ function renderOrganizationDirectory() {
 
 function renderOrganizationDistrictGroup(district) {
   const districtChildren = getOrganizationDistrictChildRows(district.id);
-  const memberCount = state.adminData.members.filter((member) => member.district_id === district.id).length;
+  const memberCount = getVisibleOrganizationMembers().filter((member) => member.district_id === district.id).length;
   const childCount = districtChildren.length;
 
   return `
@@ -8971,10 +9016,10 @@ function renderOrganizationDistrictGroup(district) {
 }
 
 function getOrganizationDistrictChildRows(districtId) {
-  const bigFamilies = state.adminData.bigFamilies
+  const bigFamilies = getVisibleOrganizationBigFamilies()
     .filter((bigFamily) => bigFamily.district_id === districtId)
     .map((bigFamily) => ({ ...bigFamily, orgType: "big_family" }));
-  const directSmallGroups = state.adminData.smallGroups
+  const directSmallGroups = getVisibleOrganizationSmallGroups()
     .filter((smallGroup) => smallGroup.district_id === districtId && !smallGroup.big_family_id)
     .map((smallGroup) => ({ ...smallGroup, orgType: "small_group" }));
   return [...bigFamilies, ...directSmallGroups].sort(compareOrganizations);
@@ -8988,10 +9033,10 @@ function renderOrganizationDistrictChild(child) {
 }
 
 function renderOrganizationBigFamilyGroup(bigFamily) {
-  const smallGroups = state.adminData.smallGroups
+  const smallGroups = getVisibleOrganizationSmallGroups()
     .filter((smallGroup) => smallGroup.big_family_id === bigFamily.id)
     .sort(compareOrganizations);
-  const memberCount = state.adminData.members.filter((member) => member.big_family_id === bigFamily.id).length;
+  const memberCount = getVisibleOrganizationMembers().filter((member) => member.big_family_id === bigFamily.id).length;
 
   return `
     <details class="org-scope-group org-edit-group org-level-big-family">
@@ -9013,7 +9058,7 @@ function renderOrganizationBigFamilyGroup(bigFamily) {
 }
 
 function renderOrganizationSmallGroupItem(smallGroup) {
-  const memberCount = state.adminData.members.filter((member) => member.small_group_id === smallGroup.id).length;
+  const memberCount = getVisibleOrganizationMembers().filter((member) => member.small_group_id === smallGroup.id).length;
   return `
     <details class="org-scope-group org-edit-group org-level-small-group">
       <summary>
