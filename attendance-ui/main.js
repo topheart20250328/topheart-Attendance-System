@@ -3549,39 +3549,11 @@ function compareProfileMembers(left, right) {
     return left.is_active === false ? 1 : -1;
   }
 
-  const organizationOrderMaps = getOrganizationOrderMaps();
-
-  const districtCompare = compareMemberScopeOrder(
-    left.district_id,
-    right.district_id,
-    left.district_name,
-    right.district_name,
-    organizationOrderMaps.districts,
-  );
-  if (districtCompare) {
-    return districtCompare;
-  }
-
-  const bigFamilyCompare = compareMemberScopeOrder(
-    left.big_family_id,
-    right.big_family_id,
-    left.big_family_name,
-    right.big_family_name,
-    organizationOrderMaps.bigFamilies,
-  );
-  if (bigFamilyCompare) {
-    return bigFamilyCompare;
-  }
-
-  const smallGroupCompare = compareMemberScopeOrder(
-    left.small_group_id,
-    right.small_group_id,
-    left.small_group_name,
-    right.small_group_name,
-    organizationOrderMaps.smallGroups,
-  );
-  if (smallGroupCompare) {
-    return smallGroupCompare;
+  const organizationOrder = getProfileOrganizationOrderMap();
+  const leftOrganizationOrder = getProfileMemberOrganizationOrder(left, organizationOrder);
+  const rightOrganizationOrder = getProfileMemberOrganizationOrder(right, organizationOrder);
+  if (leftOrganizationOrder !== rightOrganizationOrder) {
+    return leftOrganizationOrder - rightOrganizationOrder;
   }
 
   const leftRole = ROLE_ORDER[left.role] || 99;
@@ -3591,22 +3563,6 @@ function compareProfileMembers(left, right) {
   }
 
   return String(left.full_name || "").localeCompare(String(right.full_name || ""), "zh-Hant");
-}
-
-function getOrganizationOrderMaps() {
-  return {
-    districts: buildOrganizationOrderMap(state.adminData.districts),
-    bigFamilies: buildOrganizationOrderMap(state.adminData.bigFamilies),
-    smallGroups: buildOrganizationOrderMap(state.adminData.smallGroups),
-  };
-}
-
-function buildOrganizationOrderMap(items = []) {
-  return new Map(
-    items
-      .map((item) => [Number(item.id), Number(item.display_order)])
-      .filter(([id, order]) => Number.isFinite(id) && Number.isFinite(order)),
-  );
 }
 
 function handleProfileFilters() {
@@ -3846,6 +3802,67 @@ function getVisibleOrganizationSmallGroups() {
 
 function getVisibleOrganizationMembers() {
   return getVisibleDistrictScopedMembers(state.adminData.members);
+}
+
+function getProfileOrganizationOrderMap() {
+  const orderMap = new Map();
+  let order = 1;
+  const assign = (type, id) => {
+    const numericId = Number(id || 0);
+    if (!numericId) {
+      return;
+    }
+    const key = `${type}:${numericId}`;
+    if (!orderMap.has(key)) {
+      orderMap.set(key, order);
+      order += 1;
+    }
+  };
+
+  [...state.adminData.districts].sort(compareOrganizations).forEach((district) => {
+    assign("district", district.id);
+    getProfileOrganizationDistrictChildRows(district.id).forEach((child) => {
+      assign(child.orgType, child.id);
+      if (child.orgType === "big_family") {
+        getProfileOrganizationSmallGroups(child.id).forEach((smallGroup) => {
+          assign("small_group", smallGroup.id);
+        });
+      }
+    });
+  });
+
+  return orderMap;
+}
+
+function getProfileOrganizationDistrictChildRows(districtId) {
+  const bigFamilies = state.adminData.bigFamilies
+    .filter((bigFamily) => Number(bigFamily.district_id || 0) === Number(districtId))
+    .map((bigFamily) => ({ ...bigFamily, orgType: "big_family" }));
+  const directSmallGroups = state.adminData.smallGroups
+    .filter((smallGroup) => Number(smallGroup.district_id || 0) === Number(districtId) && !smallGroup.big_family_id)
+    .map((smallGroup) => ({ ...smallGroup, orgType: "small_group" }));
+  return [...bigFamilies, ...directSmallGroups].sort(compareOrganizations);
+}
+
+function getProfileOrganizationSmallGroups(bigFamilyId) {
+  return state.adminData.smallGroups
+    .filter((smallGroup) => Number(smallGroup.big_family_id || 0) === Number(bigFamilyId))
+    .sort(compareOrganizations);
+}
+
+function getProfileMemberOrganizationOrder(member, organizationOrder) {
+  const candidates = [
+    ["small_group", member.small_group_id],
+    ["big_family", member.big_family_id],
+    ["district", member.district_id],
+  ];
+  for (const [type, id] of candidates) {
+    const order = organizationOrder.get(`${type}:${Number(id || 0)}`);
+    if (Number.isFinite(order)) {
+      return order;
+    }
+  }
+  return Number.MAX_SAFE_INTEGER;
 }
 
 function getOverviewUnitDistrictIds(unit) {
@@ -5129,7 +5146,9 @@ function syncOverviewMonthLevelSelect(allowedLevels) {
     .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
     .join("");
   els.overviewMonthLevelSelect.value = state.ui.overviewMonthlyLevel;
-  setHidden(els.overviewMonthLevelSelect.closest(".overview-month-field"), options.length <= 1);
+  const field = els.overviewMonthLevelSelect.closest(".overview-month-field");
+  setHidden(field, options.length <= 1);
+  field?.closest(".overview-month-toolbar")?.classList.toggle("is-level-hidden", options.length <= 1);
 }
 
 function getOverviewUnitKey(unit) {
