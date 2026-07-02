@@ -2715,7 +2715,7 @@ tbody tr:last-child td {
 
 #attendanceView .attendance-filter-row {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(104px, 0.45fr) minmax(104px, 0.45fr);
+  grid-template-columns: minmax(150px, 1fr) minmax(104px, 0.45fr) minmax(104px, 0.45fr) minmax(132px, 0.5fr);
   gap: 8px;
   padding: 6px 0;
 }
@@ -2734,6 +2734,103 @@ tbody tr:last-child td {
   padding: 0.38rem 0.52rem;
   border-radius: 10px;
   font-size: 0.86rem;
+}
+
+.district-scope-filter {
+  position: relative;
+  min-width: 0;
+  align-self: end;
+}
+
+.district-scope-control {
+  position: relative;
+}
+
+.district-scope-control > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0.32rem 0.52rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fbfdff;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 800;
+  list-style: none;
+}
+
+.district-scope-control > summary::-webkit-details-marker {
+  display: none;
+}
+
+.district-scope-control > summary strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.86rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.district-scope-menu {
+  position: absolute;
+  z-index: 20;
+  right: 0;
+  top: calc(100% + 6px);
+  width: min(320px, calc(100vw - 32px));
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.district-scope-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.district-scope-reset {
+  min-height: 28px;
+  padding: 0.22rem 0.48rem;
+  border-radius: 9px;
+  font-size: 0.76rem;
+}
+
+.district-scope-options {
+  display: grid;
+  gap: 5px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.district-scope-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 10px;
+  background: #f7faff;
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.district-scope-option input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex: 0 0 auto;
 }
 
 .compact-tabs {
@@ -7291,7 +7388,7 @@ body.is-authenticated .toast {
   }
 
   #attendanceView .attendance-filter-row {
-    grid-template-columns: 1fr 0.62fr 0.62fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.82fr);
     gap: 5px;
   }
 
@@ -7308,6 +7405,25 @@ body.is-authenticated .toast {
     min-height: 30px;
     padding: 0.28rem 0.36rem;
     font-size: 0.78rem;
+  }
+
+  .district-scope-filter {
+    width: 100%;
+  }
+
+  .district-scope-control > summary {
+    min-height: 30px;
+    padding: 0.24rem 0.36rem;
+  }
+
+  .district-scope-control > summary strong {
+    font-size: 0.78rem;
+  }
+
+  .district-scope-menu {
+    right: auto;
+    left: 0;
+    width: min(300px, calc(100vw - 24px));
   }
 
   #attendanceView .attendance-save-bar {

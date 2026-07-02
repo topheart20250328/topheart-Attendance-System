@@ -233,6 +233,7 @@ const els = {
   attendanceRoleFilter: document.querySelector("#attendanceRoleFilter"),
   attendanceStatusFilter: document.querySelector("#attendanceStatusFilter"),
   attendanceFilterRow: document.querySelector(".attendance-filter-row"),
+  attendanceDistrictScopeFilter: document.querySelector("#attendanceDistrictScopeFilter"),
   weekSummary: document.querySelector("#weekSummary"),
   rosterTableBody: document.querySelector("#rosterTableBody"),
   overviewView: document.querySelector("#overviewView"),
@@ -243,6 +244,8 @@ const els = {
   overviewEventButtons: document.querySelectorAll("[data-overview-event]"),
   overviewUnitTypeSelect: document.querySelector("#overviewUnitTypeSelect"),
   overviewSearchInput: document.querySelector("#overviewSearchInput"),
+  overviewDistrictScopeFilter: document.querySelector("#overviewDistrictScopeFilter"),
+  overviewMonthDistrictScopeFilter: document.querySelector("#overviewMonthDistrictScopeFilter"),
   overviewWeekScroller: document.querySelector("#overviewWeekScroller"),
   overviewScopeSummary: document.querySelector("#overviewScopeSummary"),
   overviewUnitList: document.querySelector("#overviewUnitList"),
@@ -254,6 +257,7 @@ const els = {
   overviewMonthTable: document.querySelector("#overviewMonthTable"),
   profileView: document.querySelector("#profileView"),
   profileSearchInput: document.querySelector("#profileSearchInput"),
+  profileDistrictScopeFilter: document.querySelector("#profileDistrictScopeFilter"),
   profileTableBody: document.querySelector("#profileTableBody"),
   profileEditorBackdrop: document.querySelector("#profileEditorBackdrop"),
   profileEditorCard: document.querySelector("#profileEditorCard"),
@@ -443,6 +447,7 @@ const state = {
     orgTreeScale: 1,
     orgTreePanelCollapsed: false,
     orgTreeCollapsedKeys: new Set(),
+    visibleDistrictIds: new Set(),
     profileSearch: "",
     profileEditingMemberId: null,
     peopleSearch: "",
@@ -562,6 +567,8 @@ function bindEvents() {
   els.attendanceSearchInput?.addEventListener("input", handleAttendanceFilters);
   els.attendanceRoleFilter?.addEventListener("change", handleAttendanceFilters);
   els.attendanceStatusFilter?.addEventListener("change", handleAttendanceFilters);
+  els.attendanceDistrictScopeFilter?.addEventListener("click", handleDistrictScopeFilterClick);
+  els.attendanceDistrictScopeFilter?.addEventListener("change", handleDistrictScopeFilterChange);
   els.overviewEventButtons?.forEach((button) => {
     button.addEventListener("click", () => switchOverviewEvent(button.dataset.overviewEvent));
   });
@@ -572,6 +579,10 @@ function bindEvents() {
     switchOverviewUnitType(event.target.value || ""),
   );
   els.overviewSearchInput?.addEventListener("input", handleOverviewFilters);
+  els.overviewDistrictScopeFilter?.addEventListener("click", handleDistrictScopeFilterClick);
+  els.overviewDistrictScopeFilter?.addEventListener("change", handleDistrictScopeFilterChange);
+  els.overviewMonthDistrictScopeFilter?.addEventListener("click", handleDistrictScopeFilterClick);
+  els.overviewMonthDistrictScopeFilter?.addEventListener("change", handleDistrictScopeFilterChange);
   els.overviewWeekScroller?.addEventListener("click", handleOverviewWeekClick);
   els.overviewWeekScroller?.addEventListener("change", handleOverviewDateChange);
   els.overviewUnitList?.addEventListener("click", handleOverviewHistoryRangeClick);
@@ -582,6 +593,8 @@ function bindEvents() {
   els.overviewMetricModeSelect?.addEventListener("change", handleOverviewMetricModeChange);
 
   els.profileSearchInput?.addEventListener("input", handleProfileFilters);
+  els.profileDistrictScopeFilter?.addEventListener("click", handleDistrictScopeFilterClick);
+  els.profileDistrictScopeFilter?.addEventListener("change", handleDistrictScopeFilterChange);
   els.profileTableBody?.addEventListener("click", handleProfileTableClick);
   els.profileTableBody?.addEventListener("pointerdown", handleProfileCopyPointerDown);
   els.profileTableBody?.addEventListener("pointerup", clearProfileCopyTimer);
@@ -718,6 +731,7 @@ function hydrateLocalState() {
   state.ui.overviewMode = uiPreferences.overviewMode;
   state.ui.overviewMonthlyLevel = uiPreferences.overviewMonthlyLevel;
   state.ui.overviewMetricMode = uiPreferences.overviewMetricMode;
+  state.ui.visibleDistrictIds = new Set(uiPreferences.visibleDistrictIds);
   state.ui.inviteSort = uiPreferences.inviteSort;
   state.ui.orgTreeMode = uiPreferences.orgTreeMode;
   state.ui.orgTreeScale = uiPreferences.orgTreeScale;
@@ -773,6 +787,9 @@ function loadUiPreferences() {
       overviewMetricMode: OVERVIEW_METRIC_MODES.includes(value.overviewMetricMode)
         ? value.overviewMetricMode
         : "count",
+      visibleDistrictIds: Array.isArray(value.visibleDistrictIds)
+        ? value.visibleDistrictIds.map(Number).filter((id) => Number.isInteger(id) && id > 0)
+        : [],
       inviteSort: INVITE_SORT_OPTIONS.includes(value.inviteSort)
         ? value.inviteSort
         : "created_desc",
@@ -791,6 +808,7 @@ function loadUiPreferences() {
       overviewMode: "individual",
       overviewMonthlyLevel: "small_group",
       overviewMetricMode: "count",
+      visibleDistrictIds: [],
       inviteSort: "created_desc",
       orgTreeMode: "compact",
       orgTreeScale: 1,
@@ -807,6 +825,7 @@ function saveUiPreferences() {
       overviewMode: state.ui.overviewMode,
       overviewMonthlyLevel: state.ui.overviewMonthlyLevel,
       overviewMetricMode: state.ui.overviewMetricMode,
+      visibleDistrictIds: Array.from(state.ui.visibleDistrictIds),
       inviteSort: state.ui.inviteSort,
       orgTreeMode: state.ui.orgTreeMode,
       orgTreeScale: state.ui.orgTreeScale,
@@ -1943,7 +1962,7 @@ function applyDashboardData(data, weekStart) {
   els.weekInput.value = state.currentWeek?.week_start_date || weekStart;
   state.attendanceHasExistingRecords = Boolean(data.attendance_has_existing_records);
   state.attendanceAnalytics = normalizeAttendanceAnalytics(data.analytics);
-  state.roster = sortMembers((data.roster || []).map(enrichRosterMember));
+  state.roster = sortAttendanceRosterMembers((data.roster || []).map(enrichRosterMember));
   if (accessChanged) {
     renderLayout();
   }
@@ -2189,7 +2208,9 @@ function getAttendanceScopeModeLabel() {
 }
 
 function renderWeekSummary() {
-  const attendanceRateRoster = state.roster.filter(isAttendanceRateMember);
+  const attendanceRateRoster = state.roster
+    .filter(isMemberInVisibleDistrictScope)
+    .filter(isAttendanceRateMember);
   const visibleCount = attendanceRateRoster.length;
   const pendingCount = attendanceRateRoster.filter(hasPendingAttendance).length;
   const completedCount = Math.max(visibleCount - pendingCount, 0);
@@ -2317,6 +2338,7 @@ function getHighPriorityNoteReminder(member) {
 
 function buildAttendanceReminders() {
   return (state.roster || [])
+    .filter(isMemberInVisibleDistrictScope)
     .flatMap((member) => buildMemberReminders(member, "attendance"))
     .sort(sortReminderItems);
 }
@@ -2718,6 +2740,7 @@ function formatNonZeroParts(parts, suffix = "") {
 }
 
 function renderAttendanceRows() {
+  renderDistrictScopeFilters();
   const rows = getFilteredRosterMembers();
   if (!state.roster.length) {
     els.rosterTableBody.innerHTML =
@@ -2865,6 +2888,10 @@ function getFilteredRosterMembers() {
   const statusFilter = state.ui.attendanceStatus;
 
   return state.roster.filter((member) => {
+    if (!isMemberInVisibleDistrictScope(member)) {
+      return false;
+    }
+
     if (roleFilter && member.role !== roleFilter) {
       return false;
     }
@@ -3394,6 +3421,8 @@ function renderProfileDirectory() {
     return;
   }
 
+  renderDistrictScopeFilters();
+
   if (!canUseProfileDirectory()) {
     setHidden(els.profileView, true);
     closeProfileEditor();
@@ -3417,6 +3446,7 @@ function getFilteredProfileMembers() {
   const query = state.ui.profileSearch.trim().toLowerCase();
   return getProfileDirectoryMembers()
     .filter((member) => canEditProfile(member))
+    .filter(isMemberInVisibleDistrictScope)
     .filter((member) => !query || getProfileSearchText(member).includes(query))
     .sort(compareProfileMembers);
 }
@@ -3576,6 +3606,216 @@ function compareProfileMembers(left, right) {
 function handleProfileFilters() {
   state.ui.profileSearch = els.profileSearchInput?.value || "";
   renderProfileDirectory();
+}
+
+function handleDistrictScopeFilterClick(event) {
+  const resetButton = event.target.closest("[data-district-scope-reset]");
+  if (!resetButton) {
+    return;
+  }
+  event.preventDefault();
+  state.ui.visibleDistrictIds = new Set();
+  refreshDistrictScopeConsumers();
+}
+
+function handleDistrictScopeFilterChange(event) {
+  const input = event.target.closest("[data-district-scope-option]");
+  if (!input) {
+    return;
+  }
+  const districtId = Number(input.value || 0);
+  if (!districtId) {
+    return;
+  }
+  const selected = new Set(state.ui.visibleDistrictIds);
+  if (input.checked) {
+    selected.add(districtId);
+  } else {
+    selected.delete(districtId);
+  }
+  state.ui.visibleDistrictIds = selected;
+  refreshDistrictScopeConsumers();
+}
+
+function refreshDistrictScopeConsumers() {
+  saveUiPreferences();
+  renderDistrictScopeFilters();
+  renderWeekSummary();
+  renderAttendanceRows();
+  renderAttendanceReminderEntry();
+  renderAttendanceOverview();
+  renderProfileDirectory();
+}
+
+function renderDistrictScopeFilters() {
+  const options = getDistrictScopeOptions();
+  getDistrictScopeContainers().forEach((container) => renderDistrictScopeFilter(container, options));
+}
+
+function getDistrictScopeContainers() {
+  return [
+    els.attendanceDistrictScopeFilter,
+    els.overviewDistrictScopeFilter,
+    els.overviewMonthDistrictScopeFilter,
+    els.profileDistrictScopeFilter,
+  ].filter(Boolean);
+}
+
+function renderDistrictScopeFilter(container, options) {
+  if (!container) {
+    return;
+  }
+  if (!options.length) {
+    container.innerHTML = "";
+    return;
+  }
+
+  const selected = state.ui.visibleDistrictIds;
+  const selectedCount = options.filter((option) => selected.has(option.id)).length;
+  const summary = selectedCount ? `區 ${selectedCount}` : "全部區";
+  container.innerHTML = `
+    <details class="district-scope-control">
+      <summary>
+        <span>顯示範圍</span>
+        <strong>${escapeHtml(summary)}</strong>
+      </summary>
+      <div class="district-scope-menu">
+        <div class="district-scope-menu-head">
+          <span>${escapeHtml(getDistrictScopeSummaryText("目前"))}</span>
+          <button type="button" class="secondary district-scope-reset" data-district-scope-reset ${selectedCount ? "" : "disabled"}>全部區</button>
+        </div>
+        <div class="district-scope-options">
+          ${options.map((option) => `
+            <label class="district-scope-option">
+              <input type="checkbox" value="${escapeHtml(option.id)}" data-district-scope-option ${selected.has(option.id) ? "checked" : ""} />
+              <span>${escapeHtml(option.name)}</span>
+            </label>
+          `).join("")}
+        </div>
+      </div>
+    </details>
+  `;
+}
+
+function getDistrictScopeOptions() {
+  const districts = new Map();
+  const addDistrict = (id, name, displayOrder = null) => {
+    const districtId = Number(id || 0);
+    const districtName = String(name || "").trim();
+    if (!districtId || !districtName) {
+      return;
+    }
+    const existing = districts.get(districtId);
+    districts.set(districtId, {
+      id: districtId,
+      name: existing?.name || districtName,
+      displayOrder: Number.isFinite(Number(existing?.displayOrder)) ? existing.displayOrder : Number(displayOrder),
+    });
+  };
+
+  (state.adminData?.districts || []).forEach((district) => addDistrict(district.id, district.name, district.display_order));
+  [state.currentMember, ...(state.roster || []), ...(state.adminData?.members || [])].forEach((member) => {
+    addDistrict(member?.district_id, member?.district_name);
+  });
+  (state.overviewData?.units || []).forEach((unit) => {
+    if ((unit.level || unit.type) === "district") {
+      addDistrict(unit.id, unit.name);
+    }
+    addDistrict(unit.district_id, unit.district_name);
+  });
+  (state.overviewMonthData?.units || []).forEach((unit) => {
+    if (unit.level === "district") {
+      addDistrict(unit.id, unit.name);
+    }
+    addDistrict(unit.districtId, unit.districtName);
+  });
+
+  return Array.from(districts.values()).sort((left, right) => {
+    const leftOrder = Number(left.displayOrder);
+    const rightOrder = Number(right.displayOrder);
+    const hasLeftOrder = Number.isFinite(leftOrder);
+    const hasRightOrder = Number.isFinite(rightOrder);
+    if (hasLeftOrder || hasRightOrder) {
+      if (hasLeftOrder !== hasRightOrder) {
+        return hasLeftOrder ? -1 : 1;
+      }
+      if (leftOrder !== rightOrder) {
+        return leftOrder - rightOrder;
+      }
+    }
+    return left.name.localeCompare(right.name, "zh-Hant");
+  });
+}
+
+function isDistrictScopeActive() {
+  return state.ui.visibleDistrictIds.size > 0;
+}
+
+function getDistrictScopeSummaryText(prefix = "顯示範圍") {
+  if (!isDistrictScopeActive()) {
+    return `${prefix}：全部區`;
+  }
+  const options = getDistrictScopeOptions();
+  const names = options
+    .filter((option) => state.ui.visibleDistrictIds.has(option.id))
+    .map((option) => option.name);
+  return `${prefix}：${names.length ? names.join("、") : `${state.ui.visibleDistrictIds.size} 個區`}`;
+}
+
+function getMemberDistrictIds(member) {
+  const ids = new Set();
+  if (member?.district_id) {
+    ids.add(Number(member.district_id));
+  }
+  (member?.district_pastor_district_ids || []).forEach((id) => {
+    const districtId = Number(id || 0);
+    if (districtId) {
+      ids.add(districtId);
+    }
+  });
+  return Array.from(ids);
+}
+
+function isMemberInVisibleDistrictScope(member) {
+  if (!isDistrictScopeActive()) {
+    return true;
+  }
+  return getMemberDistrictIds(member).some((districtId) => state.ui.visibleDistrictIds.has(districtId));
+}
+
+function getOverviewUnitDistrictIds(unit) {
+  const ids = new Set();
+  const unitLevel = unit?.level || unit?.type;
+  const directDistrictId = Number(unit?.districtId || unit?.district_id || 0);
+  if (directDistrictId) {
+    ids.add(directDistrictId);
+  }
+  if (unitLevel === "district" && Number(unit?.id || 0)) {
+    ids.add(Number(unit.id));
+  }
+  for (const eventType of OVERVIEW_EVENT_TYPES) {
+    const detail = unit?.detail?.[eventType] || {};
+    for (const status of ["present", "absent", "unknown"]) {
+      for (const member of detail[status] || []) {
+        getMemberDistrictIds(member).forEach((districtId) => ids.add(districtId));
+      }
+    }
+  }
+  return Array.from(ids);
+}
+
+function isOverviewUnitInVisibleDistrictScope(unit) {
+  if (!isDistrictScopeActive()) {
+    return true;
+  }
+  return getOverviewUnitDistrictIds(unit).some((districtId) => state.ui.visibleDistrictIds.has(districtId));
+}
+
+function getFilteredMonthOverviewUnits(units) {
+  if (!isDistrictScopeActive()) {
+    return units;
+  }
+  return units.filter((unit) => getOverviewUnitDistrictIds(unit).some((districtId) => state.ui.visibleDistrictIds.has(districtId)));
 }
 
 function handleProfileTableClick(event) {
@@ -3872,6 +4112,8 @@ function normalizeMonthOverviewData(data) {
       id: unit.id,
       level: unit.level || unit.type,
       name: unit.name || "未命名",
+      districtId: Number(unit.district_id || ((unit.level || unit.type) === "district" ? unit.id : 0)) || null,
+      districtName: unit.district_name || ((unit.level || unit.type) === "district" ? unit.name : ""),
       parentName: unit.parent_name || "",
       leaderName: unit.leader_name || "",
       leaderGender: unit.leader_gender || "",
@@ -4214,6 +4456,8 @@ function renderAttendanceOverview() {
     return;
   }
 
+  renderDistrictScopeFilters();
+
   els.overviewModeButtons?.forEach((button) => {
     button.classList.toggle("is-active", button.dataset.overviewMode === state.ui.overviewMode);
   });
@@ -4292,7 +4536,8 @@ function renderMonthOverview() {
   }
 
   const data = state.overviewMonthData;
-  const summary = `目前期間 ${data.periodLabel}`;
+  const filteredUnits = getFilteredMonthOverviewUnits(data.units || []);
+  const summary = getDistrictScopeSummaryText(`目前期間 ${data.periodLabel}`);
 
   if (els.overviewScopeSummary) {
     els.overviewScopeSummary.textContent = summary;
@@ -4301,7 +4546,7 @@ function renderMonthOverview() {
     els.overviewMonthSummary.textContent = "";
   }
 
-  renderMonthOverviewTable(data);
+  renderMonthOverviewTable({ ...data, units: filteredUnits });
 }
 
 function renderMonthOverviewTable(data) {
@@ -4647,6 +4892,9 @@ function getFilteredOverviewUnits(allUnits) {
   const eventType = state.ui.overviewEvent;
   const searchTerm = state.ui.overviewSearch.trim().toLowerCase();
   const filteredUnits = allUnits.filter((unit) => {
+    if (!isOverviewUnitInVisibleDistrictScope(unit)) {
+      return false;
+    }
     if (state.ui.overviewUnitType && unit.type !== state.ui.overviewUnitType) {
       return false;
     }
@@ -10428,6 +10676,87 @@ function sortMembers(members) {
 
     return left.full_name.localeCompare(right.full_name, "zh-Hant");
   });
+}
+
+function sortAttendanceRosterMembers(members) {
+  if (!shouldGroupAttendanceRows()) {
+    return sortMembers(members);
+  }
+
+  const districtOrder = new Map(state.adminData.districts.map((item) => [item.id, Number(item.display_order)]));
+  const bigFamilyOrder = new Map(state.adminData.bigFamilies.map((item) => [item.id, Number(item.display_order)]));
+  const smallGroupOrder = new Map(state.adminData.smallGroups.map((item) => [item.id, Number(item.display_order)]));
+  return [...members].sort((left, right) => {
+    if (left.is_active !== right.is_active) {
+      return left.is_active === false ? 1 : -1;
+    }
+
+    const groupCompare = compareAttendanceGroupOrder(left, right, districtOrder, bigFamilyOrder, smallGroupOrder);
+    if (groupCompare) {
+      return groupCompare;
+    }
+
+    const leftRole = ROLE_ORDER[left.role] || 99;
+    const rightRole = ROLE_ORDER[right.role] || 99;
+    if (leftRole !== rightRole) {
+      return leftRole - rightRole;
+    }
+
+    const leftProgress = EQUIPMENT_PROGRESS_ORDER[normalizeEquipmentProgress(left.equipment_progress)] || 99;
+    const rightProgress = EQUIPMENT_PROGRESS_ORDER[normalizeEquipmentProgress(right.equipment_progress)] || 99;
+    if (leftProgress !== rightProgress) {
+      return leftProgress - rightProgress;
+    }
+
+    const districtCompare = compareMemberScopeOrder(
+      left.district_id,
+      right.district_id,
+      left.district_name,
+      right.district_name,
+      districtOrder,
+    );
+    if (districtCompare) {
+      return districtCompare;
+    }
+
+    const bigFamilyCompare = compareMemberScopeOrder(
+      left.big_family_id,
+      right.big_family_id,
+      left.big_family_name,
+      right.big_family_name,
+      bigFamilyOrder,
+    );
+    if (bigFamilyCompare) {
+      return bigFamilyCompare;
+    }
+
+    const smallGroupCompare = compareMemberScopeOrder(
+      left.small_group_id,
+      right.small_group_id,
+      left.small_group_name,
+      right.small_group_name,
+      smallGroupOrder,
+    );
+    if (smallGroupCompare) {
+      return smallGroupCompare;
+    }
+
+    return left.full_name.localeCompare(right.full_name, "zh-Hant");
+  });
+}
+
+function compareAttendanceGroupOrder(left, right, districtOrder, bigFamilyOrder, smallGroupOrder) {
+  const viewer = getPermissionCurrentMember();
+  if (viewer?.is_admin || PREACHER_ROLES.includes(viewer?.role) || DISTRICT_PASTOR_ROLES.includes(viewer?.role)) {
+    return compareMemberScopeOrder(left.district_id, right.district_id, getAttendanceGroupLabel(left), getAttendanceGroupLabel(right), districtOrder);
+  }
+  if (DISTRICT_LEADER_ROLES.includes(viewer?.role)) {
+    return compareMemberScopeOrder(left.big_family_id, right.big_family_id, getAttendanceGroupLabel(left), getAttendanceGroupLabel(right), bigFamilyOrder);
+  }
+  if (BIG_FAMILY_LEADER_ROLES.includes(viewer?.role)) {
+    return compareMemberScopeOrder(left.small_group_id, right.small_group_id, getAttendanceGroupLabel(left), getAttendanceGroupLabel(right), smallGroupOrder);
+  }
+  return 0;
 }
 
 function compareMemberScopeOrder(leftId, rightId, leftName, rightName, orderMap) {

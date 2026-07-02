@@ -637,7 +637,7 @@ async function createMemberFromBody(
     return { status: 403, body: { error: "No permission to create in this scope." } };
   }
 
-  const attendanceStartedWeek = effectiveViewer.is_admin
+  const attendanceStartedWeek = viewer.is_admin
     ? normalizeAttendanceStartedWeek(body?.attendance_started_week, getMondayIso(new Date()))
     : getMondayIso(new Date());
 
@@ -2361,6 +2361,8 @@ function buildMonthOverviewUnit(
     level,
     id: row.id,
     name: row.name,
+    district_id: getMonthOverviewDistrictId(level, row),
+    district_name: getMonthOverviewDistrictName(level, row, organizationRows),
     parent_name: getMonthOverviewParentName(level, row, organizationRows),
     leader_name: leader.name,
     leader_gender: leader.gender,
@@ -2370,6 +2372,24 @@ function buildMonthOverviewUnit(
     buckets: bucketStats,
     weekly: bucketStats,
   };
+}
+
+function getMonthOverviewDistrictId(level: string, row: any) {
+  if (level === "district") {
+    return row.id;
+  }
+  return row.district_id || null;
+}
+
+function getMonthOverviewDistrictName(
+  level: string,
+  row: any,
+  organizationRows: Awaited<ReturnType<typeof loadOverviewOrganizationRows>>,
+) {
+  if (level === "district") {
+    return row.name || null;
+  }
+  return organizationRows.districtsById.get(row.district_id)?.name || null;
 }
 
 function getMonthOverviewSourceRows(
@@ -2541,6 +2561,8 @@ function unit(
     level: type,
     id,
     name,
+    district_id: type === "district" ? id : members.find((member) => member.district_id)?.district_id || null,
+    district_name: type === "district" ? name : members.find((member) => member.district_name)?.district_name || null,
     parent_name: parentName,
     member_count: members.length,
     stats: {
