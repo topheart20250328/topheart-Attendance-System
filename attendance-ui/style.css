@@ -455,16 +455,24 @@ body:not(.is-authenticated) #attendanceSaveBar {
 
 .compact-buttons > button,
 .compact-buttons > .button-link,
+.compact-buttons > .district-scope-filter,
 .topbar-checkbox,
 .admin-mode-toggle {
   min-height: var(--compact-button-height);
-  padding: 0.5rem 0.85rem;
   font-size: var(--compact-button-font-size);
   line-height: 1.1;
 }
 
 .compact-buttons > button,
-.compact-buttons > .button-link {
+.compact-buttons > .button-link,
+.topbar-checkbox,
+.admin-mode-toggle {
+  padding: 0.5rem 0.85rem;
+}
+
+.compact-buttons > button,
+.compact-buttons > .button-link,
+.compact-buttons > .district-scope-filter {
   flex: 0 0 auto;
 }
 
@@ -2742,6 +2750,10 @@ tbody tr:last-child td {
   align-self: end;
 }
 
+.compact-buttons > .district-scope-filter {
+  align-self: center;
+}
+
 .district-scope-control {
   position: relative;
 }
@@ -2774,6 +2786,12 @@ tbody tr:last-child td {
   font-size: 0.86rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.compact-buttons .district-scope-control > summary {
+  min-height: var(--compact-button-height);
+  padding: 0.42rem 0.7rem;
+  border-radius: 999px;
 }
 
 .district-scope-menu {

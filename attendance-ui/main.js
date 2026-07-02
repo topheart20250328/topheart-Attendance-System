@@ -181,6 +181,7 @@ const els = {
   userScopeText: document.querySelector("#userScopeText"),
   toggleSettingsBtn: document.querySelector("#toggleSettingsBtn"),
   manageAllWrap: document.querySelector("#manageAllWrap"),
+  globalDistrictScopeFilter: document.querySelector("#globalDistrictScopeFilter"),
   manageAllInput: document.querySelector("#manageAllInput"),
   uiSettingsBackdrop: document.querySelector("#uiSettingsBackdrop"),
   uiSettingsCard: document.querySelector("#uiSettingsCard"),
@@ -233,7 +234,6 @@ const els = {
   attendanceRoleFilter: document.querySelector("#attendanceRoleFilter"),
   attendanceStatusFilter: document.querySelector("#attendanceStatusFilter"),
   attendanceFilterRow: document.querySelector(".attendance-filter-row"),
-  attendanceDistrictScopeFilter: document.querySelector("#attendanceDistrictScopeFilter"),
   weekSummary: document.querySelector("#weekSummary"),
   rosterTableBody: document.querySelector("#rosterTableBody"),
   overviewView: document.querySelector("#overviewView"),
@@ -244,8 +244,6 @@ const els = {
   overviewEventButtons: document.querySelectorAll("[data-overview-event]"),
   overviewUnitTypeSelect: document.querySelector("#overviewUnitTypeSelect"),
   overviewSearchInput: document.querySelector("#overviewSearchInput"),
-  overviewDistrictScopeFilter: document.querySelector("#overviewDistrictScopeFilter"),
-  overviewMonthDistrictScopeFilter: document.querySelector("#overviewMonthDistrictScopeFilter"),
   overviewWeekScroller: document.querySelector("#overviewWeekScroller"),
   overviewScopeSummary: document.querySelector("#overviewScopeSummary"),
   overviewUnitList: document.querySelector("#overviewUnitList"),
@@ -257,7 +255,6 @@ const els = {
   overviewMonthTable: document.querySelector("#overviewMonthTable"),
   profileView: document.querySelector("#profileView"),
   profileSearchInput: document.querySelector("#profileSearchInput"),
-  profileDistrictScopeFilter: document.querySelector("#profileDistrictScopeFilter"),
   profileTableBody: document.querySelector("#profileTableBody"),
   profileEditorBackdrop: document.querySelector("#profileEditorBackdrop"),
   profileEditorCard: document.querySelector("#profileEditorCard"),
@@ -567,8 +564,8 @@ function bindEvents() {
   els.attendanceSearchInput?.addEventListener("input", handleAttendanceFilters);
   els.attendanceRoleFilter?.addEventListener("change", handleAttendanceFilters);
   els.attendanceStatusFilter?.addEventListener("change", handleAttendanceFilters);
-  els.attendanceDistrictScopeFilter?.addEventListener("click", handleDistrictScopeFilterClick);
-  els.attendanceDistrictScopeFilter?.addEventListener("change", handleDistrictScopeFilterChange);
+  els.globalDistrictScopeFilter?.addEventListener("click", handleDistrictScopeFilterClick);
+  els.globalDistrictScopeFilter?.addEventListener("change", handleDistrictScopeFilterChange);
   els.overviewEventButtons?.forEach((button) => {
     button.addEventListener("click", () => switchOverviewEvent(button.dataset.overviewEvent));
   });
@@ -579,10 +576,6 @@ function bindEvents() {
     switchOverviewUnitType(event.target.value || ""),
   );
   els.overviewSearchInput?.addEventListener("input", handleOverviewFilters);
-  els.overviewDistrictScopeFilter?.addEventListener("click", handleDistrictScopeFilterClick);
-  els.overviewDistrictScopeFilter?.addEventListener("change", handleDistrictScopeFilterChange);
-  els.overviewMonthDistrictScopeFilter?.addEventListener("click", handleDistrictScopeFilterClick);
-  els.overviewMonthDistrictScopeFilter?.addEventListener("change", handleDistrictScopeFilterChange);
   els.overviewWeekScroller?.addEventListener("click", handleOverviewWeekClick);
   els.overviewWeekScroller?.addEventListener("change", handleOverviewDateChange);
   els.overviewUnitList?.addEventListener("click", handleOverviewHistoryRangeClick);
@@ -593,8 +586,6 @@ function bindEvents() {
   els.overviewMetricModeSelect?.addEventListener("change", handleOverviewMetricModeChange);
 
   els.profileSearchInput?.addEventListener("input", handleProfileFilters);
-  els.profileDistrictScopeFilter?.addEventListener("click", handleDistrictScopeFilterClick);
-  els.profileDistrictScopeFilter?.addEventListener("change", handleDistrictScopeFilterChange);
   els.profileTableBody?.addEventListener("click", handleProfileTableClick);
   els.profileTableBody?.addEventListener("pointerdown", handleProfileCopyPointerDown);
   els.profileTableBody?.addEventListener("pointerup", clearProfileCopyTimer);
@@ -1276,6 +1267,7 @@ function renderLayout() {
 
   syncManageAllToggle();
   renderTopBar();
+  renderDistrictScopeFilters();
   applyLayoutSize();
   renderTabs();
   renderActiveView();
@@ -3649,16 +3641,23 @@ function refreshDistrictScopeConsumers() {
 
 function renderDistrictScopeFilters() {
   const options = getDistrictScopeOptions();
-  getDistrictScopeContainers().forEach((container) => renderDistrictScopeFilter(container, options));
+  const canUseFilter = canUseDistrictScopeFilter() && options.length > 0;
+  getDistrictScopeContainers().forEach((container) => {
+    setHidden(container, !canUseFilter);
+    if (canUseFilter) {
+      renderDistrictScopeFilter(container, options);
+    } else if (container) {
+      container.innerHTML = "";
+    }
+  });
 }
 
 function getDistrictScopeContainers() {
-  return [
-    els.attendanceDistrictScopeFilter,
-    els.overviewDistrictScopeFilter,
-    els.overviewMonthDistrictScopeFilter,
-    els.profileDistrictScopeFilter,
-  ].filter(Boolean);
+  return [els.globalDistrictScopeFilter].filter(Boolean);
+}
+
+function canUseDistrictScopeFilter() {
+  return Boolean(state.currentMember && canUseOverview());
 }
 
 function renderDistrictScopeFilter(container, options) {
@@ -4011,8 +4010,7 @@ async function loadAttendanceOverview(weekStart = "") {
     state.overviewData = normalizeOverviewData(data);
     state.ui.overviewWeekStart = state.overviewData.selectedWeekStart;
   } catch (error) {
-    console.error(error);
-    showToast(error.message || "載入出席導覽失敗。");
+    handleOverviewLoadError(error, "載入出席導覽失敗。");
   } finally {
     state.ui.overviewLoading = false;
     renderAttendanceOverview();
@@ -4067,12 +4065,27 @@ async function loadAttendanceMonthOverview(month = "") {
     state.ui.overviewPeriodType = state.overviewMonthData.periodType;
     state.ui.overviewPeriodValue = state.overviewMonthData.periodValue;
   } catch (error) {
-    console.error(error);
-    showToast(error.message || "載入整體總覽失敗。");
+    handleOverviewLoadError(error, "載入整體總覽失敗。");
   } finally {
     state.ui.overviewMonthLoading = false;
     renderAttendanceOverview();
   }
+}
+
+function handleOverviewLoadError(error, fallbackMessage) {
+  if (isTransientFetchError(error)) {
+    console.warn(error);
+    return;
+  }
+
+  console.error(error);
+  showToast(error.message || fallbackMessage);
+}
+
+function isTransientFetchError(error) {
+  const name = String(error?.name || "");
+  const message = String(error?.message || "").toLowerCase();
+  return name === "AbortError" || message.includes("failed to fetch") || message.includes("networkerror");
 }
 
 function normalizeOverviewData(data) {
